@@ -47,11 +47,13 @@ def _read_page(name: str) -> str:
         return ""
 
 
-def load_wiki_base(task_text: str = "") -> str:  # task_text reserved for Phase 3 entity extraction
+def load_wiki_base(task_text: str = "") -> str:
     """Load errors.md + entities.md into a single string for prephase injection.
 
     Fail-open: returns '' if wiki not yet accumulated.
+    task_text is reserved for Phase 3 entity extraction (load relevant entity pages).
     """
+    del task_text  # Phase 3: will extract email/names to load matching entity pages
     parts = []
     errors = _read_page("errors")
     if errors:
