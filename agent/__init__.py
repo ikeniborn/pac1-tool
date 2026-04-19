@@ -9,8 +9,10 @@ from .loop import run_loop
 from .prephase import run_prephase
 from .prompt import build_system_prompt
 from .prompt_builder import build_dynamic_addendum
+from .wiki import load_wiki_patterns, format_fragment, write_fragment
 
 _PROMPT_BUILDER_ENABLED = os.getenv("PROMPT_BUILDER_ENABLED", "1") == "1"
+_WIKI_ENABLED = os.getenv("WIKI_ENABLED", "1") == "1"
 try:
     _PROMPT_BUILDER_MAX_TOKENS = int(os.getenv("PROMPT_BUILDER_MAX_TOKENS", "500"))
 except ValueError:
@@ -22,6 +24,26 @@ def _inject_addendum(base_prompt: str, addendum: str) -> str:
     if not addendum:
         return base_prompt
     return base_prompt + "\n\n## TASK-SPECIFIC GUIDANCE\n" + addendum
+
+
+def _write_wiki_fragment(vm: "PcmRuntimeClientSync", task_text: str, task_type: str, stats: dict) -> None:
+    """Write a wiki fragment after task completion. Fail-open."""
+    try:
+        task_id = getattr(vm, "_task_id", task_text[:20].replace(" ", "_"))
+        content, category = format_fragment(
+            outcome=stats.get("outcome", ""),
+            task_type=task_type,
+            task_id=task_id,
+            task_text=task_text,
+            step_facts=stats.get("step_facts", []),
+            done_ops=stats.get("done_ops", []),
+            stall_hints=stats.get("stall_hints", []),
+            eval_last_call=stats.get("eval_last_call"),
+        )
+        if content and category:
+            write_fragment(task_id, category, content)
+    except Exception as e:
+        print(f"[wiki] fragment write failed: {e}")
 
 
 def run_agent(router: ModelRouter, harness_url: str, task_text: str) -> dict:
@@ -59,7 +81,20 @@ def run_agent(router: ModelRouter, harness_url: str, task_text: str) -> dict:
         stats["builder_addendum"] = ""
         stats["builder_vault_tree"] = pre.vault_tree_text
         stats["builder_agents_md"] = pre.agents_md_content
+        if _WIKI_ENABLED:
+            _write_wiki_fragment(vm, task_text, task_type, stats)
         return stats
+
+    # Wiki-Memory stage B: load task-type patterns after classification (FIX-103)
+    if _WIKI_ENABLED:
+        _wiki_patterns = load_wiki_patterns(task_type)
+        if _wiki_patterns:
+            # Append to the last user message in preserve_prefix (prephase context)
+            for i in range(len(pre.preserve_prefix) - 1, -1, -1):
+                if pre.preserve_prefix[i].get("role") == "user":
+                    pre.preserve_prefix[i]["content"] += f"\n\n{_wiki_patterns}"
+                    pre.log[i]["content"] = pre.preserve_prefix[i]["content"]
+                    break
 
     base_prompt = build_system_prompt(task_type)
 
@@ -97,4 +132,6 @@ def run_agent(router: ModelRouter, harness_url: str, task_text: str) -> dict:
     stats["builder_addendum"] = addendum
     stats["builder_vault_tree"] = pre.vault_tree_text
     stats["builder_agents_md"] = pre.agents_md_content
+    if _WIKI_ENABLED:
+        _write_wiki_fragment(vm, task_text, task_type, stats)
     return stats
