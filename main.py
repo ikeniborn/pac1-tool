@@ -113,6 +113,7 @@ from agent import run_agent
 from agent.classifier import ModelRouter
 from agent.dspy_examples import record_example as _record_dspy_example
 from agent.dspy_examples import record_eval_example as _record_eval_example
+from agent.wiki import run_wiki_lint as _run_wiki_lint
 
 _DSPY_COLLECT = os.getenv("DSPY_COLLECT", "1") == "1"
 
@@ -450,6 +451,12 @@ def main() -> None:
         print(f"Run started: {run.run_id} ({len(run.trial_ids)} trials)")
 
         try:
+            # Wiki-Memory lint: compile fragments into pages before parallel tasks start (FIX-103)
+            if os.getenv("WIKI_LINT_ENABLED", "1") == "1":
+                try:
+                    _run_wiki_lint(model=_model_default, cfg=MODEL_CONFIGS.get(_model_default, {}))
+                except Exception as _wiki_exc:
+                    print(f"[wiki-lint] skipped: {_wiki_exc}")
             _print_table_header()
             with ThreadPoolExecutor(max_workers=PARALLEL_TASKS) as pool:
                 futures = {
