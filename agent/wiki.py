@@ -47,7 +47,7 @@ def _read_page(name: str) -> str:
         return ""
 
 
-def load_wiki_base(task_text: str) -> str:
+def load_wiki_base(task_text: str = "") -> str:  # task_text reserved for Phase 3 entity extraction
     """Load errors.md + entities.md into a single string for prephase injection.
 
     Fail-open: returns '' if wiki not yet accumulated.
