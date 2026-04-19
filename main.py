@@ -477,6 +477,12 @@ def main() -> None:
         finally:
             client.submit_run(SubmitRunRequest(run_id=run.run_id, force=True))
             print(f"Run submitted: {run.run_id}")
+            # Wiki-Memory lint after: compile fragments written in this run (FIX-105)
+            if os.getenv("WIKI_LINT_ENABLED", "1") == "1":
+                try:
+                    _run_wiki_lint(model=_model_default, cfg=MODEL_CONFIGS.get(_model_default, {}))
+                except Exception as _wiki_exc:
+                    print(f"[wiki-lint-after] skipped: {_wiki_exc}")
 
     except ConnectError as exc:
         print(f"{exc.code}: {exc.message}")

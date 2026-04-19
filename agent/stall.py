@@ -63,11 +63,10 @@ def _check_stall(
             _explored += f" Listed: {_listed}."
         if _read_f:
             _explored += f" Read: {_read_f}."
-        # FIX-276: escalation after 12+ steps — force code_eval or report
         if steps_since_write >= 12:
             return (
                 f"[STALL ESCALATION] You have been exploring for {steps_since_write} steps without action.{_explored} "
-                "Either: (1) Use code_eval to analyze data and determine the answer/fix, or "
+                "Either: (1) Take a concrete write/delete action now, or "
                 "(2) Report OUTCOME_NONE_CLARIFICATION if you cannot determine what to do. "
                 "Do NOT continue reading the same files."
             )

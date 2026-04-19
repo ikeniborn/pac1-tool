@@ -27,10 +27,10 @@ def _inject_addendum(base_prompt: str, addendum: str) -> str:
 
 
 def _write_wiki_fragment(vm: "PcmRuntimeClientSync", task_text: str, task_type: str, stats: dict) -> None:
-    """Write a wiki fragment after task completion. Fail-open."""
+    """Write wiki fragments after task completion. Fail-open."""
     try:
         task_id = getattr(vm, "_task_id", task_text[:20].replace(" ", "_"))
-        content, category = format_fragment(
+        fragments = format_fragment(
             outcome=stats.get("outcome", ""),
             task_type=task_type,
             task_id=task_id,
@@ -40,8 +40,9 @@ def _write_wiki_fragment(vm: "PcmRuntimeClientSync", task_text: str, task_type: 
             stall_hints=stats.get("stall_hints", []),
             eval_last_call=stats.get("eval_last_call"),
         )
-        if content and category:
-            write_fragment(task_id, category, content)
+        for content, category in fragments:
+            if content and category:
+                write_fragment(task_id, category, content)
     except Exception as e:
         print(f"[wiki] fragment write failed: {e}")
 

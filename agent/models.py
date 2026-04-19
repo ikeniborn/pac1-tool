@@ -125,12 +125,6 @@ class EmailOutbox(BaseModel):
         return v
 
 
-class Req_CodeEval(BaseModel):
-    tool: Literal["code_eval"]
-    task: Annotated[str, MinLen(1), MaxLen(2000)]  # Python 3 code to execute in sandbox
-    paths: List[str] = Field(default_factory=list)  # FIX-166: vault paths to auto-read; content injected as context_vars by dispatch
-    context_vars: dict = Field(default_factory=dict)
-
 
 class NextStep(BaseModel):
     current_state: str
@@ -148,7 +142,6 @@ class NextStep(BaseModel):
     # `report_completion` ends the sample loop locally and `EndTrial` still grades
     # only the runtime events that the harness persisted.
     function: Union[
-        Req_CodeEval,
         ReportTaskCompletion,
         Req_Context,
         Req_Tree,

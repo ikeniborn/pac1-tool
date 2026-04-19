@@ -5,12 +5,12 @@ import pytest
 
 def _extract():
     """Lazy import to let conftest stub heavy deps first."""
-    from agent.loop import _extract_json_from_text
+    from agent.json_extract import _extract_json_from_text
     return _extract_json_from_text
 
 
 def _key():
-    from agent.loop import _richness_key
+    from agent.json_extract import _richness_key
     return _richness_key
 
 

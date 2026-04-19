@@ -7,8 +7,8 @@ sync:
 	uv sync
 
 run:
-	uv run python main.py
+	TASK_TIMEOUT_S=600 uv run python main.py
 
 task:
 	@if [ -z "$(TASKS)" ]; then echo "usage: make task TASKS='t01 t03'"; exit 1; fi
-	uv run python main.py $(TASKS)
+	TASK_TIMEOUT_S=600 uv run python main.py $(TASKS)

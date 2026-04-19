@@ -197,10 +197,10 @@ def run_prephase(
                     # [FIX-244] Empty content = file too large for preload read.
                     # Do NOT fall through to _read_dir — that would try to list the file as a
                     # directory and produce a confusing "path must reference a folder" error.
-                    # Instead, annotate so the agent knows to use code_eval / read directly.
+                    # Instead, annotate so the agent knows to read directly.
                     docs_content_parts.append(
                         f"--- {child_path} ---\n"
-                        f"[FILE TOO LARGE FOR PRELOAD — use code_eval to count/query or read directly]"
+                        f"[FILE TOO LARGE FOR PRELOAD — use read or search to access this file directly]"
                     )
                     print(f"{CLI_YELLOW}[prephase] {child_path}: empty content (too large), annotated{CLI_CLR}")
                     continue
@@ -208,7 +208,7 @@ def run_prephase(
                     pass
                 # [FIX-244] Exception on read (e.g. timeout for large files) —
                 # if entry has a file extension it's a file, not a directory.
-                # Annotate so agent uses code_eval; do NOT recurse (_read_dir would
+                # Annotate as unreadable; do NOT recurse (_read_dir would
                 # call vm.list on a file path and log "path must reference a folder").
                 if "." in entry.name:
                     # FIX-285: retry once on read timeout before annotating as unreadable
@@ -234,7 +234,7 @@ def run_prephase(
                         pass
                     docs_content_parts.append(
                         f"--- {child_path} ---\n"
-                        f"[FILE UNREADABLE (read error/timeout) — use code_eval to count/query or read directly]"
+                        f"[FILE UNREADABLE (read error/timeout) — use search to find content]"
                     )
                     print(f"{CLI_YELLOW}[prephase] {child_path}: read error (timeout?), annotated{CLI_CLR}")
                     continue
@@ -268,14 +268,18 @@ def run_prephase(
     log.append({"role": "user", "content": "\n".join(prephase_parts)})
 
     # FIX-286: inject vault_date inferred from date-prefixed filenames in the vault tree.
-    # This gives the model a reliable fallback when code_eval datetime fails and
-    # TASK CONTEXT provides no current_date.
-    if tree_txt:
-        _vault_dates = re.findall(r'\b(\d{4}-\d{2}-\d{2})', tree_txt)
-        if _vault_dates:
-            _vault_date = max(_vault_dates)
-            log.append({"role": "user", "content": f"VAULT_DATE: {_vault_date}"})
-            print(f"{CLI_BLUE}[prephase] vault_date inferred: {_vault_date}{CLI_CLR}")
+    # FIX-104: also scan agents_md and docs content when tree has no dated filenames (minimal vaults).
+    # This gives the model a reliable date baseline when TASK CONTEXT provides no current_date.
+    _vault_dates = re.findall(r'\b(\d{4}-\d{2}-\d{2})', tree_txt) if tree_txt else []
+    if not _vault_dates and agents_md_content:
+        _vault_dates = re.findall(r'\b(\d{4}-\d{2}-\d{2})', agents_md_content)
+    if not _vault_dates:
+        _combined = "\n".join(docs_content_parts)
+        _vault_dates = re.findall(r'\b(\d{4}-\d{2}-\d{2})', _combined)
+    if _vault_dates:
+        _vault_date = max(_vault_dates)
+        log.append({"role": "user", "content": f"VAULT_DATE: {_vault_date}"})
+        print(f"{CLI_BLUE}[prephase] vault_date inferred: {_vault_date}{CLI_CLR}")
 
     # Step 3: context — task-level metadata from the harness
     print(f"{CLI_BLUE}[prephase] context...{CLI_CLR}", end=" ")

@@ -29,7 +29,6 @@ from bitgn.vm.pcm_pb2 import (
 
 from .models import (
     ReportTaskCompletion,
-    Req_CodeEval,
     Req_Context,
     Req_Delete,
     Req_Find,
@@ -41,114 +40,6 @@ from .models import (
     Req_Tree,
     Req_Write,
 )
-
-
-# ---------------------------------------------------------------------------
-# code_eval sandbox
-# ---------------------------------------------------------------------------
-
-_SAFE_BUILTINS = {
-    k: (
-        __builtins__[k]
-        if isinstance(__builtins__, dict)
-        else getattr(__builtins__, k, None)
-    )
-    for k in (
-        "len", "sorted", "reversed", "max", "min", "sum", "abs", "round",
-        "any", "all",  # FIX-278: required by coder-generated code (NameError on minimax)
-        "filter", "map", "zip", "enumerate", "range",
-        "list", "dict", "set", "tuple", "str", "int", "float", "bool",
-        "isinstance", "hasattr", "print", "repr", "type",
-        "True", "False", "None",  # FIX-278: Python constants needed in sandbox globals
-    )
-    if (
-        __builtins__[k]
-        if isinstance(__builtins__, dict)
-        else getattr(__builtins__, k, None)
-    ) is not None
-}
-# FIX-278: True/False/None are not in __builtins__ dict — inject as Python constants
-_SAFE_BUILTINS.update({"True": True, "False": False, "None": None})
-
-
-def execute_code_safe(code: str, context_vars: dict, timeout_s: int = 5) -> str:
-    """Run model-generated Python 3 code in a restricted sandbox.
-
-    Allowed modules: datetime, json, re, math.
-    Allowed builtins: see _SAFE_BUILTINS (no os, sys, subprocess, open).
-    Timeout: SIGALRM (5 s default). Returns stdout output or error string.
-    """
-    import signal
-    import io
-    import datetime as _dt
-    import json as _json
-    import re as _re
-    import math as _math
-    import sys as _sys
-
-    # FIX-278: strftime needs `time` module internally; provide restricted __import__
-    import time as _time
-    _ALLOWED_IMPORTS = {"datetime": _dt, "json": _json, "re": _re, "math": _math, "time": _time}
-
-    def _safe_import(name, *_args, **_kwargs):
-        if name in _ALLOWED_IMPORTS:
-            return _ALLOWED_IMPORTS[name]
-        raise ImportError(f"module '{name}' is not available in sandbox")
-
-    safe_builtins = dict(_SAFE_BUILTINS)
-    safe_builtins["__import__"] = _safe_import
-
-    safe_globals: dict = {
-        "__builtins__": safe_builtins,
-        "datetime": _dt,
-        "json": _json,
-        "re": _re,
-        "math": _math,
-    }
-    safe_globals.update(context_vars)
-    buf = io.StringIO()
-
-    def _alarm(_sig, _frame):
-        raise TimeoutError("code_eval timeout")
-
-    # Strip ALL import statements — sandbox provides datetime/json/re/math directly;
-    # other modules (os, sys, collections…) are not in _SAFE_BUILTINS and would cause
-    # ImportError via __import__. Stripping is always safe: pre-loaded modules still work,
-    # disallowed modules will cause NameError (clearer than ImportError: __import__ not found).
-    import re as _re_strip
-    code = _re_strip.sub(r'^\s*import\s+[^\n]+\n?', '', code, flags=_re_strip.MULTILINE)
-    code = _re_strip.sub(r'^\s*from\s+\S+\s+import\s+[^\n]+\n?', '', code, flags=_re_strip.MULTILINE)
-
-    # signal.alarm only works in the main thread; skip timeout in worker threads
-    _in_main = threading.current_thread() is threading.main_thread()
-    old_handler = None
-    if _in_main:
-        old_handler = signal.signal(signal.SIGALRM, _alarm)
-        signal.alarm(timeout_s)
-    old_stdout = _sys.stdout
-    try:
-        _sys.stdout = buf
-        exec(compile(code, "<code_eval>", "exec"), safe_globals)
-        return buf.getvalue().strip() or "(ok, no output)"
-    except TimeoutError as e:
-        return f"[error] {e}"
-    except Exception as e:
-        return f"[error] {type(e).__name__}: {e}"
-    finally:
-        _sys.stdout = old_stdout
-        if _in_main:
-            signal.alarm(0)
-            signal.signal(signal.SIGALRM, old_handler)
-
-
-# ---------------------------------------------------------------------------
-# FIX-163: Coder sub-model helpers
-# ---------------------------------------------------------------------------
-
-def _extract_code_block(text: str) -> str:
-    """Strip markdown fences; return bare Python code."""
-    m = re.search(r"```(?:python)?\s*(.*?)```", text, re.DOTALL)
-    return m.group(1).strip() if m else text.strip()
 
 
 
@@ -669,21 +560,5 @@ def dispatch(vm: PcmRuntimeClientSync, cmd: BaseModel):
                 refs=cmd.grounding_refs,
             )
         )
-
-    if isinstance(cmd, Req_CodeEval):
-        # FIX-177 guard: check model-provided context_vars BEFORE path injection.
-        _direct_total = sum(len(str(v)) for v in cmd.context_vars.values())
-        if _direct_total > 2000:
-            return f"[code_eval rejected] context_vars too large ({_direct_total} chars). Use 'paths' field for vault files instead of embedding content in context_vars."
-        ctx = dict(cmd.context_vars)
-        for _vpath in cmd.paths:
-            _key = _vpath.lstrip("/").replace("/", "__").replace(".", "_")
-            try:
-                _raw = vm.read(ReadRequest(path=_vpath))
-                ctx[_key] = MessageToDict(_raw).get("content", "")
-            except Exception as _e:
-                ctx[_key] = f"[read error: {_e}]"
-        code = _extract_code_block(cmd.task)
-        return execute_code_safe(code, ctx)
 
     raise ValueError(f"Unknown command: {cmd}")

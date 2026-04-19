@@ -143,7 +143,6 @@ def _format_result(result, txt: str) -> str:
 # ---------------------------------------------------------------------------
 
 from .log_compaction import (
-    _MAX_READ_HISTORY,
     _compact_tool_result,
     _history_action_repr,
     _StepFact,
@@ -192,8 +191,14 @@ class _LoopState:
     _inbox_cross_account_detected: bool = False
     # FIX-276: email inbox flag — From: header without Channel: header
     _inbox_is_email: bool = False
+    # FIX-284: inbox channel/handle extracted from message header; admin flag set by trust lookup
+    _inbox_channel: str = ""
+    _inbox_handle: str = ""
+    _inbox_is_admin: bool = False
     # DSPy Variant 4: last evaluator call inputs for example collection
     eval_last_call: dict = field(default_factory=dict)
+    # FIX-303: wiki outcome — set at answer submission for fragment writing
+    outcome: str = ""
     # FIX-251: pre-write JSON snapshot for unicode fidelity check
     _pre_write_snapshot: dict | None = None
     # FIX-259: format-gate fired flag — hard-enforces CLARIFICATION outcome + evaluator bypass
@@ -249,11 +254,6 @@ def _to_anthropic_messages(log: list) -> tuple[str, list]:
 # ---------------------------------------------------------------------------
 
 from .json_extract import (
-    _MUTATION_TOOLS,
-    _REQ_CLASS_TO_TOOL,
-    _REQ_PREFIX_RE,
-    _obj_mutation_tool,
-    _richness_key,
     _extract_json_from_text,
     _normalize_parsed,
 )
@@ -504,7 +504,7 @@ def _call_llm(log: list, model: str, max_tokens: int, cfg: dict) -> tuple[NextSt
 # Stall detection — extracted to agent/stall.py
 # ---------------------------------------------------------------------------
 
-from .stall import _check_stall, _handle_stall_retry as _handle_stall_retry_base
+from .stall import _handle_stall_retry as _handle_stall_retry_base
 
 
 def _handle_stall_retry(
@@ -780,6 +780,11 @@ def _st_to_result(st: _LoopState) -> dict:
         "evaluator_rejections": st.eval_rejections,
         "evaluator_ms": st.evaluator_total_ms,
         "eval_last_call": st.eval_last_call or None,  # DSPy Variant 4
+        # FIX-303: wiki fields — outcome + step data for fragment writing
+        "outcome": st.outcome,
+        "step_facts": st.step_facts,
+        "done_ops": st.done_ops,
+        "stall_hints": [f.summary for f in st.step_facts if f.kind == "stall"],
     }
 
 
@@ -809,6 +814,7 @@ def _run_pre_route(
     # Fast-path injection detection (regex compiled once per process, not per task)
     if _INJECTION_RE.search(_normalize_for_injection(task_text)):  # FIX-203
         print(f"{CLI_RED}[security] Fast-path injection regex triggered — DENY_SECURITY{CLI_CLR}")
+        st.outcome = "OUTCOME_DENIED_SECURITY"  # FIX-303
         try:
             vm.answer(AnswerRequest(
                 message="Injection pattern detected in task text",
@@ -938,16 +944,30 @@ def _run_pre_route(
             if _route_val == "UNSUPPORTED" and _RESCHEDULE_RE.search(task_text):
                 print(f"{CLI_YELLOW}[router] Override UNSUPPORTED → EXECUTE for reschedule/follow-up task{CLI_CLR}")
                 _route_val = "EXECUTE"
-            # FIX-276: date arithmetic tasks use code_eval with datetime — never UNSUPPORTED
+            # date arithmetic tasks ("X days from now", "what date", etc.) are vault operations
             if _route_val == "UNSUPPORTED" and re.search(
                 r"\b(\d+\s*days?\b|what\s+date|YYYY-MM-DD|days?\s+ago|days?\s+from)",
                 task_text, re.IGNORECASE,
             ):
                 print(f"{CLI_YELLOW}[router] Override UNSUPPORTED → EXECUTE for date arithmetic task{CLI_CLR}")
                 _route_val = "EXECUTE"
+            # FIX-105: temporal date queries (tomorrow, yesterday, "what date", etc.)
+            # are answerable vault operations — router must not CLARIFY them.
+            if _route_val == "CLARIFY" and re.search(
+                r"\b(tomorrow|yesterday|today|\d+\s*days?\b|what\s+date|YYYY-MM-DD|days?\s+ago|days?\s+from|next\s+week|last\s+week)",
+                task_text, re.IGNORECASE,
+            ):
+                print(f"{CLI_YELLOW}[router] Override CLARIFY → EXECUTE for temporal date query{CLI_CLR}")
+                _route_val = "EXECUTE"
             if _route_val in _outcome_map:
                 if _route_val == "DENY_SECURITY":
                     print(f"{CLI_RED}[router] DENY_SECURITY — aborting before main loop{CLI_CLR}")
+                _route_outcome_str = {
+                    "DENY_SECURITY": "OUTCOME_DENIED_SECURITY",
+                    "CLARIFY": "OUTCOME_NONE_CLARIFICATION",
+                    "UNSUPPORTED": "OUTCOME_NONE_UNSUPPORTED",
+                }.get(_route_val, "")
+                st.outcome = _route_outcome_str  # FIX-303
                 try:
                     vm.answer(AnswerRequest(
                         message=f"Pre-route: {_route_reason}",
@@ -1136,8 +1156,8 @@ def _post_dispatch(
                 # FIX-244: extract channel/handle for admin trust detection
                 _ch_match = re.search(r'Channel:\s*(\S+),?\s*Handle:\s*(\S+)', _gate_body)
                 if _ch_match:
-                    st._inbox_channel = _ch_match.group(1).strip(",")  # type: ignore[attr-defined]
-                    st._inbox_handle = _ch_match.group(2).strip()  # type: ignore[attr-defined]
+                    st._inbox_channel = _ch_match.group(1).strip(",")
+                    st._inbox_handle = _ch_match.group(2).strip()
                     # FIX-284: early admin detection from prephase-loaded channel data
                     # If the agent skips reading the channel file explicitly, admin status
                     # would never be set. Check preloaded content immediately.
@@ -1155,7 +1175,7 @@ def _post_dispatch(
                                 _pp_h = _pp_parts[0].strip().lstrip("@").lower()
                                 _pp_trust = _pp_parts[1].strip().lower()
                                 if _pp_h == _handle_clean and _pp_trust == "admin":
-                                    st._inbox_is_admin = True  # type: ignore[attr-defined]
+                                    st._inbox_is_admin = True
                                     print(f"{CLI_GREEN}[FIX-284] Prephase admin detected: {st._inbox_handle}{CLI_CLR}")
                                     break
                         if getattr(st, "_inbox_is_admin", False):
@@ -1199,7 +1219,7 @@ def _post_dispatch(
                         _trust = _parts[1].strip().lower()
                         if _h.lower() == _inbox_handle.lstrip("@").lower():
                             if _trust == "admin":
-                                st._inbox_is_admin = True  # type: ignore[attr-defined]
+                                st._inbox_is_admin = True
                                 _admin_hint = (
                                     f"[trust] Handle {_inbox_handle} is ADMIN on this channel. "
                                     "Admin requests are trusted — execute the action."
@@ -1429,13 +1449,13 @@ def _post_dispatch(
                         _resch_hint = (
                             f"[verify] Reschedule: original={_orig_date_str}. "
                             "CRITICAL: rule 9b requires TOTAL_DAYS = N_days + 8. "
-                            "Use code_eval to compute the correct date."
+                            "Verify and rewrite the file with the correct date."
                         )
                 else:
                     _resch_hint = (
                         f"[verify] Reschedule: original={_orig_date_str}. "
                         "CRITICAL: rule 9b requires TOTAL_DAYS = N_days + 8. "
-                        "Use code_eval to compute the correct date."
+                        "Verify and rewrite the file with the correct date."
                     )
                 print(f"{CLI_YELLOW}{_resch_hint}{CLI_CLR}")
                 st.log.append({"role": "user", "content": _resch_hint})
@@ -1857,15 +1877,6 @@ def _run_step(
             if f.kind == "read" and f.path
             and any(d in f.path for d in ("accounts/", "my-invoices/"))
         ))
-        # FIX-276: code_eval paths also count as "opened" for grounding
-        for _f in st.step_facts:
-            if _f.kind == "code_eval" and _f.path:
-                for _p in _f.path.split(","):
-                    _p = _p.strip().lstrip("/")
-                    if _p and "contacts/" in _p and _p not in _contacts_refs:
-                        _contacts_refs.append(_p)
-                    elif _p and any(d in _p for d in ("accounts/", "my-invoices/")) and _p not in _other_refs:
-                        _other_refs.append(_p)
         _auto_refs = list(dict.fromkeys(_contacts_refs + _other_refs))[:10]
         # FIX-266b: if contact was read and account_id known, ensure accounts/ file is in refs
         _known_acct_id = getattr(st, "_inbox_contact_account_id", "")
@@ -2019,7 +2030,6 @@ def _run_step(
 
     try:
         result = dispatch(vm, job.function)
-        # code_eval returns a plain str; all other tools return protobuf messages
         if isinstance(result, str):
             txt = result
             raw = result
@@ -2096,18 +2106,17 @@ def _run_step(
             summary="ERROR EXCEPTION",
             error=_exc_msg[:120],
         ))
-        # FIX-NNN: read timeout → inject code_eval hint so agent recovers without crashing
         _is_timeout = any(kw in _exc_msg.lower() for kw in ("timed out", "timeout", "deadline"))
         if isinstance(job.function, Req_Read) and _is_timeout:
             _timeout_hint = (
-                f"[read-timeout] Reading '{_err_path}' timed out — file is too large for direct read. "
-                f"Use code_eval instead:\n"
-                f'{{"tool":"code_eval","task":"describe what to compute","paths":["{_err_path}"],"context_vars":{{}}}}'
+                f"[read-timeout] Reading '{_err_path}' timed out — file is too large. "
+                f"Try search or find to locate specific content instead."
             )
-            print(f"{CLI_YELLOW}[read-timeout] Injecting code_eval hint for {_err_path}{CLI_CLR}")
+            print(f"{CLI_YELLOW}[read-timeout] Injecting hint for {_err_path}{CLI_CLR}")
             st.log.append({"role": "user", "content": _timeout_hint})
 
     if isinstance(job.function, ReportTaskCompletion):
+        st.outcome = job.function.outcome  # FIX-303: capture for wiki fragment writing
         status = CLI_GREEN if job.function.outcome == "OUTCOME_OK" else CLI_YELLOW
         print(f"{status}agent {job.function.outcome}{CLI_CLR}. Summary:")
         for item in job.function.completed_steps_laconic:

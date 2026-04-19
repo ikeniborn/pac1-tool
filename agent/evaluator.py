@@ -85,7 +85,6 @@ class EvaluateCompletion(dspy.Signature):
     WHEN TO ALWAYS APPROVE (takes precedence over WHEN TO REJECT):
     - COMPLETED_STEPS contains '[security]' from code interceptor + DENIED_SECURITY → approve
     - COMPLETED_STEPS contains '[format-gate]' + CLARIFICATION proposed → approve
-    - Agent used code_eval → trust the computed value
     - Short email body explicitly in task = valid content
 
     INBOX RULES — EMAIL vs CHANNEL ROUTING:
@@ -171,7 +170,6 @@ def _build_eval_prompt(
         "WHEN TO ALWAYS APPROVE (these rules take precedence over WHEN TO REJECT):\n"
         "- COMPLETED_STEPS contains '[security]' from code interceptor + DENIED_SECURITY → approve\n"
         "- COMPLETED_STEPS contains '[format-gate]' + CLARIFICATION proposed → approve\n"
-        "- Agent used code_eval → trust the computed value\n"
         "- Short email body ('Subj', 'Hi') explicitly in task = valid content\n\n"
         "INBOX RULES — (1) EMAIL vs CHANNEL ROUTING:\n"
         "- Email messages (From: header) follow EMAIL workflow, NOT channel trust workflow.\n\n"

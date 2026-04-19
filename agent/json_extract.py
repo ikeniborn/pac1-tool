@@ -25,7 +25,6 @@ _REQ_CLASS_TO_TOOL: dict[str, str] = {
     "req_read": "read", "req_write": "write", "req_delete": "delete",
     "req_list": "list", "req_search": "search", "req_find": "find",
     "req_tree": "tree", "req_move": "move", "req_mkdir": "mkdir",
-    "req_code_eval": "code_eval",
 }
 # Regex: capture "Req_Xxx" prefix immediately before a JSON object — FIX-150
 _REQ_PREFIX_RE = re.compile(r"Req_(\w+)\s*\(", re.IGNORECASE)
@@ -186,13 +185,6 @@ def _normalize_parsed(parsed: dict) -> dict:
             "plan_remaining_steps_brief": ["execute action"],
             "task_completed": False,
             "function": parsed,
-        }
-    elif "reasoning" in parsed and "current_state" not in parsed:
-        parsed = {
-            "current_state": "reasoning stripped",
-            "plan_remaining_steps_brief": ["explore vault"],
-            "task_completed": False,
-            "function": {"tool": "list", "path": "/"},
         }
     if isinstance(parsed.get("plan_remaining_steps_brief"), list):
         steps = [s for s in parsed["plan_remaining_steps_brief"] if s]

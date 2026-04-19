@@ -15,7 +15,7 @@ Public API used by loop.py:
 import re
 import unicodedata
 
-from .classifier import TASK_INBOX, TASK_EMAIL
+from .classifier import TASK_INBOX, TASK_EMAIL, TASK_QUEUE
 
 
 # ---------------------------------------------------------------------------
@@ -99,7 +99,8 @@ def _check_write_scope(action, action_name: str, task_type: str) -> str | None:
             p.startswith(pfx) for pfx in _SYSTEM_PATH_PREFIXES
         )
         if is_system:
-            if task_type == TASK_INBOX and action_name == "Req_Delete" and p == _OTP_PATH:
+            # FIX-103: OTP deletion allowed for both inbox and queue task types
+            if task_type in (TASK_INBOX, TASK_QUEUE) and action_name == "Req_Delete" and p == _OTP_PATH:
                 continue
             return (
                 f"Blocked: {action_name} targets system path '{p}'. "

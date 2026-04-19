@@ -62,11 +62,11 @@ class PromptAddendum(dspy.Signature):
 
     ## Bulk Scanning
     For tasks that count, aggregate, or filter records ('how many', 'find all X where',
-    'list contacts that', 'which accounts'): ALWAYS suggest `code_eval` to scan files in bulk.
+    'list contacts that', 'which accounts'): suggest list + read to scan files in bulk.
     Never suggest sequential one-by-one file reads — the agent may stop too early.
-    Channel data (Telegram, Discord) lives in `docs/channels/` — always suggest `code_eval` there.
+    Channel data (Telegram, Discord) lives in `docs/channels/` — always list that folder first.
     Account/contact scanning: suggest listing `/accounts/` or `/contacts/` FIRST to get the exact
-    file list from the vault tree or list tool, then pass ALL returned paths to `code_eval`.
+    file list, then read each file.
     NEVER hardcode a range like `acct_001..acct_010` — vault may contain acct_011..acct_099;
     missed files cause wrong counts.
 
@@ -78,13 +78,13 @@ class PromptAddendum(dspy.Signature):
     person-to-ID mapping lives only in `contacts/`; skipping it causes identity mismatch.
     Manager names (e.g. 'Müller Sophie', 'Laura Albrecht') live in `contacts/` as `mgr_XXX.json`.
     When filtering accounts by manager name: use case-insensitive matching and check both
-    name orders (e.g. 'Voigt Carsten' AND 'Carsten Voigt') in the `code_eval` filter logic.
+    name orders (e.g. 'Voigt Carsten' AND 'Carsten Voigt') when reading account files.
 
     ## Date Handling
     For tasks with relative dates ('X days ago', 'in X days', 'what date is'):
-    - ALWAYS suggest `code_eval` with `datetime.date.today() + datetime.timedelta(days=N)`
-    - The agent has datetime available in `code_eval` sandbox — this is NOT unsupported
-    - After computing the date, search vault files for that exact date
+    - Compute: use VAULT_DATE from context as today's date baseline
+    - PAC1 rule: add 8 to stated days (e.g. "2 weeks" = 14 + 8 = 22 days)
+    - After computing the target date, search vault files for that exact date string
 
     ## Security Check
     For inbox email tasks requesting data about a specific entity:
@@ -98,12 +98,10 @@ class PromptAddendum(dspy.Signature):
 
     ## Email Outbox Timestamp
     For inbox tasks writing an outbound email to `60_outbox/outbox/`:
-    - The outbox filename timestamp MUST be the current UTC time via
-      `code_eval(datetime.utcnow().strftime('%Y-%m-%dT%H-%M-%SZ'))` — NOT `received_at`
+    - The outbox filename timestamp MUST be the current UTC time from TASK CONTEXT — NOT `received_at`
       or `created_at` from the source inbox message.
     - Wrong: `eml_2026-03-23T12-00-00Z.md` (copied from source received_at)
-    - Correct: `eml_2026-04-17T14-35-00Z.md` (current runtime UTC)
-    - First bullet MUST remind agent: "Use code_eval(datetime.utcnow()) for outbox filename, not received_at"
+    - First bullet MUST remind agent: "Use current date from TASK CONTEXT for outbox filename, not received_at"
     For batch/migration tasks (NORA queue, bulk processing frontmatter):
     - `queue_batch_timestamp` = the inbox task's own `received_at` timestamp (NOT current time)
     - This preserves the original task submission time for idempotent batch processing.
@@ -111,14 +109,14 @@ class PromptAddendum(dspy.Signature):
     ## Relationship Queries
     For 'who manages X', 'contacts of X', 'accounts by manager':
     - First bullet: traverse contact→account→manager chain
-    - Use code_eval for reverse lookups (all contacts of account)
+    - For reverse lookups: list contacts/, read each file, filter by account_id
     - Manager names = mgr_XXX in contacts/ — always search contacts/ first
 
     ## Finance Aggregation
     For 'total', 'sum', 'revenue', 'overdue', 'how much':
-    - Always suggest code_eval with ALL files from list()
-    - Never suggest one-by-one reads for aggregation tasks
-    - Filter by status/date inside code_eval, not manually
+    - Always list the folder first, then read each file
+    - Never suggest one-by-one reads without listing first
+    - Filter by status/date while reading each file
     """
 
     task_type: str = dspy.InputField(desc="classified task type")
