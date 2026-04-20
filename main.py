@@ -158,7 +158,6 @@ _model_temporal = os.getenv("MODEL_TEMPORAL") or _model_lookup
 _model_preject  = os.getenv("MODEL_PREJECT")  or _model_default
 _model_evaluator      = os.getenv("MODEL_EVALUATOR")      or _model_default
 _model_prompt_builder = os.getenv("MODEL_PROMPT_BUILDER") or ""  # "" = use classifier
-_model_codegen        = os.getenv("MODEL_CODEGEN")        or ""  # "" = use task-type model
 
 EFFECTIVE_MODEL: ModelRouter = ModelRouter(
     default=_model_default,
@@ -171,7 +170,6 @@ EFFECTIVE_MODEL: ModelRouter = ModelRouter(
     crm=_model_crm,
     temporal=_model_temporal,
     preject=_model_preject,
-    codegen=_model_codegen,
     evaluator=_model_evaluator,
     prompt_builder=_model_prompt_builder,
     configs=MODEL_CONFIGS,
@@ -188,7 +186,6 @@ print(
     f"  crm         = {_model_crm}\n"
     f"  temporal    = {_model_temporal}\n"
     f"  preject     = {_model_preject}\n"
-    f"  codegen     = {_model_codegen or '(uses task-type model)'}\n"
     f"  evaluator   = {_model_evaluator}\n"
     f"  builder     = {_model_prompt_builder or '(uses classifier)'}"
 )

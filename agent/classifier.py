@@ -332,7 +332,6 @@ class ModelRouter:
     crm: str = ""
     temporal: str = ""
     preject: str = ""
-    codegen: str = ""       # MODEL_CODEGEN — dedicated model for Python code generation
     evaluator: str = ""
     prompt_builder: str = ""
     configs: dict[str, dict] = field(default_factory=dict)
