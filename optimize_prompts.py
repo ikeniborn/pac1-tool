@@ -71,6 +71,11 @@ def _type_program_path(task_type: str) -> Path:
     return _BASE / "data" / f"prompt_builder_{task_type}_program.json"
 
 
+def _eval_type_program_path(task_type: str) -> Path:
+    """Return path for a per-task_type evaluator program file."""
+    return _BASE / "data" / f"evaluator_{task_type}_program.json"
+
+
 # ---------------------------------------------------------------------------
 # COPRO hyper-parameters — overridable via env
 # ---------------------------------------------------------------------------
@@ -318,7 +323,17 @@ def _builder_task_types(min_score: float = 0.7) -> dict[str, int]:
     return counts
 
 
-def _evaluator_trainset() -> list[dspy.Example]:
+def _evaluator_task_types() -> dict[str, int]:
+    """Return {task_type: count} for all types present in the eval trainset."""
+    real = get_eval_trainset()
+    counts: dict[str, int] = {}
+    for ex in real:
+        tt = ex.get("task_type", "default")
+        counts[tt] = counts.get(tt, 0) + 1
+    return counts
+
+
+def _evaluator_trainset(task_type: str | None = None) -> list[dspy.Example]:
     """Build DSPy Examples for evaluator optimisation.
 
     Uses real examples from data/dspy_eval_examples.jsonl if ≥ EVAL_THRESHOLD
@@ -328,8 +343,11 @@ def _evaluator_trainset() -> list[dspy.Example]:
     Ground truth: expected_approved_str = "yes" if score == 1.0 else "no".
     """
     real = get_eval_trainset()
+    if task_type is not None:
+        real = [ex for ex in real if ex.get("task_type", "default") == task_type]
     if real:
-        print(f"[optimize] Evaluator trainset: {len(real)} real examples from data/dspy_eval_examples.jsonl")
+        label = f"type={task_type!r}" if task_type else "global"
+        print(f"[optimize] Evaluator trainset ({label}): {len(real)} real examples from data/dspy_eval_examples.jsonl")
         return [
             dspy.Example(
                 task_text=ex["task_text"],
@@ -347,6 +365,8 @@ def _evaluator_trainset() -> list[dspy.Example]:
             for ex in real
         ]
 
+    if task_type is not None:
+        return []
     print("[optimize] Evaluator: using hardcoded bootstrap examples (run main.py to collect real ones)")
     # Bootstrap fallback: 2 approved + 2 rejected
     return [
@@ -501,14 +521,16 @@ def optimize_builder(model: str, cfg: dict, min_score: float = 0.8) -> None:
         _run_copro_builder(model, cfg, type_trainset, _type_program_path(tt), f"builder/{tt}")
 
 
-def optimize_evaluator(model: str, cfg: dict) -> None:
-    """Run COPRO on the EvaluateCompletion Signature and save compiled program."""
-    trainset = _evaluator_trainset()
-    print(f"[optimize] Evaluator trainset: {len(trainset)} examples")
-    print(f"[optimize] Model: {model}")
-
+def _run_copro_evaluator(
+    model: str,
+    cfg: dict,
+    trainset: list,
+    save_path: Path,
+    log_label: str,
+) -> None:
+    """Run one COPRO pass on trainset and save to save_path."""
     _emit("run_start", {
-        "target": "evaluator",
+        "target": log_label,
         "model": model,
         "trainset_size": len(trainset),
         "copro": {
@@ -521,7 +543,7 @@ def optimize_evaluator(model: str, cfg: dict) -> None:
 
     _ollama_only = _ant_client is None and _or_client is None
     _adapter = dspy.ChatAdapter() if _ollama_only else dspy.JSONAdapter()
-    lm = _LoggingDispatchLM(model, cfg, max_tokens=600, target="evaluator", json_mode=not _ollama_only)
+    lm = _LoggingDispatchLM(model, cfg, max_tokens=600, target=log_label, json_mode=not _ollama_only)
     dspy.configure(lm=lm, adapter=_adapter)
 
     program = dspy.ChainOfThought(EvaluateCompletion)
@@ -548,15 +570,46 @@ def optimize_evaluator(model: str, cfg: dict) -> None:
         raise
     finally:
         _emit("run_end", {
-            "target": "evaluator",
+            "target": log_label,
             "duration_s": round(time.monotonic() - t0, 2),
             "total_lm_calls": lm._call_num,
             "status": status,
         })
 
-    _EVAL_PROGRAM_PATH.parent.mkdir(exist_ok=True)
-    compiled.save(str(_EVAL_PROGRAM_PATH))
-    print(f"[optimize] Evaluator program saved → {_EVAL_PROGRAM_PATH}")
+    save_path.parent.mkdir(exist_ok=True)
+    compiled.save(str(save_path))
+    print(f"[optimize] Evaluator program saved → {save_path}")
+
+
+def optimize_evaluator(model: str, cfg: dict) -> None:
+    """Run COPRO on EvaluateCompletion: global pass + per-task_type passes.
+
+    Global pass uses all examples and saves to evaluator_program.json.
+    Per-type passes save to evaluator_{task_type}_program.json for each
+    task type with at least COPRO_MIN_PER_TYPE examples.
+    """
+    print(f"[optimize] Model: {model}")
+
+    # Global pass — fallback for task types without enough data
+    global_trainset = _evaluator_trainset()
+    if not global_trainset:
+        print("[optimize] No evaluator training examples found. Run main.py first.")
+        sys.exit(1)
+    _run_copro_evaluator(model, cfg, global_trainset, _EVAL_PROGRAM_PATH, "evaluator/global")
+
+    # Per-type passes
+    type_counts = _evaluator_task_types()
+    eligible = {tt: n for tt, n in type_counts.items() if n >= _COPRO_MIN_PER_TYPE}
+    skipped = {tt: n for tt, n in type_counts.items() if n < _COPRO_MIN_PER_TYPE}
+
+    if skipped:
+        print(f"[optimize] Per-type skipped (< {_COPRO_MIN_PER_TYPE} examples): "
+              + ", ".join(f"{tt}({n})" for tt, n in skipped.items()))
+
+    for tt, n in sorted(eligible.items()):
+        print(f"[optimize] Per-type evaluator: {tt!r} — {n} examples")
+        type_trainset = _evaluator_trainset(task_type=tt)
+        _run_copro_evaluator(model, cfg, type_trainset, _eval_type_program_path(tt), f"evaluator/{tt}")
 
 
 # ---------------------------------------------------------------------------

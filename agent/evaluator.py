@@ -22,6 +22,11 @@ from .dspy_lm import DispatchLM
 _EVAL_PROGRAM_PATH = Path(__file__).parent.parent / "data" / "evaluator_program.json"
 
 
+def _eval_type_program_path(task_type: str) -> Path:
+    """Return path for a per-task_type evaluator program file."""
+    return Path(__file__).parent.parent / "data" / f"evaluator_{task_type}_program.json"
+
+
 class EvalVerdict(BaseModel):
     """Evaluator output schema."""
     approved: bool
@@ -263,9 +268,12 @@ def evaluate_completion(
         steps_str += f"\n[STEP_DIGEST]\n{digest_str}"
 
     predictor = dspy.ChainOfThought(EvaluateCompletion)
-    if _EVAL_PROGRAM_PATH.exists():
+    _program_path = _eval_type_program_path(task_type)
+    if not _program_path.exists():
+        _program_path = _EVAL_PROGRAM_PATH
+    if _program_path.exists():
         try:
-            predictor.load(str(_EVAL_PROGRAM_PATH))
+            predictor.load(str(_program_path))
         except Exception as exc:
             print(f"{CLI_YELLOW}[evaluator] failed to load program ({exc}), using defaults{CLI_CLR}")
 
