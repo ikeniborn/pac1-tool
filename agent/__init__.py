@@ -9,7 +9,7 @@ from .loop import run_loop
 from .prephase import run_prephase
 from .prompt import build_system_prompt
 from .prompt_builder import build_dynamic_addendum
-from .wiki import load_wiki_patterns, format_fragment, write_fragment
+from .wiki import load_wiki_base, load_wiki_patterns, format_fragment, write_fragment
 
 _PROMPT_BUILDER_ENABLED = os.getenv("PROMPT_BUILDER_ENABLED", "1") == "1"
 _WIKI_ENABLED = os.getenv("WIKI_ENABLED", "1") == "1"
@@ -86,14 +86,15 @@ def run_agent(router: ModelRouter, harness_url: str, task_text: str) -> dict:
             _write_wiki_fragment(vm, task_text, task_type, stats)
         return stats
 
-    # Wiki-Memory stage B: load task-type patterns after classification (FIX-103)
+    # Wiki-Memory stage B: inject base (errors/contacts/accounts) + task-type patterns (FIX-103, FIX-304)
     if _WIKI_ENABLED:
+        _wiki_base = load_wiki_base(task_text)      # FIX-304: errors, contacts, accounts for all types
         _wiki_patterns = load_wiki_patterns(task_type)
-        if _wiki_patterns:
-            # Append to the last user message in preserve_prefix (prephase context)
+        _wiki_inject = "\n\n".join(p for p in [_wiki_base, _wiki_patterns] if p)
+        if _wiki_inject:
             for i in range(len(pre.preserve_prefix) - 1, -1, -1):
                 if pre.preserve_prefix[i].get("role") == "user":
-                    pre.preserve_prefix[i]["content"] += f"\n\n{_wiki_patterns}"
+                    pre.preserve_prefix[i]["content"] += f"\n\n{_wiki_inject}"
                     pre.log[i]["content"] = pre.preserve_prefix[i]["content"]
                     break
 

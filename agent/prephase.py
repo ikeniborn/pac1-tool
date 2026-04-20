@@ -276,6 +276,17 @@ def run_prephase(
     if not _vault_dates:
         _combined = "\n".join(docs_content_parts)
         _vault_dates = re.findall(r'\b(\d{4}-\d{2}-\d{2})', _combined)
+    # FIX-308: fallback — scan all accounts/*.json for last_contacted_on (past date, not future follow-up)
+    if not _vault_dates:
+        try:
+            _acct_list = vm.list(ListRequest(name="/accounts"))
+            for _ae in sorted(_acct_list.entries, key=lambda e: e.name):
+                if _ae.name.endswith(".json") and not _ae.name.upper().startswith("README"):
+                    _acct_r = vm.read(ReadRequest(path=f"/accounts/{_ae.name}"))
+                    for _m in re.finditer(r'"last_contacted_on"\s*:\s*"(\d{4}-\d{2}-\d{2})"', _acct_r.content):
+                        _vault_dates.append(_m.group(1))
+        except Exception:
+            pass
     if _vault_dates:
         _vault_date = max(_vault_dates)
         log.append({"role": "user", "content": f"VAULT_DATE: {_vault_date}"})

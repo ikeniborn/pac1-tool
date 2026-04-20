@@ -8,7 +8,7 @@ Public API used by loop.py:
   _normalize_for_injection() — FIX-203: leet/zero-width/NFKC normalization
   _CONTAM_PATTERNS           — FIX-206: anti-contamination regexes for email body
   _FORMAT_GATE_RE            — FIX-214: inbox From:/Channel: header check
-  _INBOX_INJECTION_PATTERNS  — FIX-215: injection pattern list
+  _INBOX_INJECTION_PATTERNS  — FIX-215, FIX-281: injection pattern list
   _INBOX_ACTION_RE           — FIX-215: action verb detection
   _check_write_scope()       — FIX-250: mutation path guard (system/email scope)
 """

@@ -429,7 +429,8 @@ def _write_summary(scores: list, run_start: float) -> None:
 
 
 def main() -> None:
-    task_filter = sys.argv[1:]
+    # Split comma-joined args: "t01,t02,t03" → ['t01', 't02', 't03']
+    task_filter = [t for arg in sys.argv[1:] for t in arg.split(",") if t]
 
     scores = []
     scores_lock = threading.Lock()
@@ -475,6 +476,8 @@ def main() -> None:
                             scores.append((task_id, score, detail, task_elapsed, token_stats))
                         _print_table_row(task_id, score, detail, task_elapsed, token_stats)
         finally:
+            if scores:
+                _write_summary(scores, run_start)
             client.submit_run(SubmitRunRequest(run_id=run.run_id, force=True))
             print(f"Run submitted: {run.run_id}")
             # Wiki-Memory lint after: compile fragments written in this run (FIX-105)
@@ -488,9 +491,6 @@ def main() -> None:
         print(f"{exc.code}: {exc.message}")
     except KeyboardInterrupt:
         print(f"{CLI_RED}Interrupted{CLI_CLR}")
-
-    if scores:
-        _write_summary(scores, run_start)
 
 
 if __name__ == "__main__":
