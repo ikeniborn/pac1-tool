@@ -1,32 +1,37 @@
 # Wiki-Memory: Mermaid-схемы
 
-## 1. Общий flow: чтение и запись wiki в рамках одной задачи
+---
+
+## 1. Полный flow: чтение и запись wiki за одну задачу
 
 ```mermaid
 flowchart TD
-    START([make run]) --> LINT[wiki_lint\nfragments/ → pages/]
-    LINT --> POOL[ThreadPoolExecutor]
+    START([make run]) --> LINT1[wiki_lint\nфрагменты прошлых запусков\n→ pages/]
+    LINT1 --> POOL[ThreadPoolExecutor]
 
-    POOL --> PRE[run_prephase]
-    PRE --> A[Этап A\nload pages/errors.md\n+ entities по task_text]
-    A --> CLASSIFY[classifier → task_type]
-    CLASSIFY --> B[Этап B\nload pages/task_type.md]
-    B --> BUILDER[build_dynamic_addendum\nwiki_context=patterns]
-    BUILDER --> LOOP[run_loop ≤30 шагов]
+    POOL --> PRE[run_prephase\nvault tree + AGENTS.MD]
+    PRE --> CLS[classifier\n→ task_type]
+    CLS --> WA[load_wiki_base\nerrors + contacts + accounts]
+    WA --> WB[load_wiki_patterns\npages/task_type.md]
+    WB --> LOOP[run_loop ≤30 шагов]
 
     LOOP --> OUTCOME{outcome}
 
-    OUTCOME -->|OUTCOME_OK\n+ evaluator approved| WS[write_fragment\ncategory: task_type\n+ entities]
-    OUTCOME -->|OUTCOME_OK\n+ evaluator rejected| WE1[write_fragment\ncategory: errors\neval issues + hint]
-    OUTCOME -->|OUTCOME_DENIED_SECURITY| WE2[write_fragment\ncategory: errors\ninjection pattern]
-    OUTCOME -->|OUTCOME_NONE_CLARIFICATION| WE3[write_fragment\ncategory: errors\nambiguity description]
-    OUTCOME -->|Stall / timeout| WE4[write_fragment\ncategory: errors\nstall path + attempts]
+    OUTCOME -->|OUTCOME_OK| FF1[format_fragment\ncategory: task_type]
+    OUTCOME -->|OUTCOME_DENIED_SECURITY| FF2[format_fragment\ncategory: errors]
+    OUTCOME -->|OUTCOME_NONE_CLARIFICATION| FF3[format_fragment\ncategory: errors]
+    OUTCOME -->|Stall hints присутствуют| FF4[format_fragment\ncategory: errors]
 
-    WS --> FRAG[(data/wiki/fragments/)]
-    WE1 --> FRAG
-    WE2 --> FRAG
-    WE3 --> FRAG
-    WE4 --> FRAG
+    FF1 --> EF[+ entity fragments\ncontacts + accounts\nиз step_facts]
+    FF2 --> EF
+    FF3 --> EF
+    FF4 --> EF
+
+    EF --> WF[write_fragment\nappend-only\n{task_id}_{ts}.md]
+    WF --> FRAG[(data/wiki/fragments/)]
+
+    POOL -->|после всех задач| LINT2[wiki_lint\nфрагменты этого запуска\n→ pages/]
+    LINT2 --> ARCH[архив обработанных\nfragments → archive/]
 ```
 
 ---
@@ -35,132 +40,183 @@ flowchart TD
 
 ```mermaid
 sequenceDiagram
-    participant MR as make run #1
+    participant R1 as make run #1
     participant LINT as wiki_lint
     participant FRAG as fragments/
     participant PAGES as pages/
-    participant MR2 as make run #2
+    participant R2 as make run #2
 
-    MR->>LINT: старт до ThreadPool
+    R1->>LINT: до ThreadPool
     LINT->>FRAG: проверяет — пусто
-    LINT->>PAGES: pages/ пусто (первый запуск)
+    note over LINT: ничего не делает
 
-    Note over MR: Параллельные задачи
-    MR->>FRAG: t001 OUTCOME_OK → email/t001_…md
-    MR->>FRAG: t002 eval rejected → errors/t002_…md
+    note over R1: Параллельные задачи
+    R1->>FRAG: t001 OUTCOME_OK → email/t001_…md<br/>contacts/t001_…md
+    R1->>FRAG: t002 CLARIFICATION → errors/t002_…md
 
-    MR2->>LINT: старт до ThreadPool
+    R1->>LINT: после ThreadPool
     LINT->>FRAG: читает все фрагменты
-    LINT->>LINT: llm_merge (дедупликация\nразрешение противоречий)
+    LINT->>LINT: LLM synthesis (Variant C)<br/>по категорийным промтам
     LINT->>PAGES: pages/email.md ← workflow t001
-    LINT->>PAGES: pages/errors.md ← ошибка t002
-    LINT->>FRAG: архивирует обработанные
+    LINT->>PAGES: pages/errors.md ← ловушка t002
+    LINT->>PAGES: pages/contacts.md ← entity facts t001
+    LINT->>FRAG: перемещает в archive/
 
-    Note over MR2: Параллельные задачи
-    MR2->>PAGES: t003 prephase читает email.md ✓
-    MR2->>PAGES: t004 prephase читает errors.md ✓
-    MR2->>FRAG: t003, t004 → новые фрагменты
+    R2->>LINT: до ThreadPool
+    LINT->>FRAG: проверяет — пусто
+    note over LINT: ничего не делает
+
+    note over R2: Параллельные задачи
+    R2->>PAGES: t003 prephase: load_wiki_base() → errors + contacts ✓
+    R2->>PAGES: t003: load_wiki_patterns("email") → email.md ✓
+    R2->>FRAG: t003, t004 → новые фрагменты
+
+    R2->>LINT: после ThreadPool
+    LINT->>LINT: merge existing + new fragments
+    LINT->>PAGES: обновлённые страницы (накопление)
 ```
 
 ---
 
-## 3. Двухэтапная загрузка wiki в prephase
+## 3. Двухэтапная загрузка wiki в run_agent()
 
 ```mermaid
 flowchart LR
-    TEXT[task_text] --> A
+    TEXT[task_text] --> PRE
 
-    subgraph PREPHASE [run_prephase]
-        A[Этап A\nдо classify] -->|email-адреса и имена\nиз task_text| A1[pages/errors.md]
-        A --> A2[pages/entities.md\n+ entity-страницы]
-        A1 --> PREFIX[preserve_prefix]
-        A2 --> PREFIX
+    subgraph PRE [run_prephase]
+        direction TB
+        P1[vault tree\nAGENTS.MD\ndocs/ preload]
     end
 
-    PREFIX --> CLASSIFY[classifier\n→ task_type]
+    PRE --> CLS[classifier\n→ task_type]
 
-    subgraph AFTER_CLASSIFY [после classify]
-        CLASSIFY --> B[Этап B] -->|task_type| B1[pages/task_type.md]
-        B1 --> PREFIX2[дополняет\npreserve_prefix]
+    subgraph INJECT [run_agent после classify]
+        direction TB
+        A[load_wiki_base\nerrors.md\ncontacts.md\naccounts.md] --> LOG[pre.log\nappend]
+        B[load_wiki_patterns\npages/task_type.md] --> LOG
     end
 
-    PREFIX2 --> BUILDER[build_dynamic_addendum\nwiki_context=patterns]
-    BUILDER --> LOOP[run_loop\nагент видит wiki\nс первого шага]
+    CLS --> INJECT
+
+    LOG --> LOOP[run_loop\nагент видит wiki\nс первого шага\nне компактируется]
 ```
 
 ---
 
-## 4. Петля обратной связи: wiki ↔ DSPy
+## 4. LLM-синтез (Variant C): категорийные промты
+
+```mermaid
+flowchart TD
+    FRAG[(fragments/\ncategory/)] --> LINT[_llm_synthesize]
+    EXISTING[pages/category.md\nexisting] --> LINT
+
+    LINT --> CAT{category}
+
+    CAT -->|errors| PE["Промт: errors\nИзвлечь: name / condition\n/ root cause / solution\nУдалить: без actionable solution"]
+    CAT -->|contacts| PC["Промт: contacts\nИзвлечь: workflow, risks, insights\nЗапрет: индивидуальные записи\n## john@... ## cont_NNN"]
+    CAT -->|accounts| PA["Промт: accounts\nИзвлечь: workflow, risks, insights\nЗапрет: индивидуальные записи\n## acct_NNN ## CompanyName"]
+    CAT -->|queue / inbox| PQ["Промт: queue/inbox\nИзвлечь: workflow, patterns\nЗапрет: vault-специфика\n(handles, usernames, OTP tokens)"]
+    CAT -->|остальные| PP["Промт: _pattern_default\nИзвлечь: workflow, risks, insights"]
+
+    PE --> LLM[call_llm_raw\nplain_text=True\nmax_tokens=4000]
+    PC --> LLM
+    PA --> LLM
+    PQ --> LLM
+    PP --> LLM
+
+    LLM -->|ok len > 50| OUT[pages/category.md]
+    LLM -->|fail| CONCAT[_concat_merge\nfallback: конкатенация]
+    CONCAT --> Out2[pages/category.md]
+```
+
+---
+
+## 5. Параллельность: append-only fragments
+
+```mermaid
+sequenceDiagram
+    participant T1 as Поток 1 (t041)
+    participant T2 as Поток 2 (t042)
+    participant FRAG as fragments/email/
+
+    note over T1,T2: Параллельное выполнение
+
+    T1->>FRAG: write email/t041_20260420T100000Z.md
+    T2->>FRAG: write email/t042_20260420T100030Z.md
+
+    note over FRAG: Два разных файла<br/>Нет read-modify-write<br/>Нет гонок
+```
+
+```mermaid
+flowchart LR
+    subgraph BAD["❌ Без fragments (race condition)"]
+        direction TB
+        R1A[T1: read email.md] --> W1A[T1: write email.md]
+        R1B[T2: read email.md] --> W1B[T2: write email.md]
+        W1A -. "перезаписывает" .-> W1B
+    end
+
+    subgraph GOOD["✓ С fragments (thread-safe)"]
+        direction TB
+        F1[T1: write t041_{ts}.md]
+        F2[T2: write t042_{ts}.md]
+        F1 --- LINT2[Lint (однопоточно)\nобъединяет оба]
+        F2 --- LINT2
+        LINT2 --> PAGE[pages/email.md]
+    end
+```
+
+---
+
+## 6. Петля обратной связи: wiki ↔ evaluator ↔ DSPy
 
 ```mermaid
 flowchart TD
     TASK[Задача N] --> LOOP[run_loop]
     LOOP --> EVAL[evaluator]
 
-    EVAL -->|approved\nstep_facts| WP[wiki/fragments\ntask_type.md]
-    EVAL -->|rejected\nissues + hint| WE[wiki/fragments\nerrors.md]
+    EVAL -->|approved: true\nstep_facts| FF_OK[format_fragment\ncategory: task_type]
+    EVAL -->|approved: false\nissues + hint| FF_ERR[format_fragment\ncategory: errors]
 
-    WP --> LINT2[wiki_lint]
-    WE --> LINT2
-    LINT2 --> PAGES[pages/]
+    FF_OK --> FRAG[(fragments/)]
+    FF_ERR --> FRAG
 
-    PAGES --> PRE2[prephase\nЗадача N+1]
-    PRE2 --> BUILDER2[prompt_builder\nwiki_context=patterns]
-    BUILDER2 --> LOOP2[run_loop\nлучший результат]
-    LOOP2 --> EX[dspy_examples.jsonl\nс wiki_context]
+    FRAG --> LINT[wiki_lint\n→ pages/]
+    LINT --> PAGES[(pages/)]
+
+    PAGES --> PRE2[prephase\nЗадача N+1\nload_wiki_base + load_wiki_patterns]
+    PRE2 --> LOOP2[run_loop\nлучший результат]
+    LOOP2 --> EX[dspy_examples.jsonl\nновый пример]
 
     EX --> COPRO[optimize_prompts.py\nCOPRO offline]
-    COPRO --> PROG[compiled program\nучится использовать wiki]
-    PROG --> BUILDER2
+    COPRO --> PROG[compiled program\nулучшается]
+    PROG --> PB[prompt_builder\nbuild_dynamic_addendum]
+    PB --> LOOP2
 ```
 
 ---
 
-## 5. Роль evaluator как гейткипера wiki
-
-```mermaid
-flowchart TD
-    LOOP[run_loop завершается] --> RC[report_completion]
-    RC --> EV{evaluator}
-
-    EV -->|approved| WUP[wiki_update_phase\nмикро-цикл ≤5 шагов]
-    EV -->|rejected| ERR[программная запись\nв errors.md\nбез LLM-вызова]
-
-    WUP --> AGT[агент генерирует\nпредложение обновления]
-    AGT --> EVWIKI{evaluator\nevaluate_wiki_update}
-    EVWIKI -->|approved| WRITE[write_fragment\ncategory: task_type\n+ entities]
-    EVWIKI -->|rejected| SKIP[skip\nне засоряем wiki\nгаллюцинациями]
-
-    ERR --> EFRAG[write_fragment\ncategory: errors\nstruct template]
-
-    WRITE --> FRAG[(fragments/)]
-    EFRAG --> FRAG
-```
-
----
-
-## 6. Физическое расположение данных и потоки чтения/записи
+## 7. Физическое расположение: диск vs vault
 
 ```mermaid
 graph LR
-    subgraph DISK [Локальный диск]
-        subgraph WIKI [data/wiki/]
-            PAGES[pages/\nerrors.md\nemail.md\ncrm.md\nentities.md\n…]
-            FRAGS[fragments/\nerrors/\nemail/\nentities/\n…]
-            ARCH[archive/]
+    subgraph DISK["Локальный диск (персистентен между runs)"]
+        subgraph WIKI["data/wiki/"]
+            PAGES["pages/\nerrors.md\nemail.md\ncontacts.md\naccounts.md\n…"]
+            FRAGS["fragments/\nerrors/…\nemail/…\ncontacts/…\n…"]
+            ARCH["archive/"]
         end
-        DSPY[data/\nprompt_builder_program.json\nevaluator_program.json]
     end
 
-    subgraph VAULT [Harness Vault per-trial]
-        VF[/contacts/\n/inbox/\n/outbox/\n…]
+    subgraph VAULT["Harness Vault (изолирован per-trial)"]
+        VF["/contacts/\n/accounts/\n/inbox/\n/outbox/\nAGENTS.MD"]
     end
 
-    PAGES -->|read_text до prephase\nбез vault-инструментов| PRE[prephase.py]
-    PRE --> LOOP[run_loop]
-    LOOP --> VF
-    VF --> LOOP
-    LOOP -->|write_text после run_loop\nновый файл на задачу| FRAGS
-    FRAGS -->|llm_merge\nначало make run| PAGES
-    FRAGS -->|архив| ARCH
+    PAGES -->|"read_text()\nбез vault-инструментов"| PREPHASE[prephase.py\nrun_agent()]
+    PREPHASE --> RUNLOOP[run_loop]
+    RUNLOOP <-->|"PCM tool calls\n(read/write/delete/…)"| VF
+    RUNLOOP -->|"write_text()\nновый файл на задачу"| FRAGS
+    FRAGS -->|"llm_merge\nLint дважды за run"| PAGES
+    FRAGS -->|"архив после lint"| ARCH
 ```
