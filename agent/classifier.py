@@ -101,7 +101,7 @@ _TEMPORAL_RE = re.compile(
 # Preject: external API / calendar / sync to external service — immediate reject
 # Note: "invoice" excluded — vault invoices are supported via INVOICE WORKFLOW
 _PREJECT_RE = re.compile(
-    r"\b(calendar\s+invite|create\s+(meeting|event|ticket)"
+    r"\b(calendar\s+invite|create\s+(a\s+)?(meeting|event|ticket)"
     r"|sync\s+(to|with)\s+\w+|upload\s+to\s+https?"
     r"|salesforce|hubspot|zendesk|jira|external\s+(api|crm|url)"
     r"|send\s+to\s+https?)\b",
@@ -249,6 +249,28 @@ _PLAINTEXT_FALLBACK: list[tuple[tuple[str, ...], str]] = [
 ]
 
 
+_INSIGHTS_RE = re.compile(r'## Task-Type Specific Insights(.+?)(?=^##(?!#)|\Z)', re.DOTALL | re.MULTILINE)
+_BULLET_HINT_RE = re.compile(r'^- \*\*(.+?)\*\*[:\s]+(.+)', re.MULTILINE)
+
+
+def _extract_type_hints(wiki_text: str, max_chars: int = 200) -> str:
+    """Extract classification-relevant content from Task-Type Specific Insights."""
+    m = _INSIGHTS_RE.search(wiki_text)
+    section = m.group(1) if m else wiki_text
+    # Grab the first subsection title + its first two bullets (each truncated to 80 chars)
+    parts = re.split(r'^(### .+)', section, flags=re.MULTILINE)
+    if len(parts) >= 3:
+        title = parts[1].lstrip('#').strip()
+        bullets = _BULLET_HINT_RE.findall(parts[2])
+        if bullets:
+            hints = "; ".join(f"{k}: {v[:80]}" for k, v in bullets[:2])
+            return f"[{title}] {hints}"[:max_chars]
+    bullets = _BULLET_HINT_RE.findall(section)
+    if not bullets:
+        return section.strip()[:max_chars]
+    return "; ".join(f"{k}: {v[:80]}" for k, v in bullets[:2])[:max_chars]
+
+
 def _count_tree_files(prephase_log: list) -> int:
     """Extract tree text from prephase log and count file entries (non-directory lines)."""
     for msg in prephase_log:
@@ -279,7 +301,7 @@ def classify_task_llm(task_text: str, model: str, model_config: dict,
         return _regex_pre
     user_msg = f"Task: {task_text[:150]}"
     if vault_hint:
-        user_msg += f"\nContext: {vault_hint[:400]}"
+        user_msg += f"\nContext: {vault_hint[:800]}"
     _base_opts = model_config.get("ollama_options_classifier") or model_config.get("ollama_options", {})
     _cls_opts = {k: v for k, v in _base_opts.items() if k in ("num_ctx", "temperature", "seed")}
     _cls_cfg = {
@@ -372,6 +394,20 @@ class ModelRouter:
         vault_hint = None
         if pre.agents_md_content:
             vault_hint = f"AGENTS.MD:\n{pre.agents_md_content}\nvault files: {file_count}"
+        if classify_task(task_text) not in {TASK_PREJECT, TASK_EMAIL}:
+            try:
+                from .wiki import load_wiki_patterns as _load_wiki
+                wiki_hints = []
+                for _tp in ("inbox", "queue"):
+                    _content = _load_wiki(_tp)
+                    if _content:
+                        _hint = _extract_type_hints(_content)
+                        if _hint:
+                            wiki_hints.append(f"{_tp}: {_hint}")
+                if wiki_hints:
+                    vault_hint = (vault_hint or "") + "\n\nWIKI TYPE HINTS:\n" + "\n".join(wiki_hints)
+            except Exception:
+                pass  # fail-open: wiki may not exist yet
         task_type = classify_task_llm(
             task_text, self.classifier, self.configs.get(self.classifier, {}),
             vault_hint=vault_hint,
