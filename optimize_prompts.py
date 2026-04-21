@@ -28,6 +28,7 @@ import os
 import sys
 import threading
 import time
+import traceback as _traceback
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -66,6 +67,7 @@ _BUILDER_PROGRAM_PATH = _BASE / "data" / "prompt_builder_program.json"
 _EVAL_PROGRAM_PATH = _BASE / "data" / "evaluator_program.json"
 _CLASSIFIER_PROGRAM_PATH = _BASE / "data" / "classifier_program.json"
 _OPTIMIZE_LOG_PATH = _BASE / "data" / "optimize_runs.jsonl"
+_OPTIMIZE_ERROR_LOG_PATH = _BASE / "data" / "dspy_errors.jsonl"
 
 
 def _type_program_path(task_type: str) -> Path:
@@ -99,6 +101,7 @@ _COPRO_DEPTH       = _int_env("COPRO_DEPTH", 2)
 _COPRO_TEMPERATURE = _float_env("COPRO_TEMPERATURE", 0.9)
 _COPRO_THREADS     = _int_env("COPRO_THREADS", 1)
 _COPRO_MIN_PER_TYPE = _int_env("COPRO_MIN_PER_TYPE", 3)
+_COPRO_PROMPT_MAX_TOKENS = _int_env("COPRO_PROMPT_MAX_TOKENS", 2000)
 
 
 # ---------------------------------------------------------------------------
@@ -106,16 +109,28 @@ _COPRO_MIN_PER_TYPE = _int_env("COPRO_MIN_PER_TYPE", 3)
 # ---------------------------------------------------------------------------
 
 class OptimizeLogger:
-    """Append-only JSONL logger for optimization runs. Fail-open."""
+    """Append-only JSONL logger for optimization runs. Fail-open.
 
-    def __init__(self, path: Path) -> None:
+    Writes two streams:
+      - `path`        — all events (run_start, lm_call, metric_eval, run_end)
+      - `error_path`  — structured errors only (one JSON per exception)
+    """
+
+    def __init__(self, path: Path, error_path: Path | None = None) -> None:
         self._path = path
+        self._error_path = error_path
         self._lock = threading.Lock()
         path.parent.mkdir(parents=True, exist_ok=True)
         try:
             self._fh = path.open("a", encoding="utf-8", buffering=1)
         except OSError:
             self._fh = None
+        self._err_fh = None
+        if error_path is not None:
+            try:
+                self._err_fh = error_path.open("a", encoding="utf-8", buffering=1)
+            except OSError:
+                self._err_fh = None
 
     def emit(self, event: str, data: dict) -> None:
         if self._fh is None:
@@ -132,12 +147,45 @@ class OptimizeLogger:
         except Exception:
             pass
 
-    def close(self) -> None:
+    def emit_error(self, target: str, exc: BaseException, extra: dict | None = None) -> None:
+        """Write a structured error record to the dedicated error log.
+
+        Captures type, message, and traceback — safe to call from except-blocks.
+        Also mirrors a compact `error` event into the main run log.
+        """
+        record = {
+            "event": "error",
+            "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "target": target,
+            "exc_type": type(exc).__name__,
+            "exc_message": str(exc)[:2000],
+            "traceback": _traceback.format_exc()[:8000],
+            **(extra or {}),
+        }
+        line = json.dumps(record, ensure_ascii=False) + "\n"
         try:
-            if self._fh:
-                self._fh.close()
+            with self._lock:
+                if self._err_fh is not None:
+                    self._err_fh.write(line)
+                if self._fh is not None:
+                    compact = {
+                        "event": "error",
+                        "timestamp": record["timestamp"],
+                        "target": target,
+                        "exc_type": record["exc_type"],
+                        "exc_message": record["exc_message"][:500],
+                    }
+                    self._fh.write(json.dumps(compact, ensure_ascii=False) + "\n")
         except Exception:
             pass
+
+    def close(self) -> None:
+        for fh in (self._fh, self._err_fh):
+            try:
+                if fh:
+                    fh.close()
+            except Exception:
+                pass
 
 
 # Module-level logger instance, initialised in main()
@@ -147,6 +195,11 @@ _logger: OptimizeLogger | None = None
 def _emit(event: str, data: dict) -> None:
     if _logger is not None:
         _logger.emit(event, data)
+
+
+def _emit_error(target: str, exc: BaseException, extra: dict | None = None) -> None:
+    if _logger is not None:
+        _logger.emit_error(target, exc, extra)
 
 
 # ---------------------------------------------------------------------------
@@ -483,10 +536,15 @@ def _run_copro_builder(
     _ollama_only = _ant_client is None and _or_client is None
     _adapter = dspy.ChatAdapter() if _ollama_only else dspy.JSONAdapter()
     lm = _LoggingDispatchLM(model, cfg, max_tokens=400, target=log_label, json_mode=not _ollama_only)
+    prompt_lm = _LoggingDispatchLM(
+        model, cfg, max_tokens=_COPRO_PROMPT_MAX_TOKENS,
+        target=f"{log_label}/meta", json_mode=not _ollama_only,
+    )
     dspy.configure(lm=lm, adapter=_adapter)
 
     program = dspy.Predict(PromptAddendum)
     teleprompter = COPRO(
+        prompt_model=prompt_lm,
         metric=_builder_metric,
         breadth=_COPRO_BREADTH,
         depth=_COPRO_DEPTH,
@@ -506,6 +564,12 @@ def _run_copro_builder(
         raise
     except Exception as exc:
         status = f"error: {exc}"
+        _emit_error(log_label, exc, {
+            "model": model,
+            "trainset_size": len(trainset),
+            "lm_call_num": lm._call_num,
+            "prompt_lm_call_num": prompt_lm._call_num,
+        })
         raise
     finally:
         _emit("run_end", {
@@ -546,10 +610,22 @@ def optimize_builder(model: str, cfg: dict, min_score: float = 0.8, max_per_type
         print(f"[optimize] Per-type skipped (< {_COPRO_MIN_PER_TYPE} examples): "
               + ", ".join(f"{tt}({n})" for tt, n in skipped.items()))
 
+    failed: list[tuple[str, str]] = []
     for tt, n in sorted(eligible.items()):
         print(f"[optimize] Per-type: {tt!r} — {n} examples")
         type_trainset = _builder_trainset(min_score=min_score, task_type=tt, max_per_type=max_per_type)
-        _run_copro_builder(model, cfg, type_trainset, _type_program_path(tt), f"builder/{tt}")
+        try:
+            _run_copro_builder(model, cfg, type_trainset, _type_program_path(tt), f"builder/{tt}")
+        except KeyboardInterrupt:
+            raise
+        except Exception as exc:
+            msg = f"{type(exc).__name__}: {exc}"
+            print(f"[optimize] Per-type {tt!r} FAILED — {msg}. Continuing with next type.")
+            failed.append((tt, msg))
+
+    if failed:
+        print(f"[optimize] Per-type failures: {len(failed)} — "
+              + ", ".join(f"{tt} ({msg.split(':', 1)[0]})" for tt, msg in failed))
 
 
 def _run_copro_evaluator(
@@ -575,10 +651,15 @@ def _run_copro_evaluator(
     _ollama_only = _ant_client is None and _or_client is None
     _adapter = dspy.ChatAdapter() if _ollama_only else dspy.JSONAdapter()
     lm = _LoggingDispatchLM(model, cfg, max_tokens=600, target=log_label, json_mode=not _ollama_only)
+    prompt_lm = _LoggingDispatchLM(
+        model, cfg, max_tokens=_COPRO_PROMPT_MAX_TOKENS,
+        target=f"{log_label}/meta", json_mode=not _ollama_only,
+    )
     dspy.configure(lm=lm, adapter=_adapter)
 
     program = dspy.ChainOfThought(EvaluateCompletion)
     teleprompter = COPRO(
+        prompt_model=prompt_lm,
         metric=_evaluator_metric,
         breadth=_COPRO_BREADTH,
         depth=_COPRO_DEPTH,
@@ -598,6 +679,12 @@ def _run_copro_evaluator(
         raise
     except Exception as exc:
         status = f"error: {exc}"
+        _emit_error(log_label, exc, {
+            "model": model,
+            "trainset_size": len(trainset),
+            "lm_call_num": lm._call_num,
+            "prompt_lm_call_num": prompt_lm._call_num,
+        })
         raise
     finally:
         _emit("run_end", {
@@ -637,10 +724,22 @@ def optimize_evaluator(model: str, cfg: dict, max_per_type: int | None = None) -
         print(f"[optimize] Per-type skipped (< {_COPRO_MIN_PER_TYPE} examples): "
               + ", ".join(f"{tt}({n})" for tt, n in skipped.items()))
 
+    failed: list[tuple[str, str]] = []
     for tt, n in sorted(eligible.items()):
         print(f"[optimize] Per-type evaluator: {tt!r} — {n} examples")
         type_trainset = _evaluator_trainset(task_type=tt)
-        _run_copro_evaluator(model, cfg, type_trainset, _eval_type_program_path(tt), f"evaluator/{tt}")
+        try:
+            _run_copro_evaluator(model, cfg, type_trainset, _eval_type_program_path(tt), f"evaluator/{tt}")
+        except KeyboardInterrupt:
+            raise
+        except Exception as exc:
+            msg = f"{type(exc).__name__}: {exc}"
+            print(f"[optimize] Per-type evaluator {tt!r} FAILED — {msg}. Continuing with next type.")
+            failed.append((tt, msg))
+
+    if failed:
+        print(f"[optimize] Per-type evaluator failures: {len(failed)} — "
+              + ", ".join(f"{tt} ({msg.split(':', 1)[0]})" for tt, msg in failed))
 
 
 def _run_copro_classifier(
@@ -666,10 +765,15 @@ def _run_copro_classifier(
     _ollama_only = _ant_client is None and _or_client is None
     _adapter = dspy.ChatAdapter() if _ollama_only else dspy.JSONAdapter()
     lm = _LoggingDispatchLM(model, cfg, max_tokens=64, target=log_label, json_mode=not _ollama_only)
+    prompt_lm = _LoggingDispatchLM(
+        model, cfg, max_tokens=_COPRO_PROMPT_MAX_TOKENS,
+        target=f"{log_label}/meta", json_mode=not _ollama_only,
+    )
     dspy.configure(lm=lm, adapter=_adapter)
 
     program = dspy.ChainOfThought(ClassifyTask)
     teleprompter = COPRO(
+        prompt_model=prompt_lm,
         metric=_classifier_metric,
         breadth=_COPRO_BREADTH,
         depth=_COPRO_DEPTH,
@@ -689,6 +793,12 @@ def _run_copro_classifier(
         raise
     except Exception as exc:
         status = f"error: {exc}"
+        _emit_error(log_label, exc, {
+            "model": model,
+            "trainset_size": len(trainset),
+            "lm_call_num": lm._call_num,
+            "prompt_lm_call_num": prompt_lm._call_num,
+        })
         raise
     finally:
         _emit("run_end", {
@@ -745,8 +855,9 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    _logger = OptimizeLogger(_OPTIMIZE_LOG_PATH)
+    _logger = OptimizeLogger(_OPTIMIZE_LOG_PATH, _OPTIMIZE_ERROR_LOG_PATH)
     print(f"[optimize] Logging to {_OPTIMIZE_LOG_PATH}")
+    print(f"[optimize] Errors   → {_OPTIMIZE_ERROR_LOG_PATH}")
 
     try:
         model, cfg = _get_optimizer_model()

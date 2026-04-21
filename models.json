@@ -289,7 +289,19 @@
     "thinking_budget": 2000,
     "response_format_hint": "json_object"
   },
+  "anthropic/claude-sonnet-4.6": {
+    "provider": "anthropic",
+    "max_completion_tokens": 16384,
+    "thinking_budget": 4000,
+    "response_format_hint": "json_object"
+  },
   "anthropic/claude-opus-4.6": {
+    "provider": "anthropic",
+    "max_completion_tokens": 16384,
+    "thinking_budget": 8000,
+    "response_format_hint": "json_object"
+  },
+  "anthropic/claude-opus-4.7": {
     "provider": "anthropic",
     "max_completion_tokens": 16384,
     "thinking_budget": 8000,
@@ -303,24 +315,6 @@
     "temperature": 0.35
   },
   "meta-llama/llama-3.3-70b-instruct": {
-    "provider": "openrouter",
-    "max_completion_tokens": 4000,
-    "response_format_hint": "json_object",
-    "temperature": 0.35
-  },
-  "anthropic/claude-sonnet-4.6": {
-    "provider": "openrouter",
-    "max_completion_tokens": 4000,
-    "response_format_hint": "json_object",
-    "temperature": 0.35
-  },
-  "anthropic/claude-haiku-4.5": {
-    "provider": "openrouter",
-    "max_completion_tokens": 4000,
-    "response_format_hint": "json_object",
-    "temperature": 0.35
-  },
-  "anthropic/claude-opus-4.7": {
     "provider": "openrouter",
     "max_completion_tokens": 4000,
     "response_format_hint": "json_object",
@@ -342,6 +336,13 @@
     "response_format_hint": "json_object"
   },
   "claude-code/opus-4.6": {
+    "provider": "claude-code",
+    "cc_model": "opus",
+    "cc_options": "cc_high",
+    "max_completion_tokens": 4000,
+    "response_format_hint": "json_object"
+  },
+  "claude-code/opus-4.7": {
     "provider": "claude-code",
     "cc_model": "opus",
     "cc_options": "cc_high",
