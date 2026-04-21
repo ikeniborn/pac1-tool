@@ -15,7 +15,7 @@ make sync          # или: uv sync
 uv run python main.py
 
 # Запустить конкретные задачи
-uv run python main.py t01 t03 t07
+make task TASKS='t01,t03,t07'
 ```
 
 Ключи API нужно положить в `.secrets` (рядом с `.env`):
@@ -29,18 +29,25 @@ OPENROUTER_API_KEY=sk-or-...
 
 ## Переменные окружения
 
+Загружаются в порядке приоритета: системные переменные → `.secrets` → `.env`.
+Шаблон: `.env.example`.
+
 ### Модели
 
-| Переменная | По умолчанию | Описание |
+| Переменная | Fallback | Описание |
 |---|---|---|
-| `MODEL_DEFAULT` | `anthropic/claude-sonnet-4.6` | Основная модель |
-| `MODEL_THINK` | `MODEL_DEFAULT` | Модель для задач distill/analyze |
-| `MODEL_TOOL` | `MODEL_DEFAULT` | Модель для задач delete/move/rename |
-| `MODEL_LONG_CONTEXT` | `MODEL_DEFAULT` | Модель для задач с большим контекстом |
-| `MODEL_CODER` | `MODEL_DEFAULT` | Подагент для code_eval |
-| `MODEL_CLASSIFIER` | `MODEL_DEFAULT` | Классификатор типа задачи |
+| `MODEL_DEFAULT` | — | Основная модель (обязательная) |
+| `MODEL_CLASSIFIER` | — | Классификатор типа задачи (обязательная) |
+| `MODEL_EMAIL` | `MODEL_DEFAULT` | Модель для задач типа email |
+| `MODEL_LOOKUP` | `MODEL_DEFAULT` | Модель для поиска/запросов |
+| `MODEL_INBOX` | `MODEL_DEFAULT` | Модель для обработки inbox |
+| `MODEL_QUEUE` | `MODEL_INBOX` | Модель для batch-обработки очереди |
+| `MODEL_CAPTURE` | `MODEL_DEFAULT` | Модель для capture-задач |
+| `MODEL_CRM` | `MODEL_DEFAULT` | Модель для CRM follow-up |
+| `MODEL_TEMPORAL` | `MODEL_LOOKUP` | Модель для дата-арифметики |
+| `MODEL_PREJECT` | `MODEL_DEFAULT` | Модель для немедленного отказа |
 | `MODEL_EVALUATOR` | `MODEL_DEFAULT` | Критик (evaluator/critic) |
-| `MODEL_PROMPT_BUILDER` | `MODEL_CLASSIFIER` | Генератор addendum (inference) |
+| `MODEL_PROMPT_BUILDER` | `MODEL_CLASSIFIER` | Генератор addendum (на каждом прогоне) |
 | `MODEL_OPTIMIZER` | `MODEL_CLASSIFIER` | Модель для `optimize_prompts.py` |
 
 ### Инфраструктура
@@ -49,8 +56,13 @@ OPENROUTER_API_KEY=sk-or-...
 |---|---|---|
 | `BENCHMARK_HOST` | `https://api.bitgn.com` | API-эндпоинт бенчмарка |
 | `BENCHMARK_ID` | `bitgn/pac1-dev` | ID бенчмарка |
-| `TASK_TIMEOUT_S` | `180` | Таймаут на задачу (секунды) |
-| `LOG_LEVEL` | `INFO` | `INFO` или `DEBUG` (полный вывод think-блоков и RAW) |
+| `BITGN_RUN_NAME` | — | Имя запуска (отображается в отчёте) |
+| `TASK_TIMEOUT_S` | `300` | Таймаут на задачу (секунды) |
+| `PARALLEL_TASKS` | `1` | Количество параллельных задач |
+| `LOG_LEVEL` | `INFO` | `DEBUG` — полный вывод LLM-ответов и think-блоков |
+| `TZ` | системный | Часовой пояс для timestamps логов |
+| `ROUTER_FALLBACK` | `CLARIFY` | Стратегия при неясном типе задачи: `CLARIFY` \| `EXECUTE` |
+| `ROUTER_MAX_RETRIES` | `2` | Максимум попыток классификации |
 
 ### Evaluator (критик)
 
@@ -66,102 +78,141 @@ OPENROUTER_API_KEY=sk-or-...
 | Переменная | По умолчанию | Описание |
 |---|---|---|
 | `PROMPT_BUILDER_ENABLED` | `1` | `1` — включён, `0` — выключен |
-| `PROMPT_BUILDER_MAX_TOKENS` | `300` | Бюджет токенов для addendum |
+| `PROMPT_BUILDER_MAX_TOKENS` | `500` | Бюджет токенов для addendum |
+
+### Сбор примеров DSPy
+
+| Переменная | По умолчанию | Описание |
+|---|---|---|
+| `DSPY_COLLECT` | `1` | `1` — сохранять примеры после каждого прогона |
 
 ### Провайдеры
 
 | Переменная | Описание |
 |---|---|
-| `OLLAMA_BASE_URL` | URL локального Ollama (например `http://localhost:11434`) |
+| `OLLAMA_BASE_URL` | URL локального Ollama (например `http://localhost:11434/v1`) |
 | `OLLAMA_MODEL` | Имя модели Ollama |
 
 ---
 
 ## DSPy — оптимизация промтов
 
-Агент использует [DSPy](https://dspy.ai) для двух подсистем:
+Агент использует [DSPy](https://dspy.ai) для трёх подсистем:
 
-- **Prompt Builder** — генерирует task-специфичные подсказки перед основным циклом
-  (`dspy.Predict(PromptAddendum)` в `agent/prompt_builder.py`)
-- **Evaluator** — проверяет результат агента перед отправкой
-  (`dspy.ChainOfThought(EvaluateCompletion)` в `agent/evaluator.py`)
+| Модуль | Класс DSPy | Файл | Программа |
+|---|---|---|---|
+| **Classifier** | `ChainOfThought(ClassifyTask)` | `agent/classifier.py` | `data/classifier_program.json` |
+| **Prompt Builder** | `Predict(PromptAddendum)` | `agent/prompt_builder.py` | `data/prompt_builder_program.json` |
+| **Evaluator** | `ChainOfThought(EvaluateCompletion)` | `agent/evaluator.py` | `data/evaluator_program.json` |
 
-Оба модуля работают через `DispatchLM` — обёртку над существующим `call_llm_raw()`
-(3-tier routing: Anthropic → OpenRouter → Ollama). Глобальное состояние DSPy не меняется:
-используется `dspy.context(lm=...)` на каждый вызов.
+Все три модуля используют `DispatchLM` — обёртку над `call_llm_raw()`
+(3-tier routing: Anthropic → OpenRouter → Ollama). Глобальное состояние DSPy не затрагивается:
+каждый вызов использует `dspy.context(lm=...)`.
+
+Если скомпилированный файл отсутствует — модуль работает с промтами по умолчанию (fail-open).
 
 ### Как работает цикл данных
 
 ```
 каждый прогон main.py
-  └─► data/dspy_examples.jsonl  ← растёт автоматически (1 запись/задача)
+  ├─► data/dspy_examples.jsonl      ← builder + classifier (1 запись/задача)
+  └─► data/dspy_eval_examples.jsonl ← evaluator (1 запись/задача, если EVALUATOR_ENABLED=1)
 
-при ≥ 30 записях
-  └─► агент печатает: "[dspy] 30 real examples → run: optimize_prompts.py"
+при ≥ 30 builder-записях
+  └─► агент печатает: "[dspy] 30 real examples → run: optimize_prompts.py --target builder"
 
 optimize_prompts.py
-  ├─► читает data/dspy_examples.jsonl  (реальные примеры с score ≥ min-score)
-  │   если < 30 — добавляет data/dspy_synthetic.jsonl  (cold-start, статичный)
-  └─► пишет data/prompt_builder_program.json / data/evaluator_program.json
-
-следующий запуск агента
-  └─► автоматически загружает data/*.json  (fail-open если файл отсутствует)
+  ├─► читает dspy_examples.jsonl      → builder + classifier trainset
+  │   если < 30 — добавляет dspy_synthetic.jsonl (cold-start, статичный)
+  ├─► читает dspy_eval_examples.jsonl → evaluator trainset
+  │   если < 20 — использует 4 hardcoded bootstrap-примера
+  └─► пишет data/*.json — агент подхватывает при следующем старте
 ```
-
-**`data/dspy_synthetic.jsonl` чистить не нужно.** Как только реальных примеров
-станет ≥ 30, оптимизатор автоматически перестаёт их использовать.
 
 ### Запуск оптимизатора
 
 ```bash
-# Оптимизировать prompt builder
+# Только классификатор
+uv run python optimize_prompts.py --target classifier
+
+# Только prompt builder
 uv run python optimize_prompts.py --target builder
 
-# Оптимизировать evaluator
+# Только evaluator
 uv run python optimize_prompts.py --target evaluator
 
-# Оба сразу
+# Все три сразу
 uv run python optimize_prompts.py --target all
 
-# Использовать другую модель для оптимизации
-MODEL_OPTIMIZER=anthropic/claude-opus-4-5 uv run python optimize_prompts.py --target all
+# Ограничение по типу задачи: последние N примеров на каждый task_type
+# Гарантирует представленность редких типов (crm, temporal, distill)
+uv run python optimize_prompts.py --target all --max-per-type 10
 
 # Повысить порог качества примеров (по умолчанию 0.8)
 uv run python optimize_prompts.py --target builder --min-score 0.9
+
+# Комбинация: лёгкая модель + ограничение + строгий порог
+MODEL_OPTIMIZER=anthropic/claude-haiku-4.5 \
+  uv run python optimize_prompts.py --target all --max-per-type 10 --min-score 0.9
 ```
+
+#### Аргументы `optimize_prompts.py`
+
+| Аргумент | По умолчанию | Описание |
+|---|---|---|
+| `--target` | `all` | `builder` / `evaluator` / `classifier` / `all` |
+| `--min-score` | `0.8` | Минимальный score для включения builder/classifier примера |
+| `--max-per-type` | без лимита | Максимум примеров на группу. Для builder/classifier — последние N на `task_type`. Для evaluator — последние N на `(task_type, approved_str)`. Гарантирует представленность всех типов; редкие типы берутся целиком |
 
 Приоритет модели для оптимизатора: `MODEL_OPTIMIZER` → `MODEL_CLASSIFIER` → `MODEL_DEFAULT`.
 
-Скомпилированные программы:
+COPRO делает `BREADTH × DEPTH × |trainset|` вызовов LLM — рекомендуется лёгкая модель.
 
-| Файл | Используется в |
+#### Как выбрать `--max-per-type`
+
+| Ситуация | Рекомендация |
 |---|---|
-| `data/prompt_builder_program.json` | `agent/prompt_builder.py` при старте |
-| `data/evaluator_program.json` | `agent/evaluator.py` при старте |
+| Первые 50–100 прогонов | без `--max-per-type` (все примеры нужны) |
+| > 100 прогонов, много повторяющихся задач | `--max-per-type 10` |
+| Быстрая проверка пайплайна (smoke-test) | `--max-per-type 5` + `COPRO_DEPTH=1` |
 
-Если файл отсутствует — модуль работает с промтами по умолчанию (fail-open).
+#### Параметры COPRO (через env)
+
+| Переменная | По умолчанию | Описание |
+|---|---|---|
+| `COPRO_BREADTH` | `4` | Кандидатов-инструкций на итерацию |
+| `COPRO_DEPTH` | `2` | Раундов уточнения |
+| `COPRO_TEMPERATURE` | `0.9` | Температура при генерации кандидатов |
+| `COPRO_THREADS` | `1` | Параллелизм оценки (>1 требует запаса RPM) |
 
 ### Сброс оптимизации
 
 ```bash
-rm data/prompt_builder_program.json data/evaluator_program.json
+rm data/prompt_builder_program.json data/evaluator_program.json data/classifier_program.json
 ```
 
-После этого агент снова использует промты из кода.
+После этого агент использует промты из кода.
 
 ### Просмотр накопленных примеров
 
 ```bash
 # Количество примеров
-wc -l data/dspy_examples.jsonl
+wc -l data/dspy_examples.jsonl data/dspy_eval_examples.jsonl
 
-# Примеры с высоким score
+# Примеры с высоким score по типам
 python3 -c "
 import json
-for line in open('data/dspy_examples.jsonl'):
-    ex = json.loads(line)
-    if ex['score'] >= 0.9:
-        print(ex['task_type'], ex['score'], ex['task_text'][:60])
+from collections import Counter
+exs = [json.loads(l) for l in open('data/dspy_examples.jsonl')]
+print(Counter(e['task_type'] for e in exs if e['score'] >= 0.9))
+"
+
+# Баланс yes/no в evaluator-примерах
+python3 -c "
+import json
+from collections import Counter
+exs = [json.loads(l) for l in open('data/dspy_eval_examples.jsonl')]
+print(Counter(e['expected_approved_str'] for e in exs))
 "
 ```
 
@@ -170,40 +221,47 @@ for line in open('data/dspy_examples.jsonl'):
 ## Архитектура агента
 
 ```
-main.py → run_agent() [agent/__init__.py]
-  ├── run_prephase()           — vault tree + AGENTS.MD
-  ├── ModelRouter.resolve()    — классификация типа задачи, выбор модели
-  ├── build_system_prompt()    — модульная сборка системного промта
-  ├── build_dynamic_addendum() — DSPy: task-специфичные подсказки
-  └── run_loop()               — до 30 шагов: LLM → tool → PCM
-        ├── evaluator          — DSPy: проверка результата перед submit
-        ├── stall detection    — обнаружение зависания
-        ├── security gates     — проверки инъекций
-        └── log compaction     — сжатие лога
+main.py → run_agent()
+  ├── run_prephase()                    — vault tree + AGENTS.MD
+  ├── ModelRouter.resolve_after_prephase()
+  │     ├── classify_task()             — regex fast-path
+  │     └── classify_task_llm()        — DSPy classifier (если скомпилирован)
+  │                                       → LLM fallback → regex fallback
+  ├── build_system_prompt()             — модульная сборка системного промта
+  ├── build_dynamic_addendum()          — DSPy Prompt Builder
+  └── run_loop()                        — до 30 шагов: LLM → tool → PCM
+        ├── evaluator                   — DSPy Evaluator перед submit
+        ├── stall detection             — обнаружение зависания
+        ├── security gates              — проверки инъекций
+        └── log compaction             — сжатие лога
 ```
 
 ### Типы задач
 
-| Тип | Ключевые слова | Переменная модели |
+| Тип | Ключевые признаки | Переменная модели |
 |---|---|---|
-| `think` / `distill` | analyze, compare, summarize | `MODEL_THINK` |
-| `tool` | delete, move, rename | `MODEL_TOOL` |
-| `longContext` | 3+ путей, "all files" | `MODEL_LONG_CONTEXT` |
-| `email` | send email, draft | `MODEL_DEFAULT` |
-| `inbox` | process inbox | `MODEL_DEFAULT` |
-| `lookup` | find, what is | `MODEL_DEFAULT` |
-| `coder` | calculate, compute | `MODEL_CODER` |
+| `preject` | calendar invite, external API, sync to CRM | `MODEL_PREJECT` |
+| `queue` | work through / take care of all inbox items | `MODEL_QUEUE` |
+| `inbox` | process/check/handle single inbox note | `MODEL_INBOX` |
+| `email` | send/compose email to recipient | `MODEL_EMAIL` |
+| `lookup` | find, count, query vault data (no write) | `MODEL_LOOKUP` |
+| `capture` | save snippet/content to vault path | `MODEL_CAPTURE` |
+| `crm` | reschedule follow-up, fix due date | `MODEL_CRM` |
+| `temporal` | N days ago, in N days, date arithmetic | `MODEL_TEMPORAL` |
+| `distill` | analyze + write summary/card | `MODEL_DEFAULT` |
 | `default` | всё остальное | `MODEL_DEFAULT` |
+
+Классификация трёхуровневая: regex fast-path → DSPy compiled program → `call_llm_raw()` → regex fallback.
 
 ---
 
 ## Тесты
 
 ```bash
-uv run pytest tests/
+uv run python -m pytest tests/
 
 # Конкретный файл
-uv run pytest tests/test_evaluator.py -v
+uv run pytest tests/test_security_gates.py -v
 ```
 
 ---
@@ -211,14 +269,18 @@ uv run pytest tests/test_evaluator.py -v
 ## Replay-трейсер
 
 ```bash
-# Включить запись трейсов
-TRACE_ENABLED=1 uv run python main.py t01
+# Воспроизвести трейс
+uv run python -m agent.tracer logs/<trace_file>.jsonl
+```
 
-# Посмотреть события
-cat logs/*/traces.jsonl | python3 -c "
-import sys, json
-for l in sys.stdin:
-    e = json.loads(l)
-    print(e['event'], e.get('task_type',''), e.get('step',''))
-"
+---
+
+## Прочие команды
+
+```bash
+# Пересобрать proto-стабы (после изменений pcm.proto)
+make proto        # или: buf generate
+
+# Оптимизировать промты в фоне (пока main.py накапливает примеры)
+uv run python optimize_prompts.py --target classifier --max-examples 60
 ```

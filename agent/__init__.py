@@ -80,8 +80,6 @@ def run_agent(router: ModelRouter, harness_url: str, task_text: str) -> dict:
         stats["builder_in_tok"] = 0
         stats["builder_out_tok"] = 0
         stats["builder_addendum"] = ""
-        stats["builder_vault_tree"] = pre.vault_tree_text
-        stats["builder_agents_md"] = pre.agents_md_content
         if _WIKI_ENABLED:
             _write_wiki_fragment(vm, task_text, task_type, stats)
         return stats
@@ -110,8 +108,6 @@ def run_agent(router: ModelRouter, harness_url: str, task_text: str) -> dict:
         addendum, builder_in_tok, builder_out_tok = build_dynamic_addendum(
             task_text=task_text,
             task_type=task_type,
-            agents_md=pre.agents_md_content,
-            vault_tree=pre.vault_tree_text,
             model=builder_model,
             cfg=builder_cfg,
             max_tokens=_PROMPT_BUILDER_MAX_TOKENS,
@@ -132,8 +128,6 @@ def run_agent(router: ModelRouter, harness_url: str, task_text: str) -> dict:
     stats["builder_in_tok"] = builder_in_tok
     stats["builder_out_tok"] = builder_out_tok
     stats["builder_addendum"] = addendum
-    stats["builder_vault_tree"] = pre.vault_tree_text
-    stats["builder_agents_md"] = pre.agents_md_content
     if _WIKI_ENABLED:
         _write_wiki_fragment(vm, task_text, task_type, stats)
     return stats

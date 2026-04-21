@@ -11,6 +11,7 @@ in optimize_prompts.py as the baseline prompt source.
 """
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import dspy
@@ -18,6 +19,56 @@ from pydantic import BaseModel, Field
 
 from .dispatch import CLI_CLR, CLI_YELLOW
 from .dspy_lm import DispatchLM
+
+# ---------------------------------------------------------------------------
+# Hard-gate: verbatim preservation of quoted task values in writes
+# ---------------------------------------------------------------------------
+
+_QUOTED = re.compile(r'"([^"\n]{2,})"')
+_MIN_VALUE_LEN = 3  # ignore very short snippets ("to", "of") to cut false positives
+_TERMINAL_PUNCT = ".,!?;:"
+
+
+def check_quoted_values_verbatim(
+    task_text: str,
+    writes: list[tuple[str, str]],
+) -> tuple[bool, str]:
+    """Return (ok, issue) — detect trailing-punctuation loss in write payloads.
+
+    For every substring in task_text enclosed in double quotes where the value
+    ends in terminal punctuation (.,!?;:), require that at least one successful
+    write contains that value verbatim (with punctuation). If the stripped form
+    appears but the full form does not, the LM dropped a character — reject.
+
+    Non-terminal-punctuation quoted values are NOT checked: they may legitimately
+    differ between task_text and write (e.g. quoted words in prose). We target
+    the specific paraphrase-drift failure mode seen in t11.
+
+    Fail-open: if no writes, returns (True, "") — other gates handle empty
+    submissions. If task_text has no qualifying quoted value, also (True, "").
+    """
+    if not writes:
+        return True, ""
+    joined = "\n".join(c for _, c in writes if c)
+    if not joined:
+        return True, ""
+    for value in _QUOTED.findall(task_text):
+        if len(value) < _MIN_VALUE_LEN:
+            continue
+        if value[-1] not in _TERMINAL_PUNCT:
+            continue  # only guard trailing-punctuation case
+        stripped = value.rstrip(_TERMINAL_PUNCT)
+        if len(stripped) < _MIN_VALUE_LEN:
+            continue
+        if value in joined:
+            continue  # verbatim present — OK
+        if stripped in joined:
+            return False, (
+                f"Quoted task value {value!r} was written as {stripped!r} "
+                "(trailing punctuation dropped). Re-write the file using the "
+                "EXACT value from the task, including all punctuation."
+            )
+    return True, ""
 
 _EVAL_PROGRAM_PATH = Path(__file__).parent.parent / "data" / "evaluator_program.json"
 

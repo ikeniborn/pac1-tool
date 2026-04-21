@@ -56,13 +56,15 @@ import dspy
 from dspy.teleprompt import COPRO
 
 from agent.dspy_lm import DispatchLM
-from agent.dspy_examples import get_trainset, get_eval_trainset
+from agent.dspy_examples import get_trainset, get_eval_trainset, get_classifier_trainset
 from agent.dispatch import anthropic_client as _ant_client, openrouter_client as _or_client
 from agent.prompt_builder import PromptAddendum
 from agent.evaluator import EvaluateCompletion
+from agent.classifier import ClassifyTask
 
 _BUILDER_PROGRAM_PATH = _BASE / "data" / "prompt_builder_program.json"
 _EVAL_PROGRAM_PATH = _BASE / "data" / "evaluator_program.json"
+_CLASSIFIER_PROGRAM_PATH = _BASE / "data" / "classifier_program.json"
 _OPTIMIZE_LOG_PATH = _BASE / "data" / "optimize_runs.jsonl"
 
 
@@ -280,6 +282,21 @@ def _evaluator_metric(example: dspy.Example, prediction, _trace=None) -> float:
     return result
 
 
+def _classifier_metric(example: dspy.Example, prediction, _trace=None) -> float:
+    """Score classifier prediction: 1.0 if exact match with ground-truth task_type."""
+    expected: str = getattr(example, "task_type", "default")
+    predicted: str = (getattr(prediction, "task_type", "") or "").strip().lower()
+    result = 1.0 if predicted == expected else 0.0
+
+    _emit("metric_eval", {
+        "target": "classifier",
+        "expected": expected,
+        "predicted": predicted,
+        "metric_result": result,
+    })
+    return result
+
+
 # ---------------------------------------------------------------------------
 # Training set builders
 # ---------------------------------------------------------------------------
@@ -287,14 +304,16 @@ def _evaluator_metric(example: dspy.Example, prediction, _trace=None) -> float:
 def _builder_trainset(
     min_score: float = 0.7,
     task_type: str | None = None,
+    max_per_type: int | None = None,
 ) -> list[dspy.Example]:
     """Build DSPy Examples for prompt_builder optimisation.
 
     Args:
         min_score: Minimum task score to include.
         task_type: If given, return only examples for that task type.
+        max_per_type: Last N examples per task_type (guaranteed representation).
     """
-    raw = get_trainset(min_score=min_score)
+    raw = get_trainset(min_score=min_score, max_per_type=max_per_type)
     examples = []
     for ex in raw:
         tt = ex.get("task_type", "default")
@@ -304,18 +323,16 @@ def _builder_trainset(
             dspy.Example(
                 task_type=tt,
                 task_text=ex.get("task_text", ""),
-                vault_tree=ex.get("vault_tree", ""),
-                agents_md=ex.get("agents_md", ""),
                 addendum=ex.get("addendum", ""),
                 score=ex.get("score", 1.0),
-            ).with_inputs("task_type", "task_text", "vault_tree", "agents_md")
+            ).with_inputs("task_type", "task_text")
         )
     return examples
 
 
-def _builder_task_types(min_score: float = 0.7) -> dict[str, int]:
+def _builder_task_types(min_score: float = 0.7, max_per_type: int | None = None) -> dict[str, int]:
     """Return {task_type: count} for all types present in the trainset."""
-    raw = get_trainset(min_score=min_score)
+    raw = get_trainset(min_score=min_score, max_per_type=max_per_type)
     counts: dict[str, int] = {}
     for ex in raw:
         tt = ex.get("task_type", "default")
@@ -323,9 +340,9 @@ def _builder_task_types(min_score: float = 0.7) -> dict[str, int]:
     return counts
 
 
-def _evaluator_task_types() -> dict[str, int]:
+def _evaluator_task_types(max_per_type: int | None = None) -> dict[str, int]:
     """Return {task_type: count} for all types present in the eval trainset."""
-    real = get_eval_trainset()
+    real = get_eval_trainset(max_per_class=max_per_type)
     counts: dict[str, int] = {}
     for ex in real:
         tt = ex.get("task_type", "default")
@@ -333,16 +350,30 @@ def _evaluator_task_types() -> dict[str, int]:
     return counts
 
 
-def _evaluator_trainset(task_type: str | None = None) -> list[dspy.Example]:
+def _classifier_trainset(min_score: float = 0.8, max_per_type: int | None = None) -> list[dspy.Example]:
+    """Build DSPy Examples for classifier optimisation from builder examples."""
+    raw = get_classifier_trainset(min_score=min_score, max_per_type=max_per_type)
+    return [
+        dspy.Example(
+            task_text=ex["task_text"],
+            vault_hint=ex.get("vault_hint", ""),
+            task_type=ex["task_type"],
+        ).with_inputs("task_text", "vault_hint")
+        for ex in raw
+    ]
+
+
+def _evaluator_trainset(task_type: str | None = None, max_per_type: int | None = None) -> list[dspy.Example]:
     """Build DSPy Examples for evaluator optimisation.
 
     Uses real examples from data/dspy_eval_examples.jsonl if ≥ EVAL_THRESHOLD
     are available (collected automatically by main.py runs).
     Falls back to 4 hardcoded bootstrap examples otherwise.
 
+    max_per_type: if set, applies balanced yes/no window (global pass only).
     Ground truth: expected_approved_str = "yes" if score == 1.0 else "no".
     """
-    real = get_eval_trainset()
+    real = get_eval_trainset(max_per_class=max_per_type if task_type is None else None)
     if task_type is not None:
         real = [ex for ex in real if ex.get("task_type", "default") == task_type]
     if real:
@@ -489,14 +520,14 @@ def _run_copro_builder(
     print(f"[optimize] Builder program saved → {save_path}")
 
 
-def optimize_builder(model: str, cfg: dict, min_score: float = 0.8) -> None:
+def optimize_builder(model: str, cfg: dict, min_score: float = 0.8, max_per_type: int | None = None) -> None:
     """Run COPRO on PromptAddendum: global pass + per-task_type passes.
 
     Global pass uses all examples and saves to prompt_builder_program.json.
     Per-type passes save to prompt_builder_{task_type}_program.json for each
     task type with at least COPRO_MIN_PER_TYPE examples.
     """
-    all_trainset = _builder_trainset(min_score=min_score)
+    all_trainset = _builder_trainset(min_score=min_score, max_per_type=max_per_type)
     if not all_trainset:
         print("[optimize] No training examples found. Run main.py first to collect examples.")
         sys.exit(1)
@@ -507,7 +538,7 @@ def optimize_builder(model: str, cfg: dict, min_score: float = 0.8) -> None:
     _run_copro_builder(model, cfg, all_trainset, _BUILDER_PROGRAM_PATH, "builder/global")
 
     # Per-type passes
-    type_counts = _builder_task_types(min_score=min_score)
+    type_counts = _builder_task_types(min_score=min_score, max_per_type=max_per_type)
     eligible = {tt: n for tt, n in type_counts.items() if n >= _COPRO_MIN_PER_TYPE}
     skipped = {tt: n for tt, n in type_counts.items() if n < _COPRO_MIN_PER_TYPE}
 
@@ -517,7 +548,7 @@ def optimize_builder(model: str, cfg: dict, min_score: float = 0.8) -> None:
 
     for tt, n in sorted(eligible.items()):
         print(f"[optimize] Per-type: {tt!r} — {n} examples")
-        type_trainset = _builder_trainset(min_score=min_score, task_type=tt)
+        type_trainset = _builder_trainset(min_score=min_score, task_type=tt, max_per_type=max_per_type)
         _run_copro_builder(model, cfg, type_trainset, _type_program_path(tt), f"builder/{tt}")
 
 
@@ -581,7 +612,7 @@ def _run_copro_evaluator(
     print(f"[optimize] Evaluator program saved → {save_path}")
 
 
-def optimize_evaluator(model: str, cfg: dict) -> None:
+def optimize_evaluator(model: str, cfg: dict, max_per_type: int | None = None) -> None:
     """Run COPRO on EvaluateCompletion: global pass + per-task_type passes.
 
     Global pass uses all examples and saves to evaluator_program.json.
@@ -590,15 +621,15 @@ def optimize_evaluator(model: str, cfg: dict) -> None:
     """
     print(f"[optimize] Model: {model}")
 
-    # Global pass — fallback for task types without enough data
-    global_trainset = _evaluator_trainset()
+    # Global pass — balanced yes/no window applied here only
+    global_trainset = _evaluator_trainset(max_per_type=max_per_type)
     if not global_trainset:
         print("[optimize] No evaluator training examples found. Run main.py first.")
         sys.exit(1)
     _run_copro_evaluator(model, cfg, global_trainset, _EVAL_PROGRAM_PATH, "evaluator/global")
 
-    # Per-type passes
-    type_counts = _evaluator_task_types()
+    # Per-type passes — no window (per-type counts are already small)
+    type_counts = _evaluator_task_types(max_per_type=max_per_type)
     eligible = {tt: n for tt, n in type_counts.items() if n >= _COPRO_MIN_PER_TYPE}
     skipped = {tt: n for tt, n in type_counts.items() if n < _COPRO_MIN_PER_TYPE}
 
@@ -610,6 +641,77 @@ def optimize_evaluator(model: str, cfg: dict) -> None:
         print(f"[optimize] Per-type evaluator: {tt!r} — {n} examples")
         type_trainset = _evaluator_trainset(task_type=tt)
         _run_copro_evaluator(model, cfg, type_trainset, _eval_type_program_path(tt), f"evaluator/{tt}")
+
+
+def _run_copro_classifier(
+    model: str,
+    cfg: dict,
+    trainset: list,
+    save_path: Path,
+    log_label: str,
+) -> None:
+    """Run one COPRO pass on classifier trainset and save to save_path."""
+    _emit("run_start", {
+        "target": log_label,
+        "model": model,
+        "trainset_size": len(trainset),
+        "copro": {
+            "breadth": _COPRO_BREADTH,
+            "depth": _COPRO_DEPTH,
+            "temperature": _COPRO_TEMPERATURE,
+            "threads": _COPRO_THREADS,
+        },
+    })
+
+    _ollama_only = _ant_client is None and _or_client is None
+    _adapter = dspy.ChatAdapter() if _ollama_only else dspy.JSONAdapter()
+    lm = _LoggingDispatchLM(model, cfg, max_tokens=64, target=log_label, json_mode=not _ollama_only)
+    dspy.configure(lm=lm, adapter=_adapter)
+
+    program = dspy.ChainOfThought(ClassifyTask)
+    teleprompter = COPRO(
+        metric=_classifier_metric,
+        breadth=_COPRO_BREADTH,
+        depth=_COPRO_DEPTH,
+        init_temperature=_COPRO_TEMPERATURE,
+    )
+
+    t0 = time.monotonic()
+    status = "ok"
+    try:
+        compiled = teleprompter.compile(
+            program,
+            trainset=trainset,
+            eval_kwargs={"num_threads": _COPRO_THREADS, "display_progress": True, "display_table": 0},
+        )
+    except KeyboardInterrupt:
+        status = "interrupted"
+        raise
+    except Exception as exc:
+        status = f"error: {exc}"
+        raise
+    finally:
+        _emit("run_end", {
+            "target": log_label,
+            "duration_s": round(time.monotonic() - t0, 2),
+            "total_lm_calls": lm._call_num,
+            "status": status,
+        })
+
+    save_path.parent.mkdir(exist_ok=True)
+    compiled.save(str(save_path))
+    print(f"[optimize] Classifier program saved → {save_path}")
+
+
+def optimize_classifier(model: str, cfg: dict, min_score: float = 0.8, max_per_type: int | None = None) -> None:
+    """Run COPRO on ClassifyTask: single global pass (per-type not applicable for classifiers)."""
+    trainset = _classifier_trainset(min_score=min_score, max_per_type=max_per_type)
+    if not trainset:
+        print("[optimize] No classifier training examples found. Run main.py first to collect examples.")
+        sys.exit(1)
+
+    print(f"[optimize] Classifier trainset: {len(trainset)} examples, model: {model}")
+    _run_copro_classifier(model, cfg, trainset, _CLASSIFIER_PROGRAM_PATH, "classifier/global")
 
 
 # ---------------------------------------------------------------------------
@@ -624,7 +726,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--target",
-        choices=["builder", "evaluator", "all"],
+        choices=["builder", "evaluator", "classifier", "all"],
         default="all",
         help="Which program to optimise (default: all)",
     )
@@ -633,6 +735,13 @@ def main() -> None:
         type=float,
         default=0.8,
         help="Minimum task score to include real examples (default: 0.8)",
+    )
+    parser.add_argument(
+        "--max-per-type",
+        type=int,
+        default=None,
+        dest="max_per_type",
+        help="Last N examples per task type (builder/classifier) or per class (evaluator yes/no). (default: all)",
     )
     args = parser.parse_args()
 
@@ -643,10 +752,13 @@ def main() -> None:
         model, cfg = _get_optimizer_model()
 
         if args.target in ("builder", "all"):
-            optimize_builder(model, cfg, min_score=args.min_score)
+            optimize_builder(model, cfg, min_score=args.min_score, max_per_type=args.max_per_type)
 
         if args.target in ("evaluator", "all"):
-            optimize_evaluator(model, cfg)
+            optimize_evaluator(model, cfg, max_per_type=args.max_per_type)
+
+        if args.target in ("classifier", "all"):
+            optimize_classifier(model, cfg, min_score=args.min_score, max_per_type=args.max_per_type)
 
         print("[optimize] Done.")
     except KeyboardInterrupt:

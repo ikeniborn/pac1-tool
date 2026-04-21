@@ -30,7 +30,7 @@ from .classifier import (
     TASK_EMAIL, TASK_LOOKUP, TASK_INBOX, TASK_DISTILL,
     TASK_QUEUE, TASK_CAPTURE, TASK_CRM, TASK_TEMPORAL,
 )
-from .evaluator import evaluate_completion  # FIX-218
+from .evaluator import check_quoted_values_verbatim, evaluate_completion  # FIX-218
 from .tracer import get_task_tracer  # П3: replay tracer (no-op when TRACE_ENABLED=0)
 from .security import (  # FIX-203/206/214/215/250/321
     _normalize_for_injection,
@@ -1786,6 +1786,26 @@ def _run_step(
                     _inbox_evidence = f"file={_sf.path} content={_sf.summary}"
         _eval_start = time.time()
         _eval_done_ops = _filter_superseded_ops(st.done_ops)
+        # Hard-gate: if any quoted task value with trailing punctuation was
+        # written without the punctuation, reject deterministically before
+        # wasting an LLM call. This catches paraphrase-drift that the LLM
+        # evaluator has empirically missed.
+        _qv_ok, _qv_issue = check_quoted_values_verbatim(st.task_text, st.successful_writes)
+        if not _qv_ok:
+            st.eval_rejections += 1
+            print(f"{CLI_RED}[evaluator] REJECTED (hard-gate {st.eval_rejections}/{_MAX_EVAL_REJECTIONS}): {_qv_issue}{CLI_CLR}")
+            st.log.append({"role": "user", "content": (
+                f"[EVALUATOR] Your proposed completion was rejected. Issue: {_qv_issue} "
+                "IMPORTANT: Re-read the task carefully and overwrite the affected file "
+                "with the exact literal value from the task, including all punctuation."
+            )})
+            _tracer.emit("evaluator_call", st.step_count, {
+                "approved": False,
+                "issues": [_qv_issue],
+                "elapsed_ms": int((time.time() - _eval_start) * 1000),
+                "hard_gate": "quoted_values_verbatim",
+            })
+            return False
         verdict = evaluate_completion(
             task_text=st.task_text, task_type=task_type,
             report=job.function, done_ops=_eval_done_ops,  # FIX-223

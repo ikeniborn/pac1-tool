@@ -280,8 +280,6 @@ def _run_single_task(trial_id: str, task_filter: list, router: ModelRouter) -> t
                     task_type=token_stats.get("task_type", "default"),
                     addendum=token_stats["builder_addendum"],
                     score=_score_f,
-                    vault_tree=token_stats.get("builder_vault_tree", ""),
-                    agents_md=token_stats.get("builder_agents_md", ""),
                 )
             _eval_call = token_stats.get("eval_last_call")
             if _eval_call and token_stats.get("evaluator_calls", 0) > 0:

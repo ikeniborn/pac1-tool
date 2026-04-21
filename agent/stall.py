@@ -97,12 +97,16 @@ def _handle_stall_retry(
     retry_fired is True when a stall LLM call was made (even if it returned None).
     Token/timing deltas reflect the retry call when it fired."""
     _stall_hint = _check_stall(fingerprints, steps_since_write, error_counts, step_facts)
-    if _stall_hint and not stall_active:
+    # FIX-323: re-fire stall at 12/18/24 steps even when stall_active=True.
+    # Previously stall_active stayed True forever → agent could loop 30 steps ignored.
+    _escalating = steps_since_write >= 12 and steps_since_write % 6 == 0
+    if _stall_hint and (not stall_active or _escalating):
         print(f"{CLI_YELLOW}[stall] Detected: {_stall_hint[:120]}{CLI_CLR}")
         # FIX-200: record stall event as step fact for compaction survival
         step_facts.append(_StepFact(kind="stall", path="", summary=_stall_hint[:100]))
         log.append({"role": "user", "content": f"[STALL HINT] {_stall_hint}"})
-        stall_active = True
+        # Reset so next escalation threshold can fire again
+        stall_active = False
         _job2, _e2, _i2, _o2, _, _ev_c2, _ev_ms2 = call_llm_fn(log, model, max_tokens, cfg)
         log.pop()
         if _job2 is not None:

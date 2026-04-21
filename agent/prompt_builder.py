@@ -50,6 +50,21 @@ class PromptAddendum(dspy.Signature):
     Bullet 3+: required output format or field names if the task specifies them.
     No preamble — token budget is 300, preamble wastes it. Each bullet starts with a dash (-).
 
+    ## NEVER Repeat Literal Task Values
+    CRITICAL: Do NOT copy, cite, or paraphrase values from task_text into the addendum.
+    This includes: quoted strings (anything inside "..."), email addresses, IDs
+    (acct_XXX, cont_XXX), filenames, dates, names, numbers.
+    When you paraphrase values, you WILL drop trailing punctuation, alter spacing,
+    or change casing — and the agent may follow your corrupted version instead of
+    the original task_text. The agent already has task_text verbatim in its prompt.
+    Reference values by FIELD NAME only:
+      CORRECT:  "- Copy `subject` and `body` verbatim from task into the outbox JSON"
+      WRONG:    "- Email format: subject (Quick update), body (Quick note)"
+      WRONG:    "- Write to maya@example.com with subject Quick update"
+      WRONG:    "- The body should be Quick note"
+    If a rule depends on the shape of a value (e.g., "ID starts with acct_"),
+    state the rule, not the value.
+
     ## Rejection Rules
     Evaluate BEFORE generating any guidance. If the task involves ANY of the following,
     output EXACTLY one bullet and stop:
@@ -121,8 +136,6 @@ class PromptAddendum(dspy.Signature):
 
     task_type: str = dspy.InputField(desc="classified task type")
     task_text: str = dspy.InputField(desc="task description")
-    vault_tree: str = dspy.InputField(desc="vault directory tree")
-    agents_md: str = dspy.InputField(desc="AGENTS.MD content defining folder roles")
     addendum: str = dspy.OutputField(
         desc="3–6 bullet points starting with '-', plain text, no JSON, no preamble"
     )
@@ -135,19 +148,20 @@ class PromptAddendum(dspy.Signature):
 def build_dynamic_addendum(
     task_text: str,
     task_type: str,
-    agents_md: str,
-    vault_tree: str,
     model: str,
     cfg: dict,
     max_tokens: int = 2000,
 ) -> tuple[str, int, int]:
     """Return (addendum, in_tokens, out_tokens). addendum='' if skipped or failed.
 
+    vault_tree and agents_md are intentionally NOT inputs: for a fixed vault
+    they are near-constant and add ~2.8KB of noise that pressures the LM to
+    paraphrase task values (dropping trailing punctuation). Vault semantics
+    belong in Signature instructions; task_text already carries the specifics.
+
     Args:
         task_text: Full task description.
         task_type: Classified task type from classifier.
-        agents_md: Content of AGENTS.MD (vault semantics).
-        vault_tree: Rendered vault tree text from prephase.
         model: LLM model identifier.
         cfg: Model config dict (used for provider + ollama options).
         max_tokens: Max tokens for the addendum (default 300).
@@ -177,8 +191,6 @@ def build_dynamic_addendum(
             result = predictor(
                 task_type=task_type,
                 task_text=task_text,
-                vault_tree=vault_tree,
-                agents_md=agents_md,
             )
         addendum = (result.addendum or "").strip()
         in_tok = lm._last_tokens.get("input", 0)

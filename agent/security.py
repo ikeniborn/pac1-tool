@@ -71,6 +71,27 @@ _INBOX_INJECTION_PATTERNS = [
 _INBOX_ACTION_RE = re.compile(r"\b(please\s+do|follow\s+this|run|execute)\b", re.IGNORECASE)
 
 # ---------------------------------------------------------------------------
+# FIX-321: Write-payload injection patterns — detect embedded commands in content
+# being written to the vault (e.g., capture snippets with injected tool notes).
+# Distinct from _INBOX_INJECTION_PATTERNS which scan messages from external channels.
+# ---------------------------------------------------------------------------
+
+_WRITE_PAYLOAD_INJECTION_PATTERNS = [
+    # "Embedded tool note:" — explicit command injection marker
+    re.compile(r'^\s*Embedded\s+(tool|command|script)\s+(note|call|run|instruction)\s*:', re.IGNORECASE | re.MULTILINE),
+    # Conditional imperative "if X => delete/remove/send/execute" embedded in content
+    re.compile(r'\bif\s+[\w\s]{1,50}\s*=>\s*(remove|delete|send|execute|run|disable|drop)', re.IGNORECASE),
+    # Authority-claiming metadata frontmatter typical of bridge/override injection
+    re.compile(r'^origin\s*:\s*(security-bridge|admin|system-override|auth-bridge)', re.IGNORECASE | re.MULTILINE),
+]
+
+
+def _check_write_payload_injection(content: str) -> bool:
+    """FIX-321: Return True if write content contains embedded command injection."""
+    _norm = _normalize_for_injection(content)
+    return any(p.search(_norm) for p in _WRITE_PAYLOAD_INJECTION_PATTERNS)
+
+# ---------------------------------------------------------------------------
 # FIX-250: Write-scope code enforcement (FIX-208)
 # ---------------------------------------------------------------------------
 

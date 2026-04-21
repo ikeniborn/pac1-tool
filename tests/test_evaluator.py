@@ -317,3 +317,68 @@ def test_build_prompt_skepticism_levels():
             efficiency="low",
         )
         assert len(system) > 100, f"System prompt too short for skepticism={level}"
+
+
+# ---------------------------------------------------------------------------
+# Hard-gate: check_quoted_values_verbatim (deterministic, no LLM)
+# ---------------------------------------------------------------------------
+
+def _quoted_gate():
+    from agent.evaluator import check_quoted_values_verbatim
+    return check_quoted_values_verbatim
+
+
+def test_quoted_gate_detects_dropped_trailing_period():
+    """t11 regression: body 'Quick note.' written as 'Quick note' must fail."""
+    gate = _quoted_gate()
+    task = 'Write a brief email to "maya@example.com" with subject "Quick update" and body "Quick note."'
+    writes = [("/outbox/88894.json",
+               '{"to":"maya@example.com","subject":"Quick update","body":"Quick note","sent":false}')]
+    ok, issue = gate(task, writes)
+    assert ok is False
+    assert "Quick note." in issue
+    assert "Quick note" in issue
+
+
+def test_quoted_gate_passes_when_value_is_verbatim():
+    """Period preserved → gate passes."""
+    gate = _quoted_gate()
+    task = 'body "Quick note."'
+    writes = [("/outbox/1.json", '{"body":"Quick note."}')]
+    ok, issue = gate(task, writes)
+    assert ok is True
+    assert issue == ""
+
+
+def test_quoted_gate_ignores_values_without_trailing_punctuation():
+    """Non-terminal-punctuation quoted values are not checked (false-positive cut)."""
+    gate = _quoted_gate()
+    task = 'subject "Quick update" and body is just plain'
+    writes = [("/outbox/1.json", '{"subject":"Quick update"}')]
+    ok, _ = gate(task, writes)
+    assert ok is True
+
+
+def test_quoted_gate_no_writes_returns_ok():
+    """Empty writes list → fail-open (other gates handle empty submissions)."""
+    gate = _quoted_gate()
+    assert gate('body "Quick note."', []) == (True, "")
+
+
+def test_quoted_gate_ignores_very_short_values():
+    """Short values ('to', 'of', 'X.') skipped to avoid noise."""
+    gate = _quoted_gate()
+    task = 'the answer is "X."'
+    writes = [("/f.json", '{"answer":"X"}')]
+    ok, _ = gate(task, writes)
+    assert ok is True
+
+
+def test_quoted_gate_multiple_values_detects_first_failure():
+    """When multiple quoted values are present, report the first paraphrased one."""
+    gate = _quoted_gate()
+    task = 'subject "Hello world!" and body "Second line."'
+    writes = [("/f.json", '{"subject":"Hello world","body":"Second line."}')]
+    ok, issue = gate(task, writes)
+    assert ok is False
+    assert "Hello world!" in issue
