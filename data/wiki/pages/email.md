@@ -1,37 +1,39 @@
 ## Proven Step Sequences
 
-### Direct Email Composition (No Account Context)
-1. **Query sequence**: Read `/outbox/seq.json` to obtain current message ID
-2. **Compose payload**: Write email content including recipient, subject, and body to `/outbox/{id}.json`
-3. **Commit sequence**: Update `/outbox/seq.json` to increment the consumed ID
+**Direct Email (explicit address given)**
+1. Read `/outbox/seq.json` for current ID
+2. Write `/outbox/{id}.json` with recipient, subject, body
+3. Seq file auto-increments on write — explicit update not needed
 
-### Account-Based Email Composition
-1. **Locate account**: Identify target account file (e.g., `/accounts/acct_004.json`) via listing or direct reference
-2. **Verify details**: Read account file to confirm organization name and status
-3. **Resolve recipient**: Read corresponding contact file `/contacts/cont_{NNN}.json` where NNN matches account ID suffix (e.g., `acct_004` → `cont_004`)
-4. **Gather context**: Read `/01_notes/{kebab-case-org-name}.md` for conversation history and account-specific details
-5. **Execute storage**: Follow Direct Email Composition sequence using gathered metadata
+**Person-First (name given)**
+1. Search contacts for person name (try reversed order if no match: "Frank Arne" → "Arne Frank")
+2. Read matched contact (`cont_*.json` or `mgr_*.json`) → extract `email` and `account_id`
+3. Read `/outbox/seq.json` → write email → update seq
 
-### Account Discovery by Content
-1. **List inventory**: List `/accounts` to obtain candidate filenames when target ID is unknown
-2. **Iterate and match**: Read account files sequentially to match content criteria (industry, geography, organization name substring) until target located
-3. **Proceed to composition**: Follow Account-Based Email Composition steps 3-5
+**Account/Organization-First (org name given)**
+1. Search accounts for org name → read account file → extract `account_manager`
+2. Search contacts for manager name → read matched contact file → extract `email`
+3. Read `/outbox/seq.json` → write email → update seq
+
+**Industry-First (customer described by sector)**
+1. Read all accounts sequentially, filter by `industry` field
+2. Read matched account → extract `account_manager`
+3. Search contacts for manager name → read contact file → extract `email`
+4. Read `/outbox/seq.json` → write email → update seq
 
 ## Key Risks and Pitfalls
 
-- **Sequence read timing**: Defer reading `/outbox/seq.json` until immediately before writing the email file to minimize staleness window; perform all context gathering (account, contact, notes) prior to acquiring the ID
-- **Incomplete atomic sequence**: Writing the email file without updating `seq.json` results in ID collision and data overwrite on subsequent writes; both writes must occur in the same logical operation
-- **Path confusion**: Typo between `/outbox/` and `/outbound/` causes write failures or misplaced files
-- **Contact/account ID mismatch**: Contact file IDs correspond to account IDs by exact numeric suffix (e.g., `acct_009` → `cont_009`, `acct_004` → `cont_004`); verify alignment before reading
-- **Missing context files**: Notes in `/01_notes/` may not exist for all accounts; verify kebab-case path construction (e.g., "Blue Harbor Bank" → `blue-harbor-bank.md`) before attempting read
-- **Enumeration stall risk**: Sequential reads of multiple `/accounts/*.json` files during discovery consume the 6-step research budget rapidly; avoid interleaving non-essential reads (e.g., early notes listing) during account scans
+- **Both contact prefixes**: Account managers use `mgr_*.json`, primary contacts use `cont_*.json`; try both when the first fails
+- **Atomic sequence**: read seq → write email → update seq — all three in order; skipping seq update causes ID collision
+- **Account manager search by name**: `account_manager` in account file may have different numeric suffix than `acct_NNN` — always search by name, don't assume suffix match
+- **Stall warning**: 6 reads without write triggers stall; account/industry-first paths are read-heavy — write email as soon as email is resolved, before reading notes or additional files
+- **Search with empty query**: initial search may return no matches; need to refine query (account name, manager name, etc.)
 
 ## Task-Type Specific Insights
 
-- **ID management**: Sequential numeric IDs are centrally tracked in `/outbox/seq.json` as `{"id": <number>}`; use exact value without padding or prefixes
-- **Storage isolation**: Each email is an isolated JSON file named by numeric ID in `/outbox/`; no directory nesting per message
-- **Atomicity requirement**: Maintain strict ordering: read current ID → write email file → update sequence counter to ensure crash consistency and prevent duplicate filenames
-- **Contact correlation**: Primary contacts follow strict `/contacts/cont_{NNN}.json` pattern where NNN matches the account ID suffix exactly
-- **Notes naming convention**: Organization context files use lowercase kebab-case in `/01_notes/` derived from the organization name (e.g., "Aperture AI Labs" → `aperture-ai-labs.md`)
-- **Context dependency chain**: Account-based emails require three-tier resolution: account file → contact file → notes file; missing any tier requires graceful degradation (compose without missing context rather than fail)
-- **Direct vs. contextual composition**: Tasks specifying explicit email addresses (e.g., `sam@example.com`) bypass the account discovery chain entirely and use only the Direct Email Composition sequence
+**Email Tasks**
+- `/outbox/seq.json` schema: `{"id": integer}` — write triggers auto-increment; no explicit update needed
+- Notes in `/01_notes/{kebab-org}.md` are optional context — skip if missing or if step budget is tight
+- Explicit email address = 2-step path (seq + write) — no contact resolution needed
+- `search` over `list+read` for account/contact discovery — fewer steps, avoids stall
+- Finance industry = banking customers; filter `industry: "finance"` in account records

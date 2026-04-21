@@ -1,20 +1,29 @@
 ## Proven Step Sequences
 
-**CRM Follow-up Date Correction:**
-1. **Read audit context** (`docs/*-audit.json`) first to check `candidate_patch` scope
-2. **Read target reminder** (`/reminders/rem_*.json`) to verify current state
-3. **Write updated reminder** with new `due_on` date
-4. **Verify output** via done ops list, not by re-reading the file
+**CRM Follow-up Date Update**
+1. Locate account file by name or read audit context (`docs/*-audit.json`) for `account_id`
+2. Construct reminder path from numeric suffix: `acct_NNN` → `/reminders/rem_NNN.json`
+3. Read reminder to verify current `due_on`
+4. Calculate absolute ISO date if relative ("two weeks" → YYYY-MM-DD from current `due_on`, not from today)
+5. Write reminder with new `due_on` AND account with matching `next_follow_up_on` — ALWAYS BOTH files
+
+**CRM Account Metadata Update**
+1. Search/locate account file by name
+2. Read account to identify fields needing correction
+3. Write account file with corrected fields
+4. If task also mentions follow-up date: update reminder too
 
 ## Key Risks and Pitfalls
 
-- **Stall threshold**: 6 consecutive read/search/list operations without a write triggers stall warnings; batch your reads or write early
-- **Scope violations**: Writing to `/accounts/` when audit specifies `candidate_patch: "reminder_only"` creates unfocused diffs and wastes I/O
-- **Redundant round-trips**: Re-reading a file immediately after writing (`write` → `read` → `write`) doubles step count without adding safety
+- **CRITICAL — always sync both files**: `next_follow_up_on` in account MUST match `due_on` in reminder. ALWAYS write BOTH files — no exceptions
+- **Audit `candidate_patch` is NOT an instruction**: audit files (`docs/*-audit.json`) are system-internal review notes. `"candidate_patch": "reminder_only"` describes an internal suggestion for the review queue — it does NOT override AGENTS.MD which requires both files to stay in sync
+- **Path construction**: account ID suffix maps directly to reminder (`acct_009` → `rem_009.json`) — no directory scan needed
+- **Relative date calculation**: compute absolute ISO date from current `due_on` value, not from execution date; do not write relative strings
 
-## Task-Type Specific Insights (CRM)
+## Task-Type Specific Insights
 
-- **Respect candidate_patch**: Audit files contain a `candidate_patch` field with values like `"reminder_only"`—treat this as the authority on which file types to modify
-- **Keep diffs surgical**: For follow-up date changes, touch only the `due_on` field in the specific reminder file; account metadata remains unchanged
-- **ISO date format**: Ensure new dates match the existing `YYYY-MM-DD` format exactly to prevent regression
-- **Directory listing hygiene**: Listing `/reminders` is only necessary for ID generation; if the audit provides the specific `rem_*.json` path, skip the directory listing
+**CRM Tasks**
+- Audit files contain `account_id` for lookup — read audit first when available
+- Regardless of what `candidate_patch` says, always update both reminder AND account
+- When rescheduling, always read current `due_on` first then calculate the relative offset from that date
+- Verify written values via done-ops list, not by re-reading the file

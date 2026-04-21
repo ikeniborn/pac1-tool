@@ -244,9 +244,36 @@ def run_prephase(
         for dir_name in to_preload:
             _read_dir(f"/{dir_name}", set())
 
+    # Estimate VAULT_DATE from date-prefixed filenames.
+    # Priority: inbox file paths (represent "today's" messages) > tree-wide mode.
+    _date_prefix_re = re.compile(r'\b(\d{4}-\d{2}-\d{2})__')
+    _vault_date_hint = ""
+    # First: dates from inbox file paths (most reliable — inbox = arriving messages)
+    _inbox_dates = sorted({
+        m.group(1) for p, _ in inbox_files
+        if (m := _date_prefix_re.search(p))
+    })
+    if _inbox_dates:
+        _vault_date_est = _inbox_dates[len(_inbox_dates) // 2]  # median
+    else:
+        # Fallback: mode of all date-prefixed files in tree (excludes far-future outliers on average)
+        _found_dates = _date_prefix_re.findall(tree_txt)
+        if _found_dates:
+            _date_counts: dict[str, int] = {}
+            for _d in _found_dates:
+                _date_counts[_d] = _date_counts.get(_d, 0) + 1
+            _vault_date_est = max(_date_counts, key=lambda k: _date_counts[k])
+        else:
+            _vault_date_est = ""
+    if _vault_date_est:
+        _vault_date_hint = f"VAULT_DATE: {_vault_date_est}  (estimated — verify against account `last_contacted_on` for temporal queries)"
+        print(f"{CLI_BLUE}[prephase] vault_date estimated: {_vault_date_est}{CLI_CLR}")
+
     # Inject vault layout + AGENTS.MD as context — the agent reads this to discover
     # where "cards", "threads", "inbox", etc. actually live in the vault.
     prephase_parts = [f"TASK: {task_text}", f"VAULT STRUCTURE:\n{tree_txt}"]
+    if _vault_date_hint:
+        prephase_parts.append(_vault_date_hint)
     if agents_md_content:
         agents_md_injected, was_filtered = _filter_agents_md(agents_md_content, task_text)
         if was_filtered:
@@ -267,30 +294,6 @@ def run_prephase(
 
     log.append({"role": "user", "content": "\n".join(prephase_parts)})
 
-    # FIX-286: inject vault_date inferred from date-prefixed filenames in the vault tree.
-    # FIX-104: also scan agents_md and docs content when tree has no dated filenames (minimal vaults).
-    # This gives the model a reliable date baseline when TASK CONTEXT provides no current_date.
-    _vault_dates = re.findall(r'\b(\d{4}-\d{2}-\d{2})', tree_txt) if tree_txt else []
-    if not _vault_dates and agents_md_content:
-        _vault_dates = re.findall(r'\b(\d{4}-\d{2}-\d{2})', agents_md_content)
-    if not _vault_dates:
-        _combined = "\n".join(docs_content_parts)
-        _vault_dates = re.findall(r'\b(\d{4}-\d{2}-\d{2})', _combined)
-    # FIX-308: fallback — scan all accounts/*.json for last_contacted_on (past date, not future follow-up)
-    if not _vault_dates:
-        try:
-            _acct_list = vm.list(ListRequest(name="/accounts"))
-            for _ae in sorted(_acct_list.entries, key=lambda e: e.name):
-                if _ae.name.endswith(".json") and not _ae.name.upper().startswith("README"):
-                    _acct_r = vm.read(ReadRequest(path=f"/accounts/{_ae.name}"))
-                    for _m in re.finditer(r'"last_contacted_on"\s*:\s*"(\d{4}-\d{2}-\d{2})"', _acct_r.content):
-                        _vault_dates.append(_m.group(1))
-        except Exception:
-            pass
-    if _vault_dates:
-        _vault_date = max(_vault_dates)
-        log.append({"role": "user", "content": f"VAULT_DATE: {_vault_date}"})
-        print(f"{CLI_BLUE}[prephase] vault_date inferred: {_vault_date}{CLI_CLR}")
 
     # Step 3: context — task-level metadata from the harness
     print(f"{CLI_BLUE}[prephase] context...{CLI_CLR}", end=" ")

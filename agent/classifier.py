@@ -2,14 +2,18 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from dataclasses import dataclass, field
-
-_JSON_TYPE_RE = re.compile(r'\{[^}]*"type"\s*:\s*"(\w+)"[^}]*\}')  # extract type from partial/wrapped JSON
-
+from pathlib import Path
 from typing import TYPE_CHECKING
 
+import dspy
+
 from .dispatch import call_llm_raw
+from .dspy_lm import DispatchLM
+
+_JSON_TYPE_RE = re.compile(r'\{[^}]*"type"\s*:\s*"(\w+)"[^}]*\}')  # extract type from partial/wrapped JSON
 
 if TYPE_CHECKING:
     from .prephase import PrephaseResult
@@ -26,23 +30,12 @@ TASK_LOOKUP = "lookup"
 TASK_INBOX = "inbox"
 TASK_DISTILL = "distill"
 
-# Think words — kept for distill detection only (think + write → distill)
-_THINK_WORDS = re.compile(
-    r"\b(distill|analyze|analyse|summarize|summarise|compare|evaluate|review|infer"
-    r"|explain|interpret|assess|what does|what is the|why does|how does|what should)\b",
-    re.IGNORECASE,
-)
-
-# FIX-265b: broadened inbox detection — also matches "review inbound note", "next inbox message"
-_INBOX_RE = re.compile(
-    r"\b(process|check|handle|review)\s+(the\s+)?(next\s+)?(inbox|inbound)\b",
-    re.IGNORECASE,
-)
-
-# Queue: bulk/batch inbox processing — "work through", "take care of", queue/inbox/items variants
-_QUEUE_RE = re.compile(
-    r"\b(work\s+through|take\s+care\s+of|work\s+on|process|handle)\s+(the\s+|all\s+)?"
-    r"(incoming\s+|pending\s+|inbound\s+)?(queue|inbox|items|inbound)\b",
+# Fast-path regexes — only for types detectable with near-zero false positives before LLM
+_PREJECT_RE = re.compile(
+    r"\b(calendar\s+invite|create\s+(a\s+)?(meeting|event|ticket)"
+    r"|sync\s+(to|with)\s+\w+|upload\s+to\s+https?"
+    r"|salesforce|hubspot|zendesk|jira|external\s+(api|crm|url)"
+    r"|send\s+to\s+https?)\b",
     re.IGNORECASE,
 )
 
@@ -52,160 +45,13 @@ _EMAIL_RE = re.compile(
     re.IGNORECASE,
 )
 
-_LOOKUP_RE = re.compile(
-    r"\b(what\s+is|find|lookup|search\s+for)\b.*\b(email|phone|contact|account)\b"
-    r"|\bwhich\s+(accounts?|contacts?|files?)\b.*\b(managed\s+by|by|in|from|with)\b",
-    re.IGNORECASE,
-)
-
-# Write-verbs used to distinguish lookup from distill/email
-# FIX-264: add(?![-]) prevents matching "add" in compound words like "add-on"
-_WRITE_VERBS_RE = re.compile(
-    r"\b(write|create|add(?![-])|update|send|compose|delete|move|rename)\b",
-    re.IGNORECASE,
-)
-
-# FIX-175: counting/aggregation queries without write intent → lookup (read-only vault data query).
-_COUNT_QUERY_RE = re.compile(
-    r"\b(how\s+many|count|sum\s+of|total\s+of|average|aggregate)\b",
-    re.IGNORECASE,
-)
-
-_FINANCE_RE = re.compile(
-    r"\b(invoice|revenue|spend|overdue|payment|bill|amount|balance)\b",
-    re.IGNORECASE,
-)
-
-# Capture: explicit content snippet with source/destination
-_CAPTURE_RE = re.compile(
-    r"\bcapture\b.{0,60}\b(snippet|from|into|content|text|this)\b",
-    re.IGNORECASE,
-)
-
-# CRM: follow-up date arithmetic — reschedule, reconnect, next-contact date changes
-_CRM_RE = re.compile(
-    r"\b(reschedule|reconnect|follow.?up|next\s+contact"
-    r"|asked\s+to\s+(move|reconnect|reschedule)"
-    r"|move\s+the\s+(follow|date|next)"
-    r"|fix\s+the\s+(follow.?up|due\s+date))\b",
-    re.IGNORECASE,
-)
-
-# Temporal: date-relative queries needing datetime arithmetic
-_TEMPORAL_RE = re.compile(
-    r"\b(\d+\s+days?\s+ago|in\s+\d+\s+days?|what\s+date\s+is|days?\s+from\s+now"
-    r"|exactly\s+\d+\s+days?|looking\s+back\s+\d+|back\s+\d+\s+days?)\b",
-    re.IGNORECASE,
-)
-
-# Preject: external API / calendar / sync to external service — immediate reject
-# Note: "invoice" excluded — vault invoices are supported via INVOICE WORKFLOW
-_PREJECT_RE = re.compile(
-    r"\b(calendar\s+invite|create\s+(a\s+)?(meeting|event|ticket)"
-    r"|sync\s+(to|with)\s+\w+|upload\s+to\s+https?"
-    r"|salesforce|hubspot|zendesk|jira|external\s+(api|crm|url)"
-    r"|send\s+to\s+https?)\b",
-    re.IGNORECASE,
-)
-
-
-@dataclass
-class _Rule:
-    must: list[re.Pattern]
-    must_not: list[re.Pattern]
-    result: str
-    label: str  # for logging
-
-
-# Priority-ordered rule matrix
-# Priority: preject > queue > inbox > email > lookup > capture > crm > temporal > distill > default
-_RULE_MATRIX: list[_Rule] = [
-    # Rule 0: external API / calendar / sync to external service → preject (immediate rejection)
-    _Rule(
-        must=[_PREJECT_RE],
-        must_not=[],
-        result=TASK_PREJECT,
-        label="preject-keywords",
-    ),
-    # Rule 1: bulk queue processing — "work through queue", "take care of inbox" → queue
-    _Rule(
-        must=[_QUEUE_RE],
-        must_not=[_PREJECT_RE],
-        result=TASK_QUEUE,
-        label="queue-keywords",
-    ),
-    # Rule 2: inbox process/check/handle single item → inbox
-    _Rule(
-        must=[_INBOX_RE],
-        must_not=[_PREJECT_RE, _QUEUE_RE],
-        result=TASK_INBOX,
-        label="inbox-keywords",
-    ),
-    # Rule 3: send/compose email with recipient/subject → email
-    _Rule(
-        must=[_EMAIL_RE],
-        must_not=[_PREJECT_RE, _QUEUE_RE, _INBOX_RE],
-        result=TASK_EMAIL,
-        label="email-keywords",
-    ),
-    # Rule 4: lookup contact/email/phone with no write intent → lookup
-    _Rule(
-        must=[_LOOKUP_RE],
-        must_not=[_PREJECT_RE, _QUEUE_RE, _INBOX_RE, _EMAIL_RE, _WRITE_VERBS_RE],
-        result=TASK_LOOKUP,
-        label="lookup-keywords",
-    ),
-    # Rule 4b: counting/aggregation query with no write intent → lookup
-    _Rule(
-        must=[_COUNT_QUERY_RE],
-        must_not=[_PREJECT_RE, _QUEUE_RE, _INBOX_RE, _EMAIL_RE, _WRITE_VERBS_RE],
-        result=TASK_LOOKUP,
-        label="count-query",
-    ),
-    # Rule 4c: finance-specific keywords with no write intent → lookup
-    _Rule(
-        must=[_FINANCE_RE],
-        must_not=[_PREJECT_RE, _QUEUE_RE, _INBOX_RE, _EMAIL_RE, _WRITE_VERBS_RE],
-        result=TASK_LOOKUP,
-        label="finance-query",
-    ),
-    # Rule 5: explicit content capture with source/destination → capture
-    _Rule(
-        must=[_CAPTURE_RE],
-        must_not=[_PREJECT_RE, _QUEUE_RE, _INBOX_RE, _EMAIL_RE],
-        result=TASK_CAPTURE,
-        label="capture-keywords",
-    ),
-    # Rule 6: CRM follow-up date arithmetic — reschedule/reconnect → crm
-    _Rule(
-        must=[_CRM_RE],
-        must_not=[_PREJECT_RE, _QUEUE_RE, _INBOX_RE, _EMAIL_RE],
-        result=TASK_CRM,
-        label="crm-keywords",
-    ),
-    # Rule 7: date-relative queries → temporal
-    _Rule(
-        must=[_TEMPORAL_RE],
-        must_not=[_PREJECT_RE, _QUEUE_RE, _INBOX_RE, _EMAIL_RE, _WRITE_VERBS_RE],
-        result=TASK_TEMPORAL,
-        label="temporal-keywords",
-    ),
-    # Rule 8: think-words AND write-verbs simultaneously → distill
-    _Rule(
-        must=[_THINK_WORDS, _WRITE_VERBS_RE],
-        must_not=[_PREJECT_RE, _QUEUE_RE, _INBOX_RE, _EMAIL_RE],
-        result=TASK_DISTILL,
-        label="distill-keywords",
-    ),
-]
-
 
 def classify_task(task_text: str) -> str:
-    """Regex-based structured rule engine for task type classification."""
-    for rule in _RULE_MATRIX:
-        if (all(r.search(task_text) for r in rule.must)
-                and not any(r.search(task_text) for r in rule.must_not)):
-            return rule.result
+    """High-confidence regex fast-path; everything else deferred to DSPy classifier."""
+    if _PREJECT_RE.search(task_text):
+        return TASK_PREJECT
+    if _EMAIL_RE.search(task_text):
+        return TASK_EMAIL
     return TASK_DEFAULT
 
 
@@ -233,6 +79,49 @@ _VALID_TYPES = frozenset({
     TASK_PREJECT, TASK_QUEUE, TASK_CAPTURE, TASK_CRM, TASK_TEMPORAL,
     TASK_DEFAULT, TASK_EMAIL, TASK_LOOKUP, TASK_INBOX, TASK_DISTILL,
 })
+
+_CLASSIFIER_PROGRAM_PATH = Path(__file__).parent.parent / "data" / "classifier_program.json"
+
+
+class ClassifyTask(dspy.Signature):
+    """You are a task router. Classify the task into exactly one type.
+
+    preject = calendar invites, sync to external CRM/service, upload to external URL
+    queue = work through / take care of / handle the incoming queue or all inbox items
+    inbox = process/check/handle/review single inbox or inbound note
+    email = send/compose/write email to a recipient
+    lookup = find, count, or query vault data (contacts, files, channels) with no write action
+    capture = capture explicit snippet/content from source into a specific vault path
+    crm = reschedule follow-up, reconnect date, fix follow-up regression, date arithmetic + write
+    temporal = date-relative queries needing datetime arithmetic (N days ago, in N days, what date)
+    distill = analysis/reasoning AND writing a card/note/summary
+    default = everything else (read, write, create, delete, move, standard tasks)
+    """
+    task_text: str = dspy.InputField(desc="Task description to classify")
+    vault_hint: str = dspy.InputField(desc="Optional vault context: AGENTS.MD excerpt and folder structure. Empty string if unavailable.")
+    task_type: str = dspy.OutputField(
+        desc="Exactly one of: preject, queue, inbox, email, lookup, capture, crm, temporal, distill, default"
+    )
+
+
+_classifier_program: dspy.Module | None = None
+_classifier_program_loaded: bool = False
+
+
+def _load_classifier_program() -> dspy.Module | None:
+    global _classifier_program, _classifier_program_loaded
+    if _classifier_program_loaded:
+        return _classifier_program
+    _classifier_program_loaded = True
+    if _CLASSIFIER_PROGRAM_PATH.exists():
+        try:
+            prog = dspy.ChainOfThought(ClassifyTask)
+            prog.load(str(_CLASSIFIER_PROGRAM_PATH))
+            _classifier_program = prog
+            print(f"[MODEL_ROUTER] Loaded compiled classifier from {_CLASSIFIER_PROGRAM_PATH.name}")
+        except Exception as exc:
+            print(f"[MODEL_ROUTER] Failed to load classifier program: {exc}")
+    return _classifier_program
 
 # Ordered keyword → task_type table for plain-text LLM response fallback.
 _PLAINTEXT_FALLBACK: list[tuple[tuple[str, ...], str]] = [
@@ -299,9 +188,6 @@ def classify_task_llm(task_text: str, model: str, model_config: dict,
     if _regex_pre in _HIGH_CONF_TYPES:
         print(f"[MODEL_ROUTER] Regex-confident type={_regex_pre!r}, skipping LLM")
         return _regex_pre
-    user_msg = f"Task: {task_text[:150]}"
-    if vault_hint:
-        user_msg += f"\nContext: {vault_hint[:800]}"
     _base_opts = model_config.get("ollama_options_classifier") or model_config.get("ollama_options", {})
     _cls_opts = {k: v for k, v in _base_opts.items() if k in ("num_ctx", "temperature", "seed")}
     _cls_cfg = {
@@ -309,6 +195,29 @@ def classify_task_llm(task_text: str, model: str, model_config: dict,
         "max_completion_tokens": min(model_config.get("max_completion_tokens", 512), 512),
         "ollama_options": _cls_opts or None,
     }
+    _prog = _load_classifier_program()
+    if _prog is not None:
+        try:
+            # FIX-324: CLASSIFIER_MAX_TOKENS — CoT needs tokens for reasoning before the output field
+            _cls_max_tok = int(os.environ.get("CLASSIFIER_MAX_TOKENS", 256))
+            _lm = DispatchLM(model, _cls_cfg, max_tokens=_cls_max_tok, json_mode=False)
+            with dspy.context(lm=_lm):
+                pred = _prog(task_text=task_text[:300], vault_hint=vault_hint or "")
+            detected = (pred.task_type or "").strip().lower()
+            # FIX-324: retry once when model returns empty string (truncated CoT)
+            if not detected:
+                with dspy.context(lm=_lm):
+                    pred = _prog(task_text=task_text[:300], vault_hint=vault_hint or "")
+                detected = (pred.task_type or "").strip().lower()
+            if detected in _VALID_TYPES:
+                print(f"[MODEL_ROUTER] DSPy classifier: '{detected}'")
+                return detected
+            print(f"[MODEL_ROUTER] DSPy classifier returned invalid type '{detected}', falling back to LLM")
+        except Exception as exc:
+            print(f"[MODEL_ROUTER] DSPy classifier failed ({exc}), falling back to LLM")
+    user_msg = f"Task: {task_text[:150]}"
+    if vault_hint:
+        user_msg += f"\nContext: {vault_hint[:800]}"
     try:
         raw = call_llm_raw(_CLASSIFY_SYSTEM, user_msg, model, _cls_cfg,
                            max_tokens=_cls_cfg["max_completion_tokens"],
