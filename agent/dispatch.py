@@ -6,6 +6,7 @@ import time
 from pathlib import Path
 
 import anthropic
+import httpx
 from openai import OpenAI
 from pydantic import BaseModel
 
@@ -74,10 +75,28 @@ _load_secrets()         # credentials (.secrets)
 _ANTHROPIC_KEY = os.environ.get("ANTHROPIC_API_KEY")
 _OPENROUTER_KEY = os.environ.get("OPENROUTER_API_KEY")
 _OLLAMA_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434/v1")
+_CC_ENABLED = os.environ.get("CC_ENABLED") == "1"  # Claude Code tier (iclaude subprocess)
+
+# FIX-215: explicit HTTP timeout — OpenAI SDK defaults to 600s; Ollama local can hang
+# silently on stuck sockets (observed 40+ min hang during COPRO). Read-timeout 180s keeps
+# us under TASK_TIMEOUT_S and lets TRANSIENT_KWS retry loop recover from stalled requests.
+try:
+    _HTTP_READ_TIMEOUT_S = float(os.environ.get("LLM_HTTP_READ_TIMEOUT_S", "180"))
+except ValueError:
+    _HTTP_READ_TIMEOUT_S = 180.0
+try:
+    _HTTP_CONNECT_TIMEOUT_S = float(os.environ.get("LLM_HTTP_CONNECT_TIMEOUT_S", "10"))
+except ValueError:
+    _HTTP_CONNECT_TIMEOUT_S = 10.0
+_HTTP_TIMEOUT = httpx.Timeout(
+    timeout=_HTTP_READ_TIMEOUT_S,
+    connect=_HTTP_CONNECT_TIMEOUT_S,
+)
 
 # Primary: Anthropic SDK for Claude models
 anthropic_client: anthropic.Anthropic | None = (
-    anthropic.Anthropic(api_key=_ANTHROPIC_KEY) if _ANTHROPIC_KEY else None
+    anthropic.Anthropic(api_key=_ANTHROPIC_KEY, timeout=_HTTP_READ_TIMEOUT_S)
+    if _ANTHROPIC_KEY else None
 )
 
 # Tier 2: OpenRouter (Claude + open models via cloud)
@@ -85,6 +104,7 @@ openrouter_client: OpenAI | None = (
     OpenAI(
         base_url="https://openrouter.ai/api/v1",
         api_key=_OPENROUTER_KEY,
+        timeout=_HTTP_TIMEOUT,
         default_headers={
             "HTTP-Referer": "http://localhost",
             "X-Title": "bitgn-agent",
@@ -95,10 +115,21 @@ openrouter_client: OpenAI | None = (
 )
 
 # Tier 3: Ollama via OpenAI-compatible API (local fallback)
-ollama_client = OpenAI(base_url=_OLLAMA_URL, api_key="ollama")
+ollama_client = OpenAI(base_url=_OLLAMA_URL, api_key="ollama", timeout=_HTTP_TIMEOUT)
+
+# Tier 1b: Claude Code CLI (subprocess, OAuth via iclaude). Enabled via CC_ENABLED=1.
+# Only reachable when a model config declares provider="claude-code" — interleaves
+# with Anthropic tier (not a fallback), see call_llm_raw().
+from .cc_client import cc_complete as _cc_complete  # noqa: E402
 
 _active = "anthropic" if _ANTHROPIC_KEY else ("openrouter" if _OPENROUTER_KEY else "ollama")
-print(f"[dispatch] Active backend: {_active} (anthropic={'✓' if _ANTHROPIC_KEY else '✗'}, openrouter={'✓' if _OPENROUTER_KEY else '✗'}, ollama=✓)")
+print(
+    f"[dispatch] Active backend: {_active} "
+    f"(anthropic={'✓' if _ANTHROPIC_KEY else '✗'}, "
+    f"openrouter={'✓' if _OPENROUTER_KEY else '✗'}, "
+    f"ollama=✓, "
+    f"claude-code={'✓' if _CC_ENABLED else '✗'})"
+)
 
 
 # ---------------------------------------------------------------------------
@@ -223,9 +254,12 @@ def get_response_format(mode: str) -> dict | None:
 # ---------------------------------------------------------------------------
 
 # Transient error keywords — single source of truth; imported by loop.py
+# FIX-215: added timeout/timed out/connection reset — httpx/OpenAI timeouts should retry
 TRANSIENT_KWS = (
     "503", "502", "429", "NoneType", "overloaded",
     "unavailable", "server error", "rate limit", "rate-limit",
+    "timeout", "timed out", "connection reset", "read timeout",
+    "apitimeouterror", "connecttimeout", "readtimeout",
 )
 
 _THINK_RE = re.compile(r"<think>.*?</think>", re.DOTALL)
@@ -239,17 +273,24 @@ def is_ollama_model(model: str) -> bool:
     return ":" in model and "/" not in model
 
 
-_VALID_PROVIDERS = frozenset({"anthropic", "openrouter", "ollama"})
+_VALID_PROVIDERS = frozenset({"anthropic", "claude-code", "openrouter", "ollama"})
+
+
+def is_claude_code_model(model: str) -> bool:
+    """True for claude-code/* aliases routed to iclaude subprocess."""
+    return model.lower().startswith("claude-code/")
 
 
 def get_provider(model: str, cfg: dict) -> str:
     """Determine LLM provider for a model call.
     Explicit cfg['provider'] wins; falls back to name heuristics for backward compat.
-    Values: 'anthropic' | 'openrouter' | 'ollama'."""
+    Values: 'anthropic' | 'claude-code' | 'openrouter' | 'ollama'."""
     explicit = cfg.get("provider", "")
     if explicit in _VALID_PROVIDERS:
         return explicit
     # Heuristic fallback — existing models follow naming conventions
+    if is_claude_code_model(model):
+        return "claude-code"
     if is_claude_model(model):
         return "anthropic"
     if is_ollama_model(model):
@@ -322,6 +363,26 @@ def call_llm_raw(
                     continue
                 print(f"[Anthropic] Error: {e}")
                 break
+
+    # --- Tier 1b: Claude Code CLI (iclaude subprocess) ---
+    # Replaces Anthropic tier when provider='claude-code'. Does NOT cascade into
+    # OpenRouter/Ollama on failure — returns None so the caller can retry the
+    # whole step (matches chosen strategy "None → loop retry").
+    if _provider == "claude-code":
+        if not _CC_ENABLED:
+            print("[ClaudeCode] Skipped — CC_ENABLED != 1")
+            return None
+        raw = _cc_complete(
+            system, user_msg,
+            cfg=cfg,
+            max_tokens=max_tokens,
+            plain_text=plain_text,
+            token_out=token_out,
+        )
+        if raw:
+            return raw
+        print("[ClaudeCode] Failed after internal retries — returning None")
+        return None
 
     # --- Tier 2: OpenRouter (skip Ollama models) ---
     if openrouter_client is not None and _provider != "ollama":

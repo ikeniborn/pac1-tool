@@ -25,7 +25,9 @@ from .dispatch import (
     dispatch,
     probe_structured_output, get_response_format,
     TRANSIENT_KWS, _THINK_RE,
+    _CC_ENABLED,
 )
+from .cc_client import cc_complete as _cc_complete
 from .classifier import (
     TASK_EMAIL, TASK_LOOKUP, TASK_INBOX, TASK_DISTILL,
     TASK_QUEUE, TASK_CAPTURE, TASK_CRM, TASK_TEMPORAL,
@@ -216,6 +218,25 @@ def _to_anthropic_messages(log: list) -> tuple[str, list]:
         messages.insert(0, {"role": "user", "content": "(start)"})
 
     return system, messages
+
+
+def _log_to_cc_prompt(log: list) -> tuple[str, str]:
+    """Flatten OpenAI-format log into (system, single_user_prompt) for iclaude CLI.
+    CC has no multi-turn messages API — conversation history is serialized as
+    role-labeled blocks into one prompt so CC sees the full context."""
+    system = ""
+    parts: list[str] = []
+    for msg in log:
+        role = msg.get("role", "")
+        content = msg.get("content", "")
+        if role == "system":
+            system = content
+            continue
+        if not content or role not in ("user", "assistant"):
+            continue
+        parts.append(f"[{role}]\n{content}")
+    user = "\n\n".join(parts) if parts else "(start)"
+    return system, user
 
 
 # ---------------------------------------------------------------------------
@@ -427,6 +448,45 @@ def _call_llm(log: list, model: str, max_tokens: int, cfg: dict) -> tuple[NextSt
 
         _next = "OpenRouter" if openrouter_client is not None else "Ollama"
         print(f"{CLI_YELLOW}[Anthropic] Falling back to {_next}{CLI_CLR}")
+
+    # --- Claude Code (tier 1b, iclaude subprocess) ---
+    # Replaces Anthropic tier when provider='claude-code'. On failure returns
+    # (None, ...) instead of cascading into OpenRouter/Ollama — main loop retries.
+    if _provider == "claude-code":
+        if not _CC_ENABLED:
+            print(f"{CLI_YELLOW}[ClaudeCode] Skipped — CC_ENABLED != 1{CLI_CLR}")
+            return None, 0, 0, 0, 0, 0, 0
+        system_cc, user_cc = _log_to_cc_prompt(log)
+        tok: dict = {}
+        started = time.time()
+        raw = _cc_complete(
+            system_cc, user_cc,
+            cfg=cfg,
+            max_tokens=max_tokens,
+            plain_text=False,
+            token_out=tok,
+        )
+        elapsed_ms = int((time.time() - started) * 1000)
+        in_tok = tok.get("input", 0)
+        out_tok = tok.get("output", 0)
+        if not raw:
+            print(f"{CLI_RED}[ClaudeCode] No result — returning None{CLI_CLR}")
+            return None, elapsed_ms, in_tok, out_tok, 0, 0, 0
+        if _LOG_LEVEL == "DEBUG":
+            print(f"{CLI_YELLOW}[ClaudeCode] RAW: {raw}{CLI_CLR}")
+        print(f"{CLI_YELLOW}[ClaudeCode] tokens in={in_tok} out={out_tok}{CLI_CLR}")
+        try:
+            return NextStep.model_validate_json(raw), elapsed_ms, in_tok, out_tok, 0, 0, 0
+        except (ValidationError, ValueError) as e:
+            print(f"{CLI_YELLOW}[ClaudeCode] JSON parse failed, trying extraction: {e}{CLI_CLR}")
+            parsed = _extract_json_from_text(raw)
+            if parsed is not None and isinstance(parsed, dict):
+                parsed = _normalize_parsed(parsed)
+                try:
+                    return NextStep.model_validate(parsed), elapsed_ms, in_tok, out_tok, 0, 0, 0
+                except (ValidationError, ValueError) as e2:
+                    print(f"{CLI_RED}[ClaudeCode] Extraction also failed: {e2}{CLI_CLR}")
+            return None, elapsed_ms, in_tok, out_tok, 0, 0, 0
 
     # --- OpenRouter (cloud, tier 2) ---
     if openrouter_client is not None and _provider != "ollama":

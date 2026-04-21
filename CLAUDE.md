@@ -35,7 +35,8 @@ Key variables:
 - `PARALLEL_TASKS` — concurrent task execution (default `1`)
 - `TASK_TIMEOUT_S` — per-task timeout (default `180s`)
 - `EVALUATOR_ENABLED` / `PROMPT_BUILDER_ENABLED` — enable/disable DSPy subsystems
-- `MODEL_DEFAULT`, `MODEL_EMAIL`, `MODEL_LOOKUP`, etc. — per-task-type model routing
+- `MODEL_DEFAULT`, `MODEL_EMAIL`, `MODEL_LOOKUP`, `MODEL_WIKI`, etc. — per-task-type model routing (`MODEL_WIKI` controls wiki-lint; all support `claude-code/*` prefix for CC tier)
+- `CC_ENABLED=1`, `ICLAUDE_CMD`, `CC_MAX_RETRIES` — Claude Code tier config (see `.env.example`)
 
 `models.json` contains per-model provider settings and per-task-type model assignments.
 
@@ -65,7 +66,7 @@ main.py → run_agent()
 
 **Discovery-First Prompting**: No vault paths are hardcoded in the system prompt. The agent discovers folder roles from `AGENTS.MD`, pre-loaded in prephase.
 
-**Three-Tier LLM Dispatch** (`dispatch.py`): Anthropic SDK → OpenRouter → Ollama, with automatic retry on `429`/`502`/`503`.
+**Four-Tier LLM Dispatch** (`dispatch.py`): Anthropic SDK / Claude Code → OpenRouter → Ollama, with automatic retry on `429`/`502`/`503`. Tier is picked by `provider` in `models.json`: `claude-code/*` models route to `cc_client.cc_complete()` (stateless `iclaude` subprocess over OAuth) instead of the Anthropic SDK — mutually exclusive, not cascade. Env-gated by `CC_ENABLED=1`.
 
 **DSPy Prompt Optimization**: `prompt_builder.py` generates 3–6 bullet points of task-specific guidance; `evaluator.py` does quality review. Both are compiled via COPRO and stored in `data/`. They fail-open if compiled programs are missing.
 

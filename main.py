@@ -129,10 +129,12 @@ _raw = json.loads(_MODELS_JSON.read_text())
 _profiles: dict[str, dict] = _raw.get("_profiles", {})  # FIX-119: named parameter profiles
 MODEL_CONFIGS: dict[str, dict] = {k: v for k, v in _raw.items() if not k.startswith("_")}
 # FIX-119: resolve profile name references in ollama_options fields (string → dict)
+# Same mechanism reused for cc_options (claude-code tier profiles).
 for _cfg in MODEL_CONFIGS.values():
     for _fname in ("ollama_options", "ollama_options_classifier",
                    "ollama_options_evaluator", "ollama_options_queue", "ollama_options_capture",
-                   "ollama_options_crm", "ollama_options_temporal"):
+                   "ollama_options_crm", "ollama_options_temporal",
+                   "cc_options"):
         if isinstance(_cfg.get(_fname), str):
             _cfg[_fname] = _profiles.get(_cfg[_fname], {})
 
@@ -158,6 +160,7 @@ _model_temporal = os.getenv("MODEL_TEMPORAL") or _model_lookup
 _model_preject  = os.getenv("MODEL_PREJECT")  or _model_default
 _model_evaluator      = os.getenv("MODEL_EVALUATOR")      or _model_default
 _model_prompt_builder = os.getenv("MODEL_PROMPT_BUILDER") or ""  # "" = use classifier
+_model_wiki           = os.getenv("MODEL_WIKI")           or _model_default
 
 EFFECTIVE_MODEL: ModelRouter = ModelRouter(
     default=_model_default,
@@ -187,7 +190,8 @@ print(
     f"  temporal    = {_model_temporal}\n"
     f"  preject     = {_model_preject}\n"
     f"  evaluator   = {_model_evaluator}\n"
-    f"  builder     = {_model_prompt_builder or '(uses classifier)'}"
+    f"  builder     = {_model_prompt_builder or '(uses classifier)'}\n"
+    f"  wiki        = {_model_wiki}"
 )
 
 def _print_run_params() -> None:
@@ -450,7 +454,7 @@ def main() -> None:
             # Wiki-Memory lint: compile fragments into pages before parallel tasks start (FIX-103)
             if os.getenv("WIKI_LINT_ENABLED", "1") == "1":
                 try:
-                    _run_wiki_lint(model=_model_default, cfg=MODEL_CONFIGS.get(_model_default, {}))
+                    _run_wiki_lint(model=_model_wiki, cfg=MODEL_CONFIGS.get(_model_wiki, {}))
                 except Exception as _wiki_exc:
                     print(f"[wiki-lint] skipped: {_wiki_exc}")
             _print_table_header()
@@ -478,7 +482,7 @@ def main() -> None:
             # Wiki-Memory lint after: compile fragments written in this run (FIX-105)
             if os.getenv("WIKI_LINT_ENABLED", "1") == "1":
                 try:
-                    _run_wiki_lint(model=_model_default, cfg=MODEL_CONFIGS.get(_model_default, {}))
+                    _run_wiki_lint(model=_model_wiki, cfg=MODEL_CONFIGS.get(_model_wiki, {}))
                 except Exception as _wiki_exc:
                     print(f"[wiki-lint-after] skipped: {_wiki_exc}")
 

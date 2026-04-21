@@ -7,7 +7,9 @@
     "response_format_hint": "Hint for OpenRouter tier: 'json_object' or 'json_schema'",
     "ollama_think": "Enable <think> blocks for Ollama models that support it",
     "ollama_options": "Ollama-specific options passed via extra_body.options (e.g. {num_ctx: 16384})",
-    "seed": "Random seed for reproducible sampling (Ollama only); fixes the RNG state so identical prompt+seed always produces identical output. Use with temperature=0 for full determinism (classifier), or with low temperature to stabilize code generation (coder)"
+    "seed": "Random seed for reproducible sampling (Ollama only); fixes the RNG state so identical prompt+seed always produces identical output. Use with temperature=0 for full determinism (classifier), or with low temperature to stabilize code generation (coder)",
+    "cc_model": "Model alias passed as --model to iclaude CLI (e.g. 'haiku', 'sonnet', 'opus'). Provider='claude-code' only.",
+    "cc_options": "Named profile reference (e.g. 'cc_low') or inline dict with cc_effort / cc_timeout_s. Resolved from _profiles at load time, same mechanism as ollama_options."
   },
   "_ollama_tuning_rationale": {
     "temperature": "0.35 — instructional but not overly deterministic. 0.2 caused regression on conditional-check tasks (inbox no-From → model skipped OUTCOME_NONE_CLARIFICATION). 0.8 default too high (hallucinated paths). 0.35 balances precision with rule-following",
@@ -64,7 +66,11 @@
       "num_ctx": 16384,
       "temperature": 0.1,
       "seed": 1
-    }
+    },
+    "cc_low":    { "cc_effort": "low",    "cc_timeout_s": 120 },
+    "cc_medium": { "cc_effort": "medium", "cc_timeout_s": 180 },
+    "cc_high":   { "cc_effort": "high",   "cc_timeout_s": 240 },
+    "cc_max":    { "cc_effort": "max",    "cc_timeout_s": 300 }
   },
   "_section_ollama_cloud": "--- Ollama cloud endpoint (OLLAMA_BASE_URL=https://your-cloud/v1) ---",
   "minimax-m2.7:cloud": {
@@ -265,6 +271,17 @@
     "ollama_options_coder": "coder",
     "ollama_options_evaluator": "evaluator"
   },
+  "kimi-k2.6:cloud": {
+    "provider": "ollama",
+    "max_completion_tokens": 4000,
+    "ollama_think": false,
+    "ollama_options": "default",
+    "ollama_options_think": "think",
+    "ollama_options_longContext": "long_ctx",
+    "ollama_options_classifier": "classifier",
+    "ollama_options_coder": "coder",
+    "ollama_options_evaluator": "evaluator"
+  },
   "_section_anthropic": "--- Anthropic SDK ---",
   "anthropic/claude-haiku-4.5": {
     "provider": "anthropic",
@@ -308,5 +325,27 @@
     "max_completion_tokens": 4000,
     "response_format_hint": "json_object",
     "temperature": 0.35
+  },
+  "_section_claude_code": "--- Claude Code CLI (iclaude subprocess, OAuth) ---",
+  "claude-code/haiku-4.5": {
+    "provider": "claude-code",
+    "cc_model": "haiku",
+    "cc_options": "cc_low",
+    "max_completion_tokens": 4000,
+    "response_format_hint": "json_object"
+  },
+  "claude-code/sonnet-4.6": {
+    "provider": "claude-code",
+    "cc_model": "sonnet",
+    "cc_options": "cc_medium",
+    "max_completion_tokens": 4000,
+    "response_format_hint": "json_object"
+  },
+  "claude-code/opus-4.6": {
+    "provider": "claude-code",
+    "cc_model": "opus",
+    "cc_options": "cc_high",
+    "max_completion_tokens": 4000,
+    "response_format_hint": "json_object"
   }
 }
