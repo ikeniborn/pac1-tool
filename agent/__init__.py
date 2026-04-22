@@ -9,6 +9,7 @@ from .loop import run_loop
 from .prephase import run_prephase
 from .prompt import build_system_prompt
 from .prompt_builder import build_dynamic_addendum
+from .dspy_examples import winning_type as _dspy_winner
 from .wiki import load_wiki_base, load_wiki_patterns, format_fragment, write_fragment
 
 _PROMPT_BUILDER_ENABLED = os.getenv("PROMPT_BUILDER_ENABLED", "1") == "1"
@@ -26,10 +27,29 @@ def _inject_addendum(base_prompt: str, addendum: str) -> str:
     return base_prompt + "\n\n## TASK-SPECIFIC GUIDANCE\n" + addendum
 
 
-def _write_wiki_fragment(vm: "PcmRuntimeClientSync", task_text: str, task_type: str, stats: dict) -> None:
-    """Write wiki fragments after task completion. Fail-open."""
+_WIKI_DEDUP_SUCCESS = os.getenv("WIKI_DEDUP_SUCCESS") == "1"
+
+
+def _write_wiki_fragment(vm: "PcmRuntimeClientSync", task_text: str, task_type: str, stats: dict, task_id: str = "") -> None:
+    """Write wiki fragments after task completion. Fail-open.
+
+    FIX-N+3: when WIKI_DEDUP_SUCCESS=1, skip writes for task_types that conflict
+    with the pinned winning type for this task_text (protects the wiki corpus
+    from classifier drift). Successes (OUTCOME_OK) always flow through — they
+    are the signal used to pin winners elsewhere in the pipeline.
+
+    FIX-N+6: task_id is passed explicitly from main.py (the harness trial.task_id,
+    e.g. 't01', 't05'). Falls back to vm._task_id (set only under TRACE_ENABLED=1)
+    and finally to a slug of task_text for resilience.
+    """
+    outcome = stats.get("outcome", "")
+    if _WIKI_DEDUP_SUCCESS and outcome != "OUTCOME_OK":
+        pinned = _dspy_winner(task_text)
+        if pinned is not None and pinned != task_type:
+            print(f"[wiki] skip fragment: task_type={task_type!r} conflicts with pinned {pinned!r}")
+            return
     try:
-        task_id = getattr(vm, "_task_id", task_text[:20].replace(" ", "_"))
+        task_id = task_id or getattr(vm, "_task_id", "") or task_text[:20].replace(" ", "_")
         fragments = format_fragment(
             outcome=stats.get("outcome", ""),
             task_type=task_type,
@@ -47,7 +67,7 @@ def _write_wiki_fragment(vm: "PcmRuntimeClientSync", task_text: str, task_type: 
         print(f"[wiki] fragment write failed: {e}")
 
 
-def run_agent(router: ModelRouter, harness_url: str, task_text: str) -> dict:
+def run_agent(router: ModelRouter, harness_url: str, task_text: str, task_id: str = "") -> dict:
     """Execute a single PAC1 benchmark task and return token usage statistics.
 
     Flow:
@@ -81,7 +101,7 @@ def run_agent(router: ModelRouter, harness_url: str, task_text: str) -> dict:
         stats["builder_out_tok"] = 0
         stats["builder_addendum"] = ""
         if _WIKI_ENABLED:
-            _write_wiki_fragment(vm, task_text, task_type, stats)
+            _write_wiki_fragment(vm, task_text, task_type, stats, task_id=task_id)
         return stats
 
     # Wiki-Memory stage B: inject base (errors/contacts/accounts) + task-type patterns (FIX-103, FIX-304)
@@ -129,5 +149,5 @@ def run_agent(router: ModelRouter, harness_url: str, task_text: str) -> dict:
     stats["builder_out_tok"] = builder_out_tok
     stats["builder_addendum"] = addendum
     if _WIKI_ENABLED:
-        _write_wiki_fragment(vm, task_text, task_type, stats)
+        _write_wiki_fragment(vm, task_text, task_type, stats, task_id=task_id)
     return stats

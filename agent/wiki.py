@@ -23,8 +23,13 @@ from raw fragments using category-specific prompts, not just deduplication.
 from __future__ import annotations
 
 import os
+import re
 from datetime import datetime, timezone
 from pathlib import Path
+
+# FIX-N+6: path-unsafe chars in task_id → fragment writes fail with ENOENT when
+# the caller derives task_id from task_text containing '/' or similar.
+_TASK_ID_SANITIZE_RE = re.compile(r"[^A-Za-z0-9._-]+")
 
 _WIKI_DIR = Path(__file__).parent.parent / "data" / "wiki"
 _PAGES_DIR = _WIKI_DIR / "pages"
@@ -161,11 +166,14 @@ def write_fragment(task_id: str, category: str, content: str) -> None:
     """Write an append-only fragment to fragments/{category}/{task_id}_{ts}.md.
 
     Thread-safe: unique filename per call, no read-modify-write.
+    FIX-N+6: task_id is sanitized to a flat ASCII slug so that callers deriving
+    it from task_text (which may contain '/') don't produce ENOENT on write.
     """
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    safe_task_id = _TASK_ID_SANITIZE_RE.sub("_", task_id).strip("_") or "task"
     frag_dir = _FRAGMENTS_DIR / category
     frag_dir.mkdir(parents=True, exist_ok=True)
-    path = frag_dir / f"{task_id}_{ts}.md"
+    path = frag_dir / f"{safe_task_id}_{ts}.md"
     path.write_text(content, encoding="utf-8")
     if _LOG_LEVEL == "DEBUG":
         print(f"[wiki] fragment written: {path}")

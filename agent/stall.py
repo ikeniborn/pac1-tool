@@ -93,9 +93,9 @@ def _handle_stall_retry(
     call_llm_fn,  # injected: _call_llm from loop.py — avoids circular import
 ) -> tuple:
     """Check for stall and issue a one-shot retry LLM call if needed.
-    Returns (job, stall_active, retry_fired, in_tok, out_tok, elapsed_ms, ev_c, ev_ms).
+    Returns (job, stall_active, retry_fired, in_tok, out_tok, elapsed_ms, ev_c, ev_ms, cache_cr, cache_rd).
     retry_fired is True when a stall LLM call was made (even if it returned None).
-    Token/timing deltas reflect the retry call when it fired."""
+    Token/timing deltas reflect the retry call when it fired. cache_cr/cache_rd: FIX-N CC cache tokens."""
     _stall_hint = _check_stall(fingerprints, steps_since_write, error_counts, step_facts)
     # FIX-323: re-fire stall at 12/18/24 steps even when stall_active=True.
     # Previously stall_active stayed True forever → agent could loop 30 steps ignored.
@@ -107,10 +107,10 @@ def _handle_stall_retry(
         log.append({"role": "user", "content": f"[STALL HINT] {_stall_hint}"})
         # Reset so next escalation threshold can fire again
         stall_active = False
-        _job2, _e2, _i2, _o2, _, _ev_c2, _ev_ms2 = call_llm_fn(log, model, max_tokens, cfg)
+        _job2, _e2, _i2, _o2, _, _ev_c2, _ev_ms2, _cc2, _cr2 = call_llm_fn(log, model, max_tokens, cfg)
         log.pop()
         if _job2 is not None:
-            return _job2, stall_active, True, _i2, _o2, _e2, _ev_c2, _ev_ms2
+            return _job2, stall_active, True, _i2, _o2, _e2, _ev_c2, _ev_ms2, _cc2, _cr2
         # LLM retry fired but returned None — still count the call, keep original job
-        return job, stall_active, True, _i2, _o2, _e2, _ev_c2, _ev_ms2
-    return job, stall_active, False, 0, 0, 0, 0, 0
+        return job, stall_active, True, _i2, _o2, _e2, _ev_c2, _ev_ms2, _cc2, _cr2
+    return job, stall_active, False, 0, 0, 0, 0, 0, 0, 0

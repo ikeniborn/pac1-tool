@@ -147,8 +147,13 @@ class DispatchLM(dspy.BaseLM):
         )
         raw = _coerce_to_json(raw or "", user_msg)
         self._last_tokens = tok
+        # FIX-N: include CC cache tokens in reported input — Claude API usage.input_tokens
+        # counts only fresh (non-cached) tokens on cc tier.
+        _full_in = (tok.get("input", 0)
+                    + tok.get("cache_creation", 0)
+                    + tok.get("cache_read", 0))
         return _Response(
             content=raw or "",
-            in_tok=tok.get("input", 0),
+            in_tok=_full_in,
             out_tok=tok.get("output", 0),
         )

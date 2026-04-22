@@ -177,6 +177,8 @@ class _LoopState:
     # Token/step counters
     total_in_tok: int = 0
     total_out_tok: int = 0
+    total_cache_creation: int = 0  # FIX-N: CC cache creation tokens (new cache writes)
+    total_cache_read: int = 0      # FIX-N: CC cache read tokens (reused cache)
     total_elapsed_ms: int = 0
     total_eval_count: int = 0
     total_eval_ms: int = 0
@@ -265,11 +267,12 @@ def _call_openai_tier(
     extra_body: dict | None = None,
     response_format: dict | None = None,
     temperature: float | None = None,  # FIX-211: OpenRouter temperature pass-through
-) -> tuple[NextStep | None, int, int, int, int, int, int]:
+) -> tuple[NextStep | None, int, int, int, int, int, int, int, int]:
     """Shared retry loop for OpenAI-compatible tiers (OpenRouter, Ollama).
     response_format=None means model does not support it — use text extraction fallback.
     max_tokens=None skips max_completion_tokens (Ollama stops naturally).
-    Returns (result, elapsed_ms, input_tokens, output_tokens, thinking_tokens, eval_count, eval_ms).
+    Returns (result, elapsed_ms, input_tokens, output_tokens, thinking_tokens, eval_count, eval_ms, cache_creation, cache_read).
+    cache_creation/cache_read are always 0 for non-CC tiers (FIX-N).
     eval_count/eval_ms are Ollama-native metrics (0 for non-Ollama); use for accurate gen tok/s."""
     for attempt in range(4):
         raw = ""
@@ -357,16 +360,17 @@ def _call_openai_tier(
             if isinstance(parsed, dict):
                 parsed = _normalize_parsed(parsed)
             try:
-                return NextStep.model_validate(parsed), elapsed_ms, in_tok, out_tok, think_tok, _eval_count, _eval_ms
+                return NextStep.model_validate(parsed), elapsed_ms, in_tok, out_tok, think_tok, _eval_count, _eval_ms, 0, 0
             except ValidationError as e:
                 print(f"{CLI_RED}[{label}] JSON parse failed: {e}{CLI_CLR}")
                 break
-    return None, 0, 0, 0, 0, 0, 0
+    return None, 0, 0, 0, 0, 0, 0, 0, 0
 
 
-def _call_llm(log: list, model: str, max_tokens: int, cfg: dict) -> tuple[NextStep | None, int, int, int, int, int, int]:
+def _call_llm(log: list, model: str, max_tokens: int, cfg: dict) -> tuple[NextStep | None, int, int, int, int, int, int, int, int]:
     """Call LLM: Anthropic SDK (tier 1) → OpenRouter (tier 2) → Ollama (tier 3).
-    Returns (result, elapsed_ms, input_tokens, output_tokens, thinking_tokens, eval_count, eval_ms).
+    Returns (result, elapsed_ms, input_tokens, output_tokens, thinking_tokens, eval_count, eval_ms, cache_creation, cache_read).
+    cache_creation/cache_read > 0 only for claude-code tier (FIX-N).
     eval_count/eval_ms: Ollama-native generation metrics (0 for Anthropic/OpenRouter)."""
 
     # FIX-158: In DEBUG mode log full conversation history before each LLM call
@@ -433,7 +437,7 @@ def _call_llm(log: list, model: str, max_tokens: int, cfg: dict) -> tuple[NextSt
                 break
             else:
                 try:
-                    return NextStep.model_validate_json(raw), elapsed_ms, in_tok, out_tok, think_tok, 0, 0
+                    return NextStep.model_validate_json(raw), elapsed_ms, in_tok, out_tok, think_tok, 0, 0, 0, 0
                 except (ValidationError, ValueError) as e:
                     # FIX-207: extraction fallback — same chain as OpenRouter/Ollama
                     print(f"{CLI_YELLOW}[Anthropic] JSON parse failed, trying extraction: {e}{CLI_CLR}")
@@ -441,10 +445,10 @@ def _call_llm(log: list, model: str, max_tokens: int, cfg: dict) -> tuple[NextSt
                     if parsed is not None and isinstance(parsed, dict):
                         parsed = _normalize_parsed(parsed)
                         try:
-                            return NextStep.model_validate(parsed), elapsed_ms, in_tok, out_tok, think_tok, 0, 0
+                            return NextStep.model_validate(parsed), elapsed_ms, in_tok, out_tok, think_tok, 0, 0, 0, 0
                         except (ValidationError, ValueError) as e2:
                             print(f"{CLI_RED}[Anthropic] Extraction also failed: {e2}{CLI_CLR}")
-                    return None, elapsed_ms, in_tok, out_tok, think_tok, 0, 0
+                    return None, elapsed_ms, in_tok, out_tok, think_tok, 0, 0, 0, 0
 
         _next = "OpenRouter" if openrouter_client is not None else "Ollama"
         print(f"{CLI_YELLOW}[Anthropic] Falling back to {_next}{CLI_CLR}")
@@ -455,7 +459,7 @@ def _call_llm(log: list, model: str, max_tokens: int, cfg: dict) -> tuple[NextSt
     if _provider == "claude-code":
         if not _CC_ENABLED:
             print(f"{CLI_YELLOW}[ClaudeCode] Skipped — CC_ENABLED != 1{CLI_CLR}")
-            return None, 0, 0, 0, 0, 0, 0
+            return None, 0, 0, 0, 0, 0, 0, 0, 0
         system_cc, user_cc = _log_to_cc_prompt(log)
         tok: dict = {}
         started = time.time()
@@ -469,24 +473,27 @@ def _call_llm(log: list, model: str, max_tokens: int, cfg: dict) -> tuple[NextSt
         elapsed_ms = int((time.time() - started) * 1000)
         in_tok = tok.get("input", 0)
         out_tok = tok.get("output", 0)
+        cache_cr = tok.get("cache_creation", 0)  # FIX-N
+        cache_rd = tok.get("cache_read", 0)      # FIX-N
         if not raw:
             print(f"{CLI_RED}[ClaudeCode] No result — returning None{CLI_CLR}")
-            return None, elapsed_ms, in_tok, out_tok, 0, 0, 0
+            return None, elapsed_ms, in_tok, out_tok, 0, 0, 0, cache_cr, cache_rd
         if _LOG_LEVEL == "DEBUG":
             print(f"{CLI_YELLOW}[ClaudeCode] RAW: {raw}{CLI_CLR}")
-        print(f"{CLI_YELLOW}[ClaudeCode] tokens in={in_tok} out={out_tok}{CLI_CLR}")
+        print(f"{CLI_YELLOW}[ClaudeCode] tokens in={in_tok} out={out_tok} "
+              f"cache_cr={cache_cr} cache_rd={cache_rd}{CLI_CLR}")
         try:
-            return NextStep.model_validate_json(raw), elapsed_ms, in_tok, out_tok, 0, 0, 0
+            return NextStep.model_validate_json(raw), elapsed_ms, in_tok, out_tok, 0, 0, 0, cache_cr, cache_rd
         except (ValidationError, ValueError) as e:
             print(f"{CLI_YELLOW}[ClaudeCode] JSON parse failed, trying extraction: {e}{CLI_CLR}")
             parsed = _extract_json_from_text(raw)
             if parsed is not None and isinstance(parsed, dict):
                 parsed = _normalize_parsed(parsed)
                 try:
-                    return NextStep.model_validate(parsed), elapsed_ms, in_tok, out_tok, 0, 0, 0
+                    return NextStep.model_validate(parsed), elapsed_ms, in_tok, out_tok, 0, 0, 0, cache_cr, cache_rd
                 except (ValidationError, ValueError) as e2:
                     print(f"{CLI_RED}[ClaudeCode] Extraction also failed: {e2}{CLI_CLR}")
-            return None, elapsed_ms, in_tok, out_tok, 0, 0, 0
+            return None, elapsed_ms, in_tok, out_tok, 0, 0, 0, cache_cr, cache_rd
 
     # --- OpenRouter (cloud, tier 2) ---
     if openrouter_client is not None and _provider != "ollama":
@@ -800,6 +807,8 @@ def _st_to_result(st: _LoopState) -> dict:
     return {
         "input_tokens": st.total_in_tok,
         "output_tokens": st.total_out_tok,
+        "cache_creation_tokens": st.total_cache_creation,  # FIX-N
+        "cache_read_tokens": st.total_cache_read,          # FIX-N
         "llm_elapsed_ms": st.total_elapsed_ms,
         "ollama_eval_count": st.total_eval_count,
         "ollama_eval_ms": st.total_eval_ms,
@@ -818,11 +827,16 @@ def _st_to_result(st: _LoopState) -> dict:
 
 
 def _st_accum(st: _LoopState, elapsed_ms: int, in_tok: int, out_tok: int,
-              ev_c: int, ev_ms: int) -> None:
-    """Accumulate one LLM call's token/timing stats into _LoopState."""  # FIX-195
+              ev_c: int, ev_ms: int,
+              cache_cr: int = 0, cache_rd: int = 0) -> None:
+    """Accumulate one LLM call's token/timing stats into _LoopState.
+
+    FIX-N: cache_cr/cache_rd are CC-tier-only cache tokens (0 for other tiers)."""  # FIX-195
     st.llm_call_count += 1
     st.total_in_tok += in_tok
     st.total_out_tok += out_tok
+    st.total_cache_creation += cache_cr
+    st.total_cache_read += cache_rd
     st.total_elapsed_ms += elapsed_ms
     st.total_eval_count += ev_c
     st.total_eval_ms += ev_ms
@@ -866,7 +880,13 @@ def _run_pre_route(
         TASK_CRM, TASK_TEMPORAL, TASK_DISTILL,
     })
     _rr_client = ollama_client if is_ollama_model(model) else (openrouter_client or ollama_client)
-    if _rr_client is not None and task_type not in _VAULT_TASK_TYPES:
+    # FIX-N+5: skip security-router for CC tier — the router uses
+    # ollama_client/openrouter_client and has no CC path; sending 'claude-code/*'
+    # to OpenRouter yields a 400 and falls back to CLARIFY, which turns every
+    # default-typed CC task into OUTCOME_NONE_CLARIFICATION. For CC we rely on
+    # the CC classifier + vault-type fast-paths; default-typed tasks go EXECUTE.
+    _is_cc_model = model.startswith("claude-code/")
+    if _rr_client is not None and task_type not in _VAULT_TASK_TYPES and not _is_cc_model:
         # Route schema defined as _ROUTE_SCHEMA module constant
         # Include vault context so classifier knows what's supported
         _vault_ctx = ""
@@ -1686,10 +1706,11 @@ def _run_step(
                           step_facts=st.step_facts)
 
     # --- LLM call ---
-    job, elapsed_ms, in_tok, out_tok, _, ev_c, ev_ms = _call_llm(st.log, model, max_tokens, cfg)
-    _st_accum(st, elapsed_ms, in_tok, out_tok, ev_c, ev_ms)
+    job, elapsed_ms, in_tok, out_tok, _, ev_c, ev_ms, cache_cr, cache_rd = _call_llm(st.log, model, max_tokens, cfg)
+    _st_accum(st, elapsed_ms, in_tok, out_tok, ev_c, ev_ms, cache_cr, cache_rd)
     _tracer.emit("llm_response", st.step_count, {
         "elapsed_ms": elapsed_ms, "in_tok": in_tok, "out_tok": out_tok,
+        "cache_creation": cache_cr, "cache_read": cache_rd,
         "tool": job.function.__class__.__name__ if job else None,
     })
 
@@ -1705,8 +1726,8 @@ def _run_step(
             'done_operations=array of strings (confirmed WRITTEN:/DELETED: ops so far, empty [] if none), '
             'task_completed=boolean (true/false not string), function=object with "tool" key inside.'
         )})
-        job, elapsed_ms, in_tok, out_tok, _, ev_c, ev_ms = _call_llm(st.log, model, max_tokens, cfg)
-        _st_accum(st, elapsed_ms, in_tok, out_tok, ev_c, ev_ms)
+        job, elapsed_ms, in_tok, out_tok, _, ev_c, ev_ms, cache_cr, cache_rd = _call_llm(st.log, model, max_tokens, cfg)
+        _st_accum(st, elapsed_ms, in_tok, out_tok, ev_c, ev_ms, cache_cr, cache_rd)
         st.log.pop()
 
     if job is None:
@@ -1737,13 +1758,13 @@ def _run_step(
     # (hint retry must use a log that doesn't yet contain this step)
     st.action_fingerprints.append(f"{action_name}:{action_args}")
 
-    job, st.stall_hint_active, _stall_fired, _si, _so, _se, _sev_c, _sev_ms = _handle_stall_retry(
+    job, st.stall_hint_active, _stall_fired, _si, _so, _se, _sev_c, _sev_ms, _scc, _scr = _handle_stall_retry(
         job, st.log, model, max_tokens, cfg,
         st.action_fingerprints, st.steps_since_write, st.error_counts, st.step_facts,
         st.stall_hint_active,
     )
     if _stall_fired:
-        _st_accum(st, _se, _si, _so, _sev_c, _sev_ms)
+        _st_accum(st, _se, _si, _so, _sev_c, _sev_ms, _scc, _scr)
         action_name = job.function.__class__.__name__
         action_args = job.function.model_dump_json()
         st.action_fingerprints[-1] = f"{action_name}:{action_args}"

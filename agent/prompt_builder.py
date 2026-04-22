@@ -193,8 +193,14 @@ def build_dynamic_addendum(
                 task_text=task_text,
             )
         addendum = (result.addendum or "").strip()
-        in_tok = lm._last_tokens.get("input", 0)
-        out_tok = lm._last_tokens.get("output", 0)
+        # FIX-N: include CC cache tokens — on claude-code tier `input_tokens`
+        # in the envelope covers only fresh (non-cached) input. Without summing
+        # cache_creation + cache_read the BIn column shows ~3 for multi-KB prompts.
+        _tok = lm._last_tokens
+        in_tok = (_tok.get("input", 0)
+                  + _tok.get("cache_creation", 0)
+                  + _tok.get("cache_read", 0))
+        out_tok = _tok.get("output", 0)
         if _LOG_LEVEL == "DEBUG":
             print(f"[prompt_builder] addendum ({len(addendum)} chars):\n{addendum}")
         return addendum, in_tok, out_tok

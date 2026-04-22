@@ -10,14 +10,91 @@ by optimize_prompts.py when fewer than THRESHOLD real examples are available.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 _DATA = Path(__file__).parent.parent / "data"
 _EXAMPLES_PATH = _DATA / "dspy_examples.jsonl"
 _EVAL_EXAMPLES_PATH = _DATA / "dspy_eval_examples.jsonl"
 _SYNTHETIC_PATH = _DATA / "dspy_synthetic.jsonl"
+# FIX-N+3: shadow logs — пишем примеры с «неправильным» task_type отдельно,
+# чтобы не загрязнять основной корпус для DSPy. См. winning-types-механизм ниже.
+_SHADOW_EXAMPLES_PATH = _DATA / "dspy_examples_shadow.jsonl"
+_SHADOW_EVAL_PATH = _DATA / "dspy_eval_examples_shadow.jsonl"
+_WINNING_TYPES_PATH = _DATA / "dspy_winning_types.json"
 _THRESHOLD = 30
 _EVAL_THRESHOLD = 20
+
+
+# ---------------------------------------------------------------------------
+# FIX-N+3: Winning-type registry (per task_text → pinned task_type)
+# ---------------------------------------------------------------------------
+#
+# Protects DSPy corpus (and optionally wiki) from classifier non-determinism.
+# First positive example (score >= DSPY_WIN_SCORE, default 1.0) for a task_text
+# locks in its task_type. Subsequent examples for the same task_text go to the
+# main file if task_type matches the pinned type (positive or negative), or to
+# the shadow file otherwise. Gated by DSPY_DEDUP_SUCCESS (default off).
+# ---------------------------------------------------------------------------
+
+def _dedup_enabled() -> bool:
+    return os.environ.get("DSPY_DEDUP_SUCCESS") == "1"
+
+
+def _win_score_threshold() -> float:
+    try:
+        return float(os.environ.get("DSPY_WIN_SCORE", "1.0"))
+    except ValueError:
+        return 1.0
+
+
+def _load_winners() -> dict[str, str]:
+    if not _WINNING_TYPES_PATH.exists():
+        return {}
+    try:
+        data = json.loads(_WINNING_TYPES_PATH.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except (json.JSONDecodeError, OSError):
+        return {}
+
+
+def _save_winners(winners: dict[str, str]) -> None:
+    _DATA.mkdir(parents=True, exist_ok=True)
+    tmp = _WINNING_TYPES_PATH.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(winners, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp.replace(_WINNING_TYPES_PATH)
+
+
+def _resolve_target(
+    task_text: str,
+    task_type: str,
+    score: float,
+    main_path: Path,
+    shadow_path: Path,
+) -> Path:
+    """Pick the file to append to based on the winning-type registry.
+
+    Side-effect: when `score >= DSPY_WIN_SCORE` and no winner is pinned yet for
+    this task_text, pins `task_type` as the winner.
+    """
+    if not _dedup_enabled():
+        return main_path
+    winners = _load_winners()
+    pinned = winners.get(task_text)
+    if pinned is None:
+        if score >= _win_score_threshold():
+            winners[task_text] = task_type
+            _save_winners(winners)
+            return main_path
+        return shadow_path
+    return main_path if task_type == pinned else shadow_path
+
+
+def winning_type(task_text: str) -> str | None:
+    """Public helper: return the pinned task_type for this task_text, or None."""
+    if not _dedup_enabled():
+        return None
+    return _load_winners().get(task_text)
 
 
 # ---------------------------------------------------------------------------
@@ -47,8 +124,12 @@ def record_example(
         "addendum": addendum,
         "score": score,
     }
-    with _EXAMPLES_PATH.open("a", encoding="utf-8") as fh:
+    target = _resolve_target(task_text, task_type, score,
+                             _EXAMPLES_PATH, _SHADOW_EXAMPLES_PATH)
+    with target.open("a", encoding="utf-8") as fh:
         fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    if target is _SHADOW_EXAMPLES_PATH:
+        return
 
     count = _count_examples()
     if count == _THRESHOLD:
@@ -92,8 +173,12 @@ def record_eval_example(
         "expected_approved_str": "yes" if score == 1.0 else "no",
         "score": score,
     }
-    with _EVAL_EXAMPLES_PATH.open("a", encoding="utf-8") as fh:
+    target = _resolve_target(task_text, task_type, score,
+                             _EVAL_EXAMPLES_PATH, _SHADOW_EVAL_PATH)
+    with target.open("a", encoding="utf-8") as fh:
         fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    if target is _SHADOW_EVAL_PATH:
+        return
 
     count = _count_eval_examples()
     if count == _EVAL_THRESHOLD:

@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import os
 import re
+from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -175,19 +176,9 @@ def _count_tree_files(prephase_log: list) -> int:
     return len(file_lines)
 
 
-def classify_task_llm(task_text: str, model: str, model_config: dict,
-                      vault_hint: str | None = None) -> str:
-    """Classify task type using an LLM, with regex fast-path and multi-tier fallbacks.
-
-    Fast-path: if regex already returns a non-default type, the LLM call is skipped
-    for high-confidence types (preject, email). Others consult the LLM when vault
-    context (AGENTS.MD) might change the classification.
-    """
-    _HIGH_CONF_TYPES = frozenset({TASK_PREJECT, TASK_EMAIL})
-    _regex_pre = classify_task(task_text)
-    if _regex_pre in _HIGH_CONF_TYPES:
-        print(f"[MODEL_ROUTER] Regex-confident type={_regex_pre!r}, skipping LLM")
-        return _regex_pre
+def _classify_task_llm_once(task_text: str, model: str, model_config: dict,
+                            vault_hint: str | None = None) -> str:
+    """Single classification attempt. Returns a valid type or '' on failure."""
     _base_opts = model_config.get("ollama_options_classifier") or model_config.get("ollama_options", {})
     _cls_opts = {k: v for k, v in _base_opts.items() if k in ("num_ctx", "temperature", "seed")}
     _cls_cfg = {
@@ -195,6 +186,13 @@ def classify_task_llm(task_text: str, model: str, model_config: dict,
         "max_completion_tokens": min(model_config.get("max_completion_tokens", 512), 512),
         "ollama_options": _cls_opts or None,
     }
+    # FIX-N+1: on CC tier — override cc_options with the model's classifier-specific
+    # profile (low effort + json_schema → constrains output to {"task_type": <enum>}).
+    # Resolved from model_config["cc_options_classifier"] (set via models.json +
+    # main.py FIX-119 profile resolution). Falls back to the main cc_options if absent.
+    _cc_cls = model_config.get("cc_options_classifier")
+    if _cc_cls:
+        _cls_cfg["cc_options"] = _cc_cls
     _prog = _load_classifier_program()
     if _prog is not None:
         try:
@@ -224,8 +222,8 @@ def classify_task_llm(task_text: str, model: str, model_config: dict,
                            think=False,
                            max_retries=1)
         if not raw:
-            print("[MODEL_ROUTER] All LLM tiers failed or empty, falling back to regex")
-            return classify_task(task_text)
+            print("[MODEL_ROUTER] All LLM tiers failed or empty")
+            return ""
         try:
             detected = str(json.loads(raw).get("type", "")).strip()
         except (json.JSONDecodeError, AttributeError):
@@ -243,10 +241,57 @@ def classify_task_llm(task_text: str, model: str, model_config: dict,
         if detected in _VALID_TYPES:
             print(f"[MODEL_ROUTER] LLM classified task as '{detected}'")
             return detected
-        print(f"[MODEL_ROUTER] LLM returned unknown type '{detected}', falling back to regex")
+        print(f"[MODEL_ROUTER] LLM returned unknown type '{detected}'")
     except Exception as exc:
-        print(f"[MODEL_ROUTER] LLM classification failed ({exc}), falling back to regex")
-    return classify_task(task_text)
+        print(f"[MODEL_ROUTER] LLM classification failed ({exc})")
+    return ""
+
+
+def classify_task_llm(task_text: str, model: str, model_config: dict,
+                      vault_hint: str | None = None) -> str:
+    """Classify task type with regex fast-path, optional majority-vote on CC tier,
+    and regex fallback on total failure.
+
+    FIX-N+2: on CC tier (provider='claude-code'), when CLASSIFIER_VOTES>=2, the
+    underlying LLM classification is run N times and the mode is returned. This
+    mitigates CC non-determinism (no --seed/--temperature). Votes that fail or
+    return invalid types are discarded; if all fail, falls back to regex.
+    """
+    _HIGH_CONF_TYPES = frozenset({TASK_PREJECT, TASK_EMAIL})
+    _regex_pre = classify_task(task_text)
+    if _regex_pre in _HIGH_CONF_TYPES:
+        print(f"[MODEL_ROUTER] Regex-confident type={_regex_pre!r}, skipping LLM")
+        return _regex_pre
+
+    is_cc = model_config.get("provider") == "claude-code"
+    # FIX-N+2: default to 3 votes on CC tier (non-deterministic, no --seed),
+    # 1 vote elsewhere (deterministic with seed+temperature=0). User can override
+    # via CLASSIFIER_VOTES env var.
+    _default_votes = "3" if is_cc else "1"
+    try:
+        votes = int(os.environ.get("CLASSIFIER_VOTES", _default_votes))
+    except ValueError:
+        votes = int(_default_votes)
+
+    if not is_cc or votes < 2:
+        result = _classify_task_llm_once(task_text, model, model_config, vault_hint)
+        return result if result in _VALID_TYPES else classify_task(task_text)
+
+    tally: list[str] = []
+    for i in range(votes):
+        r = _classify_task_llm_once(task_text, model, model_config, vault_hint)
+        if r in _VALID_TYPES:
+            tally.append(r)
+            print(f"[MODEL_ROUTER] CC vote {i + 1}/{votes}: {r}")
+        else:
+            print(f"[MODEL_ROUTER] CC vote {i + 1}/{votes}: invalid, discarded")
+    if not tally:
+        print("[MODEL_ROUTER] All CC votes failed, falling back to regex")
+        return classify_task(task_text)
+    counts = Counter(tally)
+    top, top_n = counts.most_common(1)[0]
+    print(f"[MODEL_ROUTER] CC majority-vote: {top} ({top_n}/{len(tally)}, tally={dict(counts)})")
+    return top
 
 
 @dataclass

@@ -134,7 +134,7 @@ for _cfg in MODEL_CONFIGS.values():
     for _fname in ("ollama_options", "ollama_options_classifier",
                    "ollama_options_evaluator", "ollama_options_queue", "ollama_options_capture",
                    "ollama_options_crm", "ollama_options_temporal",
-                   "cc_options"):
+                   "cc_options", "cc_options_classifier"):  # FIX-N+1: classifier override
         if isinstance(_cfg.get(_fname), str):
             _cfg[_fname] = _profiles.get(_cfg[_fname], {})
 
@@ -268,7 +268,7 @@ def _run_single_task(trial_id: str, task_filter: list, router: ModelRouter) -> t
         print(f"{CLI_BLUE}{trial.instruction}{CLI_CLR}\n{'-' * 80}")
         token_stats: dict = {"input_tokens": 0, "output_tokens": 0}
         try:
-            token_stats = run_agent(router, trial.harness_url, trial.instruction)
+            token_stats = run_agent(router, trial.harness_url, trial.instruction, task_id=task_id)
         except Exception as exc:
             print(exc)
         task_elapsed = time.time() - task_start
@@ -291,16 +291,19 @@ def _run_single_task(trial_id: str, task_filter: list, router: ModelRouter) -> t
         style = CLI_GREEN if score == 1 else CLI_RED
         in_t   = token_stats.get("input_tokens", 0)
         out_t  = token_stats.get("output_tokens", 0)
+        cc_cr  = token_stats.get("cache_creation_tokens", 0)  # FIX-N
+        cc_rd  = token_stats.get("cache_read_tokens", 0)      # FIX-N
         steps  = token_stats.get("step_count", 0)
         calls  = token_stats.get("llm_call_count", 0)
         t_type = token_stats.get("task_type", "—")
         m_short = (token_stats.get("model_used") or "—").split("/")[-1]
         detail_str = "\n" + textwrap.indent("\n".join(detail), "  ") if detail else ""
+        _cache_part = f" | cache cr {cc_cr:,} / rd {cc_rd:,}" if (cc_cr or cc_rd) else ""
         print(
             f"{style}[{task_id}] Score: {score:0.2f}"
             f" | {task_elapsed:.1f}s"
             f" | {steps}st {calls}rq"
-            f" | in {in_t:,} / out {out_t:,} tok"
+            f" | in {in_t:,} / out {out_t:,} tok{_cache_part}"
             f" | {t_type} | {m_short}"
             f"{detail_str}{CLI_CLR}"
         )
@@ -313,7 +316,7 @@ def _run_single_task(trial_id: str, task_filter: list, router: ModelRouter) -> t
             fh.close()
 
 
-_TABLE_W = 196
+_TABLE_W = 218  # FIX-N: widened for CcCr/CcRd cache-token columns
 _TABLE_SEP = "=" * _TABLE_W
 
 
@@ -322,7 +325,8 @@ def _print_table_header() -> None:
     print(f"\n{_TABLE_SEP}")
     print(f"{'ИТОГОВАЯ СТАТИСТИКА':^{_TABLE_W}}")
     print(_TABLE_SEP)
-    print(f"{'Задание':<10} {'Оценка':>7} {'Время':>8}  {'Шаги':>5} {'Запр':>5} {'Eval':>4} {'EvMs':>6}  {'Вход(tok)':>10} {'Выход(tok)':>10} {'ток/с':>7}  {'B':>1} {'BIn':>6} {'BOt':>5}  {'Тип':<11} {'Модель':<34}  Проблемы")
+    # FIX-N: CcCr/CcRd split out CC-tier cache tokens from fresh input/output
+    print(f"{'Задание':<10} {'Оценка':>7} {'Время':>8}  {'Шаги':>5} {'Запр':>5} {'Eval':>4} {'EvMs':>6}  {'Вход(tok)':>10} {'Выход(tok)':>10} {'CcCr':>9} {'CcRd':>9} {'ток/с':>7}  {'B':>1} {'BIn':>6} {'BOt':>5}  {'Тип':<11} {'Модель':<34}  Проблемы")
     print("-" * _TABLE_W)
 
 
@@ -331,6 +335,8 @@ def _print_table_row(task_id: str, score: float, detail: list, elapsed: float, t
     issues = "; ".join(detail) if score < 1.0 else "—"
     in_t   = ts.get("input_tokens", 0)
     out_t  = ts.get("output_tokens", 0)
+    cc_cr  = ts.get("cache_creation_tokens", 0)  # FIX-N
+    cc_rd  = ts.get("cache_read_tokens", 0)      # FIX-N
     llm_ms = ts.get("llm_elapsed_ms", 0)
     ev_c   = ts.get("ollama_eval_count", 0)
     ev_ms  = ts.get("ollama_eval_ms", 0)
@@ -350,7 +356,7 @@ def _print_table_row(task_id: str, score: float, detail: list, elapsed: float, t
     b_flag = "✓" if ts.get("builder_used") else "—"
     b_in   = ts.get("builder_in_tok", 0)
     b_out  = ts.get("builder_out_tok", 0)
-    print(f"{task_id:<10} {score:>7.2f} {elapsed:>7.1f}s  {steps:>5} {calls:>5} {eval_c:>4} {eval_ms:>6}  {in_t:>10,} {out_t:>10,} {tps:>6.0f}  {b_flag:>1} {b_in:>6,} {b_out:>5,}  {t_type:<11} {m_short:<34}  {issues}")
+    print(f"{task_id:<10} {score:>7.2f} {elapsed:>7.1f}s  {steps:>5} {calls:>5} {eval_c:>4} {eval_ms:>6}  {in_t:>10,} {out_t:>10,} {cc_cr:>9,} {cc_rd:>9,} {tps:>6.0f}  {b_flag:>1} {b_in:>6,} {b_out:>5,}  {t_type:<11} {m_short:<34}  {issues}")
 
 
 def _write_summary(scores: list, run_start: float) -> None:
@@ -359,16 +365,20 @@ def _write_summary(scores: list, run_start: float) -> None:
     total = sum(s for _, s, *_ in scores) / n * 100.0
     total_elapsed = time.time() - run_start
     total_in = total_out = total_llm_ms = total_steps = total_calls = 0
+    total_cc_cr = total_cc_rd = 0  # FIX-N
     total_eval_calls = total_eval_ms_sum = 0
     total_b_used = total_b_in = total_b_out = 0
     model_totals: dict[str, dict] = {}
     for task_id, score, detail, elapsed, ts in scores:
         in_t   = ts.get("input_tokens", 0)
         out_t  = ts.get("output_tokens", 0)
+        cc_cr  = ts.get("cache_creation_tokens", 0)
+        cc_rd  = ts.get("cache_read_tokens", 0)
         llm_ms = ts.get("llm_elapsed_ms", 0)
         ev_c   = ts.get("ollama_eval_count", 0)
         ev_ms  = ts.get("ollama_eval_ms", 0)
         total_in  += in_t;  total_out += out_t
+        total_cc_cr += cc_cr;  total_cc_rd += cc_rd
         total_llm_ms += llm_ms
         total_steps += ts.get("step_count", 0)
         total_calls += ts.get("llm_call_count", 0)
@@ -401,8 +411,8 @@ def _write_summary(scores: list, run_start: float) -> None:
     else:
         total_tps = 0.0
     print(_TABLE_SEP)
-    print(f"{'ИТОГО':<10} {total:>6.2f}% {total_elapsed:>7.1f}s  {total_steps:>5} {total_calls:>5} {total_eval_calls:>4} {total_eval_ms_sum:>6}  {total_in:>10,} {total_out:>10,} {total_tps:>6.0f}  {total_b_used:>1} {total_b_in:>6,} {total_b_out:>5,}  {'':11} {'':34}")
-    print(f"{'СРЕДНЕЕ':<10} {'':>7} {avg_elapsed:>7.1f}s  {avg_steps:>5} {avg_calls:>5} {avg_eval_c:>4} {avg_eval_ms:>6}  {avg_in:>10,} {avg_out:>10,} {'':>6}  {'':>1} {'':>6} {'':>5}  {'':11} {'':34}")
+    print(f"{'ИТОГО':<10} {total:>6.2f}% {total_elapsed:>7.1f}s  {total_steps:>5} {total_calls:>5} {total_eval_calls:>4} {total_eval_ms_sum:>6}  {total_in:>10,} {total_out:>10,} {total_cc_cr:>9,} {total_cc_rd:>9,} {total_tps:>6.0f}  {total_b_used:>1} {total_b_in:>6,} {total_b_out:>5,}  {'':11} {'':34}")
+    print(f"{'СРЕДНЕЕ':<10} {'':>7} {avg_elapsed:>7.1f}s  {avg_steps:>5} {avg_calls:>5} {avg_eval_c:>4} {avg_eval_ms:>6}  {avg_in:>10,} {avg_out:>10,} {'':>9} {'':>9} {'':>6}  {'':>1} {'':>6} {'':>5}  {'':11} {'':34}")
     print(_TABLE_SEP)
     if len(model_totals) > 1:
         print(f"\n{'─' * 84}")

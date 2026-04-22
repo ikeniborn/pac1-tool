@@ -59,11 +59,17 @@ def _collect_stdout(pipe, buf: list[str]) -> None:
         pass
 
 
-def _parse_envelope(lines: list[str]) -> tuple[str, int, int]:
+def _parse_envelope(lines: list[str]) -> tuple[str, int, int, int, int]:
     """Extract result text and token usage from iclaude --output-format json.
     Envelope shape: {"type":"result","subtype":"success","result":"...",
-                     "usage":{"input_tokens":N,"output_tokens":N},
-                     "modelUsage":{"<model>":{"inputTokens":N,"outputTokens":N}}}.
+                     "usage":{"input_tokens":N,"cache_creation_input_tokens":N,
+                              "cache_read_input_tokens":N,"output_tokens":N},
+                     "modelUsage":{"<model>":{"inputTokens":N,"outputTokens":N,
+                                              "cacheCreationInputTokens":N,
+                                              "cacheReadInputTokens":N}}}.
+    Returns (text, fresh_in_tok, out_tok, cache_creation, cache_read).
+    FIX-N: separates fresh input from cached tokens (Claude API semantics —
+    usage.input_tokens is ONLY the non-cached portion of the last message).
     Scans lines in reverse for the last success envelope."""
     for line in reversed(lines):
         line = line.strip()
@@ -80,19 +86,25 @@ def _parse_envelope(lines: list[str]) -> tuple[str, int, int]:
             continue
         in_tok = 0
         out_tok = 0
+        cache_cr = 0
+        cache_rd = 0
         usage = obj.get("usage")
         if isinstance(usage, dict):
             in_tok = int(usage.get("input_tokens") or 0)
             out_tok = int(usage.get("output_tokens") or 0)
-        if not in_tok and not out_tok:
+            cache_cr = int(usage.get("cache_creation_input_tokens") or 0)
+            cache_rd = int(usage.get("cache_read_input_tokens") or 0)
+        if not in_tok and not out_tok and not cache_cr and not cache_rd:
             mu = obj.get("modelUsage")
             if isinstance(mu, dict):
                 for per_model in mu.values():
                     if isinstance(per_model, dict):
                         in_tok += int(per_model.get("inputTokens") or 0)
                         out_tok += int(per_model.get("outputTokens") or 0)
-        return text, in_tok, out_tok
-    return "", 0, 0
+                        cache_cr += int(per_model.get("cacheCreationInputTokens") or 0)
+                        cache_rd += int(per_model.get("cacheReadInputTokens") or 0)
+        return text, in_tok, out_tok, cache_cr, cache_rd
+    return "", 0, 0, 0, 0
 
 
 def _spawn_once(
@@ -209,6 +221,27 @@ def cc_complete(
         cmd.extend(["--model", cc_model])
     if cc_effort:
         cmd.extend(["--effort", cc_effort])
+
+    # FIX-N+1: pass-through CC flags from cc_options (OAuth-compatible only;
+    # --bare is intentionally NOT supported — it forces ANTHROPIC_API_KEY/apiKeyHelper
+    # and disables OAuth / keychain reads, breaking iclaude's auth model).
+    cc_fallback = cc_opts.get("cc_fallback_model") or os.environ.get("CC_DEFAULT_FALLBACK_MODEL", "")
+    if cc_fallback:
+        cmd.extend(["--fallback-model", cc_fallback])
+
+    _exclude_dyn = cc_opts.get("cc_exclude_dynamic")
+    if _exclude_dyn is None:
+        _exclude_dyn = os.environ.get("CC_DEFAULT_EXCLUDE_DYNAMIC") == "1"
+    if _exclude_dyn:
+        cmd.append("--exclude-dynamic-system-prompt-sections")
+
+    _schema = cc_opts.get("cc_json_schema")
+    if _schema and not plain_text:
+        try:
+            cmd.extend(["--json-schema", json.dumps(_schema, ensure_ascii=False)])
+        except (TypeError, ValueError) as _exc:
+            print(f"[CC] cc_json_schema is not JSON-serializable ({_exc}) — ignored")
+
     cmd.append(user_msg)
 
     env = _build_env()
@@ -216,13 +249,21 @@ def cc_complete(
     try:
         for attempt in range(_CC_MAX_RETRIES + 1):
             stdout_lines, exit_code, fail_reason = _spawn_once(cmd, cwd, env, cc_timeout)
-            text, in_tok, out_tok = _parse_envelope(stdout_lines)
+            text, in_tok, out_tok, cache_cr, cache_rd = _parse_envelope(stdout_lines)
             if text:
                 if token_out is not None:
                     token_out["input"] = in_tok
                     token_out["output"] = out_tok
+                    token_out["cache_creation"] = cache_cr  # FIX-N
+                    token_out["cache_read"] = cache_rd      # FIX-N
                 return text
 
+            # FIX-N+4: diagnostic — dump tail of stdout so we can distinguish
+            # "iclaude crashed silently" vs "envelope parse failed" vs "rate-limited".
+            _debug = os.environ.get("CC_DEBUG_EMPTY") == "1"
+            if _debug or attempt >= _CC_MAX_RETRIES:
+                tail = "".join(stdout_lines[-8:]).rstrip()[:800] or "<empty>"
+                print(f"[CC] stdout tail (last {min(8, len(stdout_lines))} lines):\n{tail}")
             if attempt < _CC_MAX_RETRIES:
                 print(
                     f"[CC] {fail_reason} or empty "
