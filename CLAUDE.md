@@ -42,6 +42,31 @@ Key variables:
 
 Task types: `think`, `distill`, `email`, `lookup`, `inbox`, `queue`, `capture`, `crm`, `temporal`, `preject`.
 
+### Task-type registry (FIX-325)
+
+Source of truth: `data/task_types.json`. Loader/API: `agent/task_types.py`.
+
+Registry drives: classifier enum, `ClassifyTask` docstring, `cc_json_schema.task_type.enum` (runtime-injected in `cc_client.py`), regex fast-path in `classify_task()`, `ModelRouter` resolution, `wiki.py` folder map, `prompt_builder._NEEDS_BUILDER`.
+
+Behavior branches that reference specific types (preject short-circuit in `agent/__init__.py`, scope-gates in `security.py`, stall-hints in `loop.py`, per-type system-prompt blocks in `prompt._TASK_BLOCKS`) stay in code and reference registry keys via `TASK_*` constants re-exported from `agent.classifier` / `agent.task_types`.
+
+**Adding a type manually:**
+1. Append entry to `data/task_types.json` with fields: `description`, `model_env`, `fallback_chain`, `wiki_folder`, `fast_path`, `needs_builder`, `status`.
+2. Optionally set `MODEL_<UPPER>` in `.env` (otherwise `fallback_chain` resolves).
+3. Optionally create `data/wiki/fragments/<wiki_folder>/`.
+4. If `status: "soft"` → run `uv run python optimize_prompts.py --target classifier` to recompile DSPy program with the new enum.
+5. If the type needs bespoke system-prompt guidance → add an entry to `_TASK_BLOCKS` in `agent/prompt.py`. Otherwise it inherits the `default` block (warn-once on startup).
+
+**Soft-label workflow (open-set):** when the LLM classifier proposes a type outside `VALID_TYPES`, it's logged to `data/task_type_candidates.jsonl` (zero extra LLM calls). Aggregate + promote via:
+
+```bash
+uv run python scripts/analyze_task_types.py                     # summary
+uv run python scripts/analyze_task_types.py --promote           # interactive add
+uv run python scripts/analyze_task_types.py --min-count 3       # override threshold
+```
+
+Promoted types start with `status: "soft"` — they're in the enum and system prompt, but the compiled DSPy classifier won't predict them until recompiled.
+
 ## Architecture
 
 ### Execution Flow

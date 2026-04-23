@@ -1,6 +1,12 @@
-"""Task type classifier and model router for multi-model PAC1 agent."""
+"""Task type classifier and model router for multi-model PAC1 agent.
+
+FIX-325: Task types are loaded from data/task_types.json via agent.task_types.
+Legacy TASK_* constants are re-exported here for backwards compatibility with
+existing imports (loop.py, security.py, __init__.py, stall.py, tests).
+"""
 from __future__ import annotations
 
+import datetime as _dt
 import json
 import os
 import re
@@ -13,96 +19,86 @@ import dspy
 
 from .dispatch import call_llm_raw
 from .dspy_lm import DispatchLM
+from .task_types import (
+    REGISTRY,
+    VALID_TYPES,
+    build_classifier_docstring,
+    build_classifier_output_desc,
+    build_classifier_system_prompt,
+    classify_regex,
+    plaintext_fallback_pairs,
+    resolve_model,
+)
 
 _JSON_TYPE_RE = re.compile(r'\{[^}]*"type"\s*:\s*"(\w+)"[^}]*\}')  # extract type from partial/wrapped JSON
 
 if TYPE_CHECKING:
     from .prephase import PrephaseResult
 
-# Task type literals
-TASK_DEFAULT = "default"
-TASK_QUEUE = "queue"
-TASK_CAPTURE = "capture"
-TASK_CRM = "crm"
-TASK_TEMPORAL = "temporal"
-TASK_PREJECT = "preject"
-TASK_EMAIL = "email"
-TASK_LOOKUP = "lookup"
-TASK_INBOX = "inbox"
-TASK_DISTILL = "distill"
 
-# Fast-path regexes — only for types detectable with near-zero false positives before LLM
-_PREJECT_RE = re.compile(
-    r"\b(calendar\s+invite|create\s+(a\s+)?(meeting|event|ticket)"
-    r"|sync\s+(to|with)\s+\w+|upload\s+to\s+https?"
-    r"|salesforce|hubspot|zendesk|jira|external\s+(api|crm|url)"
-    r"|send\s+to\s+https?)\b",
-    re.IGNORECASE,
-)
+# ---------------------------------------------------------------------------
+# Backwards-compatible TASK_* constants.
+# Legacy code (loop.py, security.py, __init__.py, tests) does:
+#   from agent.classifier import TASK_EMAIL
+# We re-export dynamically so adding a type to the registry automatically
+# exposes TASK_<NAME> here.
+# ---------------------------------------------------------------------------
 
-_EMAIL_RE = re.compile(
-    r"\b(send|compose|write|email)\b.*\b(to|recipient|subject)\b"
-    r"|\bemail\s+(?!(?:address|of|from|in)\b)[A-Za-z]+\s+(a\b|an\b|brief\b|reminder\b|summary\b|short\b)",
-    re.IGNORECASE,
-)
+_TASK_CONSTS: dict[str, str] = {f"TASK_{name.upper()}": name for name in REGISTRY.types}
 
+
+def __getattr__(attr: str) -> str:
+    if attr in _TASK_CONSTS:
+        return _TASK_CONSTS[attr]
+    raise AttributeError(f"module 'agent.classifier' has no attribute {attr!r}")
+
+
+def __dir__() -> list[str]:
+    return sorted(list(globals().keys()) + list(_TASK_CONSTS.keys()))
+
+
+# ---------------------------------------------------------------------------
+# Regex fast-path (FIX-325: delegated to registry).
+# ---------------------------------------------------------------------------
 
 def classify_task(task_text: str) -> str:
     """High-confidence regex fast-path; everything else deferred to DSPy classifier."""
-    if _PREJECT_RE.search(task_text):
-        return TASK_PREJECT
-    if _EMAIL_RE.search(task_text):
-        return TASK_EMAIL
-    return TASK_DEFAULT
+    hit = classify_regex(task_text)
+    if hit is not None and hit[1] == "high":
+        return hit[0]
+    return "default"
 
 
 # ---------------------------------------------------------------------------
 # LLM-based task classification (pre-requisite before agent start)
 # ---------------------------------------------------------------------------
 
-_CLASSIFY_SYSTEM = (
-    "You are a task router. Classify the task into exactly one type. "
-    'Reply ONLY with valid JSON: {"type": "<type>"} where <type> is one of: '
-    "preject, queue, capture, crm, temporal, email, lookup, inbox, distill, default.\n"
-    "preject = calendar invites, sync to external CRM/service, upload to external URL\n"
-    "queue = work through / take care of / handle the incoming queue or all inbox items\n"
-    "inbox = process/check/handle/review single inbox or inbound note\n"
-    "email = send/compose/write email to a recipient\n"
-    "lookup = find, count, or query vault data (contacts, files, channels) with no write action\n"
-    "capture = capture explicit snippet/content from source into a specific vault path\n"
-    "crm = reschedule follow-up, reconnect date, fix follow-up regression, date arithmetic + write\n"
-    "temporal = date-relative queries needing datetime arithmetic (N days ago, in N days, what date)\n"
-    "distill = analysis/reasoning AND writing a card/note/summary\n"
-    "default = everything else (read, write, create, delete, move, standard tasks)"
-)
-
-_VALID_TYPES = frozenset({
-    TASK_PREJECT, TASK_QUEUE, TASK_CAPTURE, TASK_CRM, TASK_TEMPORAL,
-    TASK_DEFAULT, TASK_EMAIL, TASK_LOOKUP, TASK_INBOX, TASK_DISTILL,
-})
+# System prompt and DSPy Signature docstring are now built from the registry.
+_CLASSIFY_SYSTEM: str = build_classifier_system_prompt()
 
 _CLASSIFIER_PROGRAM_PATH = Path(__file__).parent.parent / "data" / "classifier_program.json"
+_CANDIDATES_PATH = Path(__file__).parent.parent / "data" / "task_type_candidates.jsonl"
 
 
 class ClassifyTask(dspy.Signature):
-    """You are a task router. Classify the task into exactly one type.
-
-    preject = calendar invites, sync to external CRM/service, upload to external URL
-    queue = work through / take care of / handle the incoming queue or all inbox items
-    inbox = process/check/handle/review single inbox or inbound note
-    email = send/compose/write email to a recipient
-    lookup = find, count, or query vault data (contacts, files, channels) with no write action
-    capture = capture explicit snippet/content from source into a specific vault path
-    crm = reschedule follow-up, reconnect date, fix follow-up regression, date arithmetic + write
-    temporal = date-relative queries needing datetime arithmetic (N days ago, in N days, what date)
-    distill = analysis/reasoning AND writing a card/note/summary
-    default = everything else (read, write, create, delete, move, standard tasks)
-    """
+    """Placeholder docstring — overridden at module load from registry."""
     task_text: str = dspy.InputField(desc="Task description to classify")
     vault_hint: str = dspy.InputField(desc="Optional vault context: AGENTS.MD excerpt and folder structure. Empty string if unavailable.")
-    task_type: str = dspy.OutputField(
-        desc="Exactly one of: preject, queue, inbox, email, lookup, capture, crm, temporal, distill, default"
-    )
+    task_type: str = dspy.OutputField(desc="overridden at module load")
+
+
+# Overwrite docstring and task_type description from the registry so new types
+# appear in the DSPy signature without code changes.
+ClassifyTask.__doc__ = build_classifier_docstring()
+try:
+    _tt_field = ClassifyTask.model_fields["task_type"]  # type: ignore[attr-defined]
+    # Pydantic v2 FieldInfo — json_schema_extra holds DSPy metadata; desc lives there.
+    _tt_extra = dict(getattr(_tt_field, "json_schema_extra", {}) or {})
+    _tt_extra["desc"] = build_classifier_output_desc()
+    _tt_field.json_schema_extra = _tt_extra  # type: ignore[attr-defined]
+    _tt_field.description = build_classifier_output_desc()
+except Exception as _exc:  # pragma: no cover — best-effort mutation
+    print(f"[MODEL_ROUTER] Could not override ClassifyTask.task_type desc: {_exc}")
 
 
 _classifier_program: dspy.Module | None = None
@@ -124,19 +120,9 @@ def _load_classifier_program() -> dspy.Module | None:
             print(f"[MODEL_ROUTER] Failed to load classifier program: {exc}")
     return _classifier_program
 
-# Ordered keyword → task_type table for plain-text LLM response fallback.
-_PLAINTEXT_FALLBACK: list[tuple[tuple[str, ...], str]] = [
-    (("preject",),  TASK_PREJECT),
-    (("queue",),    TASK_QUEUE),
-    (("inbox",),    TASK_INBOX),
-    (("email",),    TASK_EMAIL),
-    (("capture",),  TASK_CAPTURE),
-    (("crm",),      TASK_CRM),
-    (("temporal",), TASK_TEMPORAL),
-    (("lookup",),   TASK_LOOKUP),
-    (("distill",),  TASK_DISTILL),
-    (("default",),  TASK_DEFAULT),
-]
+
+# Plain-text LLM fallback keyword table — generated from registry.
+_PLAINTEXT_FALLBACK: list[tuple[tuple[str, ...], str]] = plaintext_fallback_pairs()
 
 
 _INSIGHTS_RE = re.compile(r'## Task-Type Specific Insights(.+?)(?=^##(?!#)|\Z)', re.DOTALL | re.MULTILINE)
@@ -176,6 +162,27 @@ def _count_tree_files(prephase_log: list) -> int:
     return len(file_lines)
 
 
+def _log_soft_candidate(task_text: str, classified_as: str, llm_suggested: str,
+                        vault_hint: str | None) -> None:
+    """FIX-325 (step 2): append a classification candidate for offline promotion.
+
+    Called when the LLM returned a syntactically-valid response whose type is
+    outside VALID_TYPES. Zero runtime overhead beyond a file append.
+    """
+    try:
+        record = {
+            "ts": _dt.datetime.now(_dt.timezone.utc).isoformat(timespec="seconds"),
+            "task_text": task_text[:500],
+            "classified_as": classified_as,
+            "llm_suggested": llm_suggested[:100],
+            "vault_hint_present": bool(vault_hint),
+        }
+        with _CANDIDATES_PATH.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(record, ensure_ascii=False) + "\n")
+    except Exception as exc:  # pragma: no cover — fail-open
+        print(f"[MODEL_ROUTER] Could not log soft candidate ({exc})")
+
+
 def _classify_task_llm_once(task_text: str, model: str, model_config: dict,
                             vault_hint: str | None = None) -> str:
     """Single classification attempt. Returns a valid type or '' on failure."""
@@ -207,9 +214,12 @@ def _classify_task_llm_once(task_text: str, model: str, model_config: dict,
                 with dspy.context(lm=_lm):
                     pred = _prog(task_text=task_text[:300], vault_hint=vault_hint or "")
                 detected = (pred.task_type or "").strip().lower()
-            if detected in _VALID_TYPES:
+            if detected in VALID_TYPES:
                 print(f"[MODEL_ROUTER] DSPy classifier: '{detected}'")
                 return detected
+            # FIX-325: DSPy returned a type outside the registry — log as soft candidate.
+            if detected:
+                _log_soft_candidate(task_text, "default", detected, vault_hint)
             print(f"[MODEL_ROUTER] DSPy classifier returned invalid type '{detected}', falling back to LLM")
         except Exception as exc:
             print(f"[MODEL_ROUTER] DSPy classifier failed ({exc}), falling back to LLM")
@@ -231,6 +241,9 @@ def _classify_task_llm_once(task_text: str, model: str, model_config: dict,
             detected = m.group(1).strip() if m else ""
             if detected:
                 print(f"[MODEL_ROUTER] Extracted type via regex from: {raw!r}")
+        # FIX-325: valid-JSON but unknown enum value — log soft candidate.
+        if detected and detected not in VALID_TYPES:
+            _log_soft_candidate(task_text, "default", detected, vault_hint)
         if not detected:
             raw_lower = raw.lower()
             for keywords, task_type in _PLAINTEXT_FALLBACK:
@@ -238,7 +251,7 @@ def _classify_task_llm_once(task_text: str, model: str, model_config: dict,
                     detected = task_type
                     print(f"[MODEL_ROUTER] Extracted type {task_type!r} from plain text: {raw[:60]!r}")
                     break
-        if detected in _VALID_TYPES:
+        if detected in VALID_TYPES:
             print(f"[MODEL_ROUTER] LLM classified task as '{detected}'")
             return detected
         print(f"[MODEL_ROUTER] LLM returned unknown type '{detected}'")
@@ -257,11 +270,10 @@ def classify_task_llm(task_text: str, model: str, model_config: dict,
     mitigates CC non-determinism (no --seed/--temperature). Votes that fail or
     return invalid types are discarded; if all fail, falls back to regex.
     """
-    _HIGH_CONF_TYPES = frozenset({TASK_PREJECT, TASK_EMAIL})
-    _regex_pre = classify_task(task_text)
-    if _regex_pre in _HIGH_CONF_TYPES:
-        print(f"[MODEL_ROUTER] Regex-confident type={_regex_pre!r}, skipping LLM")
-        return _regex_pre
+    _regex_pre = classify_regex(task_text)
+    if _regex_pre is not None and _regex_pre[1] == "high":
+        print(f"[MODEL_ROUTER] Regex-confident type={_regex_pre[0]!r}, skipping LLM")
+        return _regex_pre[0]
 
     is_cc = model_config.get("provider") == "claude-code"
     # FIX-N+2: default to 3 votes on CC tier (non-deterministic, no --seed),
@@ -275,12 +287,12 @@ def classify_task_llm(task_text: str, model: str, model_config: dict,
 
     if not is_cc or votes < 2:
         result = _classify_task_llm_once(task_text, model, model_config, vault_hint)
-        return result if result in _VALID_TYPES else classify_task(task_text)
+        return result if result in VALID_TYPES else classify_task(task_text)
 
     tally: list[str] = []
     for i in range(votes):
         r = _classify_task_llm_once(task_text, model, model_config, vault_hint)
-        if r in _VALID_TYPES:
+        if r in VALID_TYPES:
             tally.append(r)
             print(f"[MODEL_ROUTER] CC vote {i + 1}/{votes}: {r}")
         else:
@@ -296,10 +308,15 @@ def classify_task_llm(task_text: str, model: str, model_config: dict,
 
 @dataclass
 class ModelRouter:
-    """Routes tasks to appropriate models based on task type classification."""
+    """Routes tasks to appropriate models based on task type classification.
+
+    FIX-325: legacy per-type fields (email/lookup/…) remain for backwards compat
+    with main.py. New types added via data/task_types.json should pass through
+    `extra_models` dict (populated by main.py via env-convention MODEL_<UPPER>).
+    """
     default: str
     classifier: str
-    # Optional per-type overrides — fall back to default if not provided
+    # Legacy per-type overrides (resolved by main.py from MODEL_<TYPE> env vars).
     email: str = ""
     lookup: str = ""
     inbox: str = ""
@@ -311,19 +328,27 @@ class ModelRouter:
     evaluator: str = ""
     prompt_builder: str = ""
     configs: dict[str, dict] = field(default_factory=dict)
+    # FIX-325: models for registry-only types (not in the legacy dataclass fields).
+    extra_models: dict[str, str] = field(default_factory=dict)
+
+    def _explicit_map(self) -> dict[str, str]:
+        # self.default is authoritative — pin it in the explicit map so
+        # resolve_model returns it verbatim instead of re-reading MODEL_DEFAULT
+        # (they match in prod, but diverge in tests / manual construction).
+        m: dict[str, str] = {
+            "default": self.default,
+            "email": self.email, "lookup": self.lookup, "inbox": self.inbox,
+            "queue": self.queue, "capture": self.capture, "crm": self.crm,
+            "temporal": self.temporal, "preject": self.preject,
+        }
+        m.update(self.extra_models)
+        return {k: v for k, v in m.items() if v}
 
     def _select_model(self, task_type: str) -> str:
-        return {
-            TASK_EMAIL:    self.email    or self.default,
-            TASK_LOOKUP:   self.lookup   or self.default,
-            TASK_INBOX:    self.inbox    or self.default,
-            TASK_QUEUE:    self.queue    or self.inbox or self.default,
-            TASK_CAPTURE:  self.capture  or self.default,
-            TASK_CRM:      self.crm      or self.default,
-            TASK_TEMPORAL: self.temporal or self.lookup or self.default,
-            TASK_PREJECT:  self.preject  or self.default,
-            TASK_DISTILL:  self.default,
-        }.get(task_type, self.default)
+        return resolve_model(
+            task_type, env=os.environ, default_model=self.default,
+            explicit=self._explicit_map(),
+        )
 
     def resolve(self, task_text: str) -> tuple[str, dict, str]:
         """Return (model_id, model_config, task_type) using regex-only classification."""
@@ -348,7 +373,8 @@ class ModelRouter:
         vault_hint = None
         if pre.agents_md_content:
             vault_hint = f"AGENTS.MD:\n{pre.agents_md_content}\nvault files: {file_count}"
-        if classify_task(task_text) not in {TASK_PREJECT, TASK_EMAIL}:
+        _pre_regex = classify_regex(task_text)
+        if _pre_regex is None or _pre_regex[1] != "high":
             try:
                 from .wiki import load_wiki_patterns as _load_wiki
                 wiki_hints = []

@@ -15,22 +15,47 @@ Design:
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 
 import dspy
 
 from .dspy_lm import DispatchLM
 
-# preject skipped — single-step immediate rejection, no vault guidance needed.
-_NEEDS_BUILDER: frozenset[str] = frozenset({
-    "default", "queue", "capture", "crm", "temporal",
-    "lookup", "email", "inbox", "distill",
-})
+# FIX-325: driven by data/task_types.json via the `needs_builder` field.
+# preject has needs_builder=False (single-step immediate rejection, no vault guidance).
+from .task_types import builder_types as _builder_types
+_NEEDS_BUILDER: frozenset[str] = _builder_types()
 
 _LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
 
 _DATA = Path(__file__).parent.parent / "data"
 _PROGRAM_PATH = _DATA / "prompt_builder_program.json"
+
+# FIX-327: strip CRM-reschedule leakage from temporal addenda. COPRO-compiled
+# programs occasionally produce a "PAC1 rule: +8 days" bullet on pure temporal
+# tasks (the rule is real but applies to CRM reschedule only). Runtime filter
+# drops any bullet mentioning +8/PAC1/offset when task_type == 'temporal'.
+_TEMPORAL_INJECTION_RE = re.compile(
+    r"(?:\bpac1\s+rule\b|(?<!\w)\+\s*8\b|\badd\s+8\b|\bplus\s+8\b|\boffset\s*[:=]?\s*\+?\s*8\b)",
+    re.IGNORECASE,
+)
+
+
+def _sanitize_temporal_addendum(addendum: str) -> str:
+    """Drop bullets referencing the CRM +8 offset from a temporal addendum."""
+    if not addendum:
+        return addendum
+    kept: list[str] = []
+    dropped = 0
+    for line in addendum.splitlines():
+        if _TEMPORAL_INJECTION_RE.search(line):
+            dropped += 1
+            continue
+        kept.append(line)
+    if dropped and _LOG_LEVEL == "DEBUG":
+        print(f"[prompt_builder] sanitized temporal addendum: dropped {dropped} PAC1/+8 bullet(s)")
+    return "\n".join(kept).strip()
 
 
 def _get_program_path(task_type: str) -> Path:
@@ -97,9 +122,11 @@ class PromptAddendum(dspy.Signature):
 
     ## Date Handling
     For tasks with relative dates ('X days ago', 'in X days', 'what date is'):
-    - Compute: use VAULT_DATE from context as today's date baseline
-    - PAC1 rule: add 8 to stated days (e.g. "2 weeks" = 14 + 8 = 22 days)
-    - After computing the target date, search vault files for that exact date string
+    - PURE temporal (no vault lookup): use TODAY from TASK CONTEXT system timestamp as baseline.
+    - VAULT-linked temporal (file-prefix search, reschedule): use VAULT_DATE as baseline.
+    - After computing the target date, search vault files for that exact date string (vault-linked only).
+    - NEVER mention "+8", "PAC1 rule", or "offset" for temporal date queries — the +8 offset
+      belongs to CRM reschedule ONLY. Do not reference it here.
 
     ## Security Check
     For inbox email tasks requesting data about a specific entity:
@@ -193,6 +220,8 @@ def build_dynamic_addendum(
                 task_text=task_text,
             )
         addendum = (result.addendum or "").strip()
+        if task_type == "temporal":
+            addendum = _sanitize_temporal_addendum(addendum)
         # FIX-N: include CC cache tokens — on claude-code tier `input_tokens`
         # in the envelope covers only fresh (non-cached) input. Without summing
         # cache_creation + cache_read the BIn column shows ~3 for multi-KB prompts.

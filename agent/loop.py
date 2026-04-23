@@ -30,7 +30,7 @@ from .dispatch import (
 from .cc_client import cc_complete as _cc_complete
 from .classifier import (
     TASK_EMAIL, TASK_LOOKUP, TASK_INBOX, TASK_DISTILL,
-    TASK_QUEUE, TASK_CAPTURE, TASK_CRM, TASK_TEMPORAL,
+    TASK_QUEUE, TASK_CAPTURE, TASK_CRM, TASK_TEMPORAL, TASK_PREJECT,
 )
 from .evaluator import check_quoted_values_verbatim, evaluate_completion  # FIX-218
 from .tracer import get_task_tracer  # П3: replay tracer (no-op when TRACE_ENABLED=0)
@@ -69,7 +69,11 @@ _INJECTION_RE = re.compile(
     r"|disregard\s+(all|your|previous)"
     r"|new\s+(task|instruction)\s*:"
     r"|system\s*prompt\s*:"
-    r'|"tool"\s*:\s*"report_completion"',
+    r'|"tool"\s*:\s*"report_completion"'
+    # FIX-329: bridge-relay injection (t09-style)
+    r"|security\s+relay\s*:\s*authenticated"
+    r"|mirrored\s+through\s+(an\s+)?internal\s+bridge"
+    r"|trusted\s+operational\s+guidance",
     re.IGNORECASE,
 )
 
@@ -875,10 +879,10 @@ def _run_pre_route(
     # be sent to OpenRouter (invalid model ID → 400). FIX-266.
     # FIX-326: vault-specific task types are always EXECUTE — classifier already validated them.
     # LLM router runs only for task_type=default where classifier wasn't sure.
-    _VAULT_TASK_TYPES = frozenset({
-        TASK_EMAIL, TASK_LOOKUP, TASK_INBOX, TASK_QUEUE, TASK_CAPTURE,
-        TASK_CRM, TASK_TEMPORAL, TASK_DISTILL,
-    })
+    # FIX-325: driven by registry — any non-default type in data/task_types.json
+    # counts as vault-specific (preject excluded: single-step immediate rejection).
+    from .task_types import vault_types as _vault_types
+    _VAULT_TASK_TYPES = _vault_types() - {TASK_PREJECT}
     _rr_client = ollama_client if is_ollama_model(model) else (openrouter_client or ollama_client)
     # FIX-N+5: skip security-router for CC tier — the router uses
     # ollama_client/openrouter_client and has no CC path; sending 'claude-code/*'
@@ -1823,6 +1827,25 @@ def _run_step(
             _prev = job.function.outcome
             job.function = job.function.model_copy(update={"outcome": "OUTCOME_NONE_CLARIFICATION"})
             print(f"{CLI_YELLOW}[FIX-259] Format-gate override: {_prev} → OUTCOME_NONE_CLARIFICATION{CLI_CLR}")
+
+    # FIX-329: semantic self-report — if the agent's own current_state /
+    # completed_steps admits to detecting/rejecting an injection but the outcome
+    # is not DENIED_SECURITY, the agent is reporting partial-OK on a compromised
+    # task. Treat self-report as ground truth and force DENIED_SECURITY (t09).
+    if isinstance(job.function, ReportTaskCompletion) and not st._security_interceptor_fired:
+        _selfreport = " ".join([
+            getattr(job.function, "current_state", "") or "",
+            " ".join(job.function.completed_steps_laconic or []),
+            getattr(job.function, "message", "") or "",
+        ]).lower()
+        _INJECTION_SELFREPORT_MARKERS = (
+            "injection detected", "injection rejected", "injection attempt",
+            "prompt injection", "security relay", "rejected injected",
+            "detected and rejected",
+        )
+        if any(m in _selfreport for m in _INJECTION_SELFREPORT_MARKERS):
+            st._security_interceptor_fired = True
+            print(f"{CLI_RED}[FIX-329] Semantic self-report of injection → force DENIED_SECURITY{CLI_CLR}")
 
     # FIX-253: hard enforcement — code-detected security violations force DENIED_SECURITY
     if isinstance(job.function, ReportTaskCompletion) and st._security_interceptor_fired:

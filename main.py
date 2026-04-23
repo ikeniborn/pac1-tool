@@ -162,6 +162,22 @@ _model_evaluator      = os.getenv("MODEL_EVALUATOR")      or _model_default
 _model_prompt_builder = os.getenv("MODEL_PROMPT_BUILDER") or ""  # "" = use classifier
 _model_wiki           = os.getenv("MODEL_WIKI")           or _model_default
 
+# FIX-325: pick up MODEL_<UPPER> for any types added to data/task_types.json
+# beyond the legacy 8. Legacy types keep their explicit dataclass fields above
+# (backwards compat); new types flow through extra_models dict.
+from agent.task_types import REGISTRY as _TT_REGISTRY
+_LEGACY_TYPE_FIELDS = {
+    "default", "email", "lookup", "inbox", "queue",
+    "capture", "crm", "temporal", "preject",
+}
+_extra_models: dict[str, str] = {}
+for _tname, _ttype in _TT_REGISTRY.types.items():
+    if _tname in _LEGACY_TYPE_FIELDS:
+        continue
+    _val = os.getenv(_ttype.model_env, "")
+    if _val:
+        _extra_models[_tname] = _val
+
 EFFECTIVE_MODEL: ModelRouter = ModelRouter(
     default=_model_default,
     classifier=_model_classifier,
@@ -176,7 +192,9 @@ EFFECTIVE_MODEL: ModelRouter = ModelRouter(
     evaluator=_model_evaluator,
     prompt_builder=_model_prompt_builder,
     configs=MODEL_CONFIGS,
+    extra_models=_extra_models,
 )
+_extra_lines = "".join(f"  {k:<11} = {v}\n" for k, v in sorted(_extra_models.items()))
 print(
     f"[MODEL_ROUTER] Multi-model mode:\n"
     f"  classifier  = {_model_classifier}\n"
@@ -191,7 +209,8 @@ print(
     f"  preject     = {_model_preject}\n"
     f"  evaluator   = {_model_evaluator}\n"
     f"  builder     = {_model_prompt_builder or '(uses classifier)'}\n"
-    f"  wiki        = {_model_wiki}"
+    f"  wiki        = {_model_wiki}\n"
+    f"{_extra_lines}".rstrip("\n")
 )
 
 def _print_run_params() -> None:

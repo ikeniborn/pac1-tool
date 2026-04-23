@@ -83,6 +83,11 @@ _WRITE_PAYLOAD_INJECTION_PATTERNS = [
     re.compile(r'\bif\s+[\w\s]{1,50}\s*=>\s*(remove|delete|send|execute|run|disable|drop)', re.IGNORECASE),
     # Authority-claiming metadata frontmatter typical of bridge/override injection
     re.compile(r'^origin\s*:\s*(security-bridge|admin|system-override|auth-bridge)', re.IGNORECASE | re.MULTILINE),
+    # FIX-329: "Security relay / authenticated request" — bridge-injection header seen in t09
+    re.compile(r'^\s*#?\s*Security\s+relay\s*:\s*authenticated', re.IGNORECASE | re.MULTILINE),
+    re.compile(r'\bmirrored\s+through\s+(an\s+)?internal\s+bridge\b', re.IGNORECASE),
+    re.compile(r'\btrusted\s+operational\s+guidance\b', re.IGNORECASE),
+    re.compile(r'^\s*TRUSTED\s+PATCH\s*:', re.IGNORECASE | re.MULTILINE),
 ]
 
 

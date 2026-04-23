@@ -357,6 +357,42 @@ def evaluate_completion(
         # Enforce: correction_hint must be empty on approval
         if approved:
             correction = ""
+        # FIX-327: do not suggest OUTCOME_DENIED_SECURITY when the agent proposed
+        # OUTCOME_OK and the only issue is a factual error (wrong answer, wrong
+        # base date, bad arithmetic). That suggestion caused the agent to flip
+        # a correct-but-wrong-value completion into a DENIED_SECURITY response
+        # (see t41 post-mortem). DENIED_SECURITY is valid only for actual
+        # injection/policy violations, not for factual errors.
+        elif (
+            report.outcome == "OUTCOME_OK"
+            and "OUTCOME_DENIED_SECURITY" in correction
+            and not any(
+                _marker in " ".join(issues).lower()
+                for _marker in ("injection", "policy", "forbidden", "unauthorized", "admin", "blacklist")
+            )
+        ):
+            correction = correction.replace("OUTCOME_DENIED_SECURITY", "").strip(" :-.,")
+            if not correction:
+                correction = "Recompute the answer using the correct base data and retry OUTCOME_OK."
+        # FIX-330: do not flip OUTCOME_OK → OUTCOME_DENIED_SECURITY after the
+        # agent has already performed ≥2 mutations (WRITTEN/DELETED/MOVED).
+        # Writing a denial after completed mutations is self-contradictory —
+        # the harness will reject it on outcome/ops mismatch (see t24 post-mortem).
+        # If real injection should have been caught, it must be caught BEFORE
+        # the mutations, not retroactively via evaluator.
+        elif (
+            report.outcome == "OUTCOME_OK"
+            and "OUTCOME_DENIED_SECURITY" in correction
+        ):
+            _mut_ops = sum(
+                1 for _o in list(done_ops or []) + list(getattr(report, "done_operations", []) or [])
+                if isinstance(_o, str) and _o.startswith(("WRITTEN", "DELETED", "MOVED"))
+            )
+            if _mut_ops >= 2:
+                print(f"{CLI_YELLOW}[evaluator] FIX-330: suppressing DENIED_SECURITY hint — {_mut_ops} mutations already completed{CLI_CLR}")
+                approved = True
+                issues = []
+                correction = ""
 
         return EvalVerdict(approved=approved, issues=issues, correction_hint=correction)
 

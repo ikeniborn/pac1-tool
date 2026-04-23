@@ -38,19 +38,11 @@ _ARCHIVE_DIR = _WIKI_DIR / "archive"
 
 _LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
 
-# Task type → wiki page name mapping
-_TYPE_TO_PAGE: dict[str, str] = {
-    "email": "email",
-    "inbox": "inbox",
-    "crm": "crm",
-    "lookup": "lookup",
-    "temporal": "temporal",
-    "queue": "queue",
-    "capture": "capture",
-    "distill": "distill",
-    "think": "think",
-    "default": "default",
-}
+# Task type → wiki page name mapping (FIX-325: driven by data/task_types.json).
+# 'think' is not a registered task type but a legacy synthesis-prompt bucket;
+# keep it pinned in the map so wiki-lint for 'think' fragments still resolves.
+from .task_types import wiki_folder_map as _wiki_folder_map
+_TYPE_TO_PAGE: dict[str, str] = {**_wiki_folder_map(), "think": "think"}
 
 # Category-specific LLM synthesis prompts (Variant C)
 _LINT_PROMPTS: dict[str, str] = {
@@ -319,6 +311,7 @@ def run_wiki_lint(model: str = "", cfg: dict | None = None) -> None:
         new_entries = [f.read_text(encoding="utf-8") for f in fragments]
 
         merged = _llm_synthesize(existing, new_entries, category, model, cfg)
+        merged = _sanitize_synthesized_page(merged)  # FIX-328
 
         _PAGES_DIR.mkdir(parents=True, exist_ok=True)
         (_PAGES_DIR / f"{category}.md").write_text(merged, encoding="utf-8")
@@ -371,3 +364,29 @@ def _llm_synthesize(
 
 def _concat_merge(existing: str, new_entries: list[str]) -> str:
     return "\n\n".join(p for p in [existing, *new_entries] if p)
+
+
+# FIX-328: strip negative-boilerplate lines that the LLM synthesizer occasionally
+# emits ("Halt and request clarification", "No OUTCOME_OK recorded", etc.).
+# These lines poison lookup/temporal/inbox prompts and push the agent toward
+# premature OUTCOME_NONE_CLARIFICATION (see failures t16, t29, t30, t34, t38, t40).
+_NEGATIVE_BOILERPLATE_PATTERNS = [
+    re.compile(r"(?im)^.*\bHalt and request clarification\b.*$"),
+    re.compile(r"(?im)^.*\bstop for clarification instead of guessing\b.*$"),
+    re.compile(r"(?im)^.*\bNo\s+`?OUTCOME_OK`?\s+signal\s+yet\b.*$"),
+    re.compile(r"(?im)^.*\bNo\s+`?OUTCOME_OK`?\s+recorded\b.*$"),
+    re.compile(r"(?im)^.*\bNo\s+OUTCOME_OK\b.*$"),
+    re.compile(r"(?im)^.*\bcandidate patterns?\b.*\buntil\b.*$"),
+    re.compile(r"(?im)^.*\bunverified\b.*\bdo not treat\b.*$"),
+    re.compile(r"(?im)^>\s*No\s+`?OUTCOME_OK`?\s+marker.*$"),
+]
+
+
+def _sanitize_synthesized_page(content: str) -> str:
+    """FIX-328: Remove negative-boilerplate lines from synthesized wiki page."""
+    if not content:
+        return content
+    for p in _NEGATIVE_BOILERPLATE_PATTERNS:
+        content = p.sub("", content)
+    content = re.sub(r"\n{3,}", "\n\n", content)
+    return content.strip() + "\n"

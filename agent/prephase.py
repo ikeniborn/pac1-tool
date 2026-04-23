@@ -248,6 +248,7 @@ def run_prephase(
     # Priority: inbox file paths (represent "today's" messages) > tree-wide mode.
     _date_prefix_re = re.compile(r'\b(\d{4}-\d{2}-\d{2})__')
     _vault_date_hint = ""
+    _vault_date_src = ""
     # First: dates from inbox file paths (most reliable — inbox = arriving messages)
     _inbox_dates = sorted({
         m.group(1) for p, _ in inbox_files
@@ -255,6 +256,7 @@ def run_prephase(
     })
     if _inbox_dates:
         _vault_date_est = _inbox_dates[len(_inbox_dates) // 2]  # median
+        _vault_date_src = "inbox filenames"
     else:
         # Fallback: mode of all date-prefixed files in tree (excludes far-future outliers on average)
         _found_dates = _date_prefix_re.findall(tree_txt)
@@ -263,11 +265,45 @@ def run_prephase(
             for _d in _found_dates:
                 _date_counts[_d] = _date_counts.get(_d, 0) + 1
             _vault_date_est = max(_date_counts, key=lambda k: _date_counts[k])
+            _vault_date_src = "tree date-prefixes"
         else:
             _vault_date_est = ""
+    # FIX-326: second fallback — if no date-prefixed filenames exist (flat vault
+    # like CRM: accounts/, reminders/, opportunities/), sample 3 JSON records per
+    # folder in priority order and take max ISO date from field values.
+    # Max(last_contacted_on, due_on, next_follow_up_on) ≈ VAULT_DATE "today".
+    if not _vault_date_est:
+        _iso_re = re.compile(r'\b(\d{4}-\d{2}-\d{2})\b')
+        _top_names = {e.name for e in tree_result.root.children} if tree_result is not None else set()
+        for _probe_dir in ("reminders", "accounts", "opportunities"):
+            if _probe_dir not in _top_names:
+                continue
+            try:
+                _entries = vm.list(ListRequest(name=f"/{_probe_dir}"))
+            except Exception:
+                continue
+            _sample_dates: list[str] = []
+            _sampled = 0
+            for _entry in _entries.entries:
+                if _sampled >= 3:
+                    break
+                if _entry.name.upper() == "README.MD" or not _entry.name.endswith(".json"):
+                    continue
+                try:
+                    _r = vm.read(ReadRequest(path=f"/{_probe_dir}/{_entry.name}"))
+                    if _r.content:
+                        _sample_dates.extend(_iso_re.findall(_r.content))
+                        _sampled += 1
+                except Exception:
+                    continue
+            if _sample_dates:
+                _vault_date_est = max(_sample_dates)
+                _vault_date_src = f"/{_probe_dir} max ISO date"
+                break
+
     if _vault_date_est:
         _vault_date_hint = f"VAULT_DATE: {_vault_date_est}  (estimated — verify against account `last_contacted_on` for temporal queries)"
-        print(f"{CLI_BLUE}[prephase] vault_date estimated: {_vault_date_est}{CLI_CLR}")
+        print(f"{CLI_BLUE}[prephase] vault_date estimated: {_vault_date_est} (source: {_vault_date_src}){CLI_CLR}")
 
     # Inject vault layout + AGENTS.MD as context — the agent reads this to discover
     # where "cards", "threads", "inbox", etc. actually live in the vault.
@@ -295,15 +331,29 @@ def run_prephase(
     log.append({"role": "user", "content": "\n".join(prephase_parts)})
 
 
-    # Step 3: context — task-level metadata from the harness
+    # Step 3: context — task-level metadata from the harness.
+    # FIX-328: log content fully so we can audit what the harness injects
+    # (e.g. submission-specific dates). ContextResponse currently has only
+    # `content: string`; if that expands to include structured metadata in
+    # the proto schema, dump all non-empty fields here.
     print(f"{CLI_BLUE}[prephase] context...{CLI_CLR}", end=" ")
     try:
         ctx_result = vm.context(ContextRequest())
-        if ctx_result.content:
-            log.append({"role": "user", "content": f"TASK CONTEXT:\n{ctx_result.content}"})
-            print(f"{CLI_GREEN}ok{CLI_CLR}")
+        ctx_content = (ctx_result.content or "").strip()
+        if ctx_content:
+            log.append({"role": "user", "content": f"TASK CONTEXT:\n{ctx_content}"})
+            print(f"{CLI_GREEN}ok ({len(ctx_content)} chars){CLI_CLR}")
+            if _LOG_LEVEL == "DEBUG":
+                print(f"{CLI_BLUE}[prephase] context content:\n{ctx_content}{CLI_CLR}")
         else:
-            print(f"{CLI_YELLOW}empty{CLI_CLR}")
+            print(f"{CLI_YELLOW}empty (no harness-provided metadata){CLI_CLR}")
+        # Surface any extra proto fields added by the benchmark (future-proofing).
+        for _f in ctx_result.DESCRIPTOR.fields:
+            if _f.name == "content":
+                continue
+            _v = getattr(ctx_result, _f.name, None)
+            if _v:
+                print(f"{CLI_BLUE}[prephase] context.{_f.name}: {_v!r}{CLI_CLR}")
     except Exception as e:
         print(f"{CLI_YELLOW}not available: {e}{CLI_CLR}")
 

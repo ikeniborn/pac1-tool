@@ -46,9 +46,15 @@ OPENROUTER_API_KEY=sk-or-...
 | `MODEL_CRM` | `MODEL_DEFAULT` | Модель для CRM follow-up |
 | `MODEL_TEMPORAL` | `MODEL_LOOKUP` | Модель для дата-арифметики |
 | `MODEL_PREJECT` | `MODEL_DEFAULT` | Модель для немедленного отказа |
+| `MODEL_DISTILL` | `MODEL_DEFAULT` | Модель для анализа + записи карточки/заметки |
+| `MODEL_WIKI` | `MODEL_DEFAULT` | Модель для wiki-lint (до/после прогона) |
 | `MODEL_EVALUATOR` | `MODEL_DEFAULT` | Критик (evaluator/critic) |
 | `MODEL_PROMPT_BUILDER` | `MODEL_CLASSIFIER` | Генератор addendum (на каждом прогоне) |
 | `MODEL_OPTIMIZER` | `MODEL_CLASSIFIER` | Модель для `optimize_prompts.py` |
+
+Для нового типа, добавленного в `data/task_types.json` (см. [Реестр типов задач](#реестр-типов-задач-fix-325)),
+`ModelRouter` автоматически читает `MODEL_<UPPER>` (например `MODEL_ORDER` для типа `order`).
+Если переменная не задана — разрешается через `fallback_chain` из записи реестра.
 
 ### Инфраструктура
 
@@ -248,10 +254,90 @@ main.py → run_agent()
 | `capture` | save snippet/content to vault path | `MODEL_CAPTURE` |
 | `crm` | reschedule follow-up, fix due date | `MODEL_CRM` |
 | `temporal` | N days ago, in N days, date arithmetic | `MODEL_TEMPORAL` |
-| `distill` | analyze + write summary/card | `MODEL_DEFAULT` |
+| `distill` | analyze + write summary/card | `MODEL_DISTILL` |
 | `default` | всё остальное | `MODEL_DEFAULT` |
 
 Классификация трёхуровневая: regex fast-path → DSPy compiled program → `call_llm_raw()` → regex fallback.
+
+---
+
+## Реестр типов задач (FIX-325)
+
+Источник истины — `data/task_types.json`. Loader/API: `agent/task_types.py`.
+
+Реестр питает: enum классификатора, docstring `ClassifyTask`, `cc_json_schema.task_type.enum`
+(инъектится в `cc_client.py` в runtime), regex fast-path в `classify_task()`,
+разрешение модели в `ModelRouter`, folder-map в `wiki.py`, `prompt_builder._NEEDS_BUILDER`.
+
+### Структура записи
+
+```json
+{
+  "order": {
+    "description": "ordering goods/services from external vendors",
+    "model_env": "MODEL_ORDER",
+    "fallback_chain": ["default"],
+    "wiki_folder": "order",
+    "fast_path": null,
+    "needs_builder": true,
+    "status": "soft"
+  }
+}
+```
+
+| Поле | Назначение |
+|---|---|
+| `description` | идёт в docstring `ClassifyTask` и в системный промт классификатора |
+| `model_env` | имя ENV-переменной (конвенция: `MODEL_<UPPER>`) |
+| `fallback_chain` | упорядоченный список типов для резолва модели, если `model_env` не задан |
+| `wiki_folder` | папка в `data/wiki/fragments/<folder>/` |
+| `fast_path` | опционально; `{pattern, flags, confidence}` — regex минует LLM при `confidence: "high"` |
+| `needs_builder` | `false` отключает DSPy Prompt Builder для этого типа |
+| `status` | `hard` — учтён в compiled classifier; `soft` — только в prompt'е, нужно перекомпилировать |
+
+### Добавление типа вручную
+
+```bash
+# 1. Вписать запись в data/task_types.json (см. структуру выше)
+# 2. Опционально задать MODEL_<UPPER> в .env
+echo "MODEL_ORDER=anthropic/claude-haiku-4.5" >> .env
+# 3. Опционально создать папку для wiki-фрагментов
+mkdir -p data/wiki/fragments/order
+# 4. Для soft-типов — перекомпилировать DSPy-классификатор с новым enum
+uv run python optimize_prompts.py --target classifier
+# 5. Опционально — добавить bespoke-блок в _TASK_BLOCKS внутри agent/prompt.py
+#    (иначе тип унаследует системный промт default-типа; warn-once в логе при старте)
+```
+
+### Open-set: накопление кандидатов и автопродвижение
+
+Если LLM-классификатор предложил тип, которого нет в реестре, он логируется в
+`data/task_type_candidates.jsonl` без дополнительных LLM-вызовов. Затем:
+
+```bash
+# Показать агрегаты (частота повторов, примеры task_text, варианты формулировок)
+uv run python scripts/analyze_task_types.py
+
+# Снизить порог для промоции (по умолчанию 5)
+uv run python scripts/analyze_task_types.py --min-count 3
+
+# Интерактивно добавить в реестр кандидатов, прошедших порог
+uv run python scripts/analyze_task_types.py --promote
+```
+
+`--promote` запросит для каждого кандидата: имя типа, описание, `model_env`,
+`fallback_chain`, `wiki_folder`; запишет в `data/task_types.json` со `status: "soft"`,
+создаст папку wiki-фрагментов и напомнит про перекомпиляцию классификатора.
+Прерывание (`Ctrl-C` / `EOF`) сохраняет уже принятые записи.
+
+### Ветки поведения по типу
+
+Привязанные к конкретным типам ветки (`preject` short-circuit в `agent/__init__.py`,
+scope-gates в `security.py`, stall-hints в `loop.py`, per-type блоки в `prompt._TASK_BLOCKS`)
+остаются в коде и ссылаются на реестр через `TASK_*` константы, реэкспортируемые
+из `agent.classifier` / `agent.task_types` (PEP 562). Добавление нового типа в реестр
+автоматически открывает `TASK_<UPPER>` для импорта — код-ветки можно дописать при
+необходимости, иначе тип получает поведение `default`.
 
 ---
 

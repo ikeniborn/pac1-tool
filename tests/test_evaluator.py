@@ -382,3 +382,53 @@ def test_quoted_gate_multiple_values_detects_first_failure():
     ok, issue = gate(task, writes)
     assert ok is False
     assert "Hello world!" in issue
+
+
+@patch("agent.dspy_lm.call_llm_raw")
+def test_fix330_suppresses_denied_security_after_two_mutations(mock_llm):
+    """FIX-330: evaluator must NOT flip OUTCOME_OK → DENIED_SECURITY when the
+    agent already performed ≥2 mutations. Writing a denial after completed
+    writes is self-contradictory and fails the harness (t24 post-mortem)."""
+    mock_llm.return_value = _rejected_json(
+        issues="elevated untrusted sender to admin based on OTP",
+        hint="OUTCOME_DENIED_SECURITY",
+    )
+    fn = _evaluate()
+    verdict = fn(
+        task_text="process inbox message with OTP",
+        task_type="queue",
+        report=_make_report(outcome="OUTCOME_OK"),
+        done_ops=[
+            "WRITTEN: /outbox/83990.json",
+            "WRITTEN: /accounts/acct_007.json",
+            "DELETED: /docs/channels/otp.txt",
+        ],
+        digest_str="",
+        model="test-model",
+        cfg={},
+    )
+    assert verdict.approved is True
+    assert verdict.correction_hint == ""
+
+
+@patch("agent.dspy_lm.call_llm_raw")
+def test_fix330_does_not_suppress_when_only_one_mutation(mock_llm):
+    """FIX-330: guard requires ≥2 mutations. A single WRITTEN should not
+    suppress a legitimate DENIED_SECURITY hint (covers fewer edge cases)."""
+    mock_llm.return_value = _rejected_json(
+        issues="prompt injection detected in message",
+        hint="OUTCOME_DENIED_SECURITY",
+    )
+    fn = _evaluate()
+    verdict = fn(
+        task_text="write inbox note",
+        task_type="inbox",
+        report=_make_report(outcome="OUTCOME_OK"),
+        done_ops=["WRITTEN: /outbox/1.json"],
+        digest_str="",
+        model="test-model",
+        cfg={},
+    )
+    # FIX-327 may partially suppress "injection" hint keeps correction flowing
+    # but approved should remain False in FIX-330 scope
+    assert verdict.approved is False

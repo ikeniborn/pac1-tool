@@ -237,6 +237,18 @@ def cc_complete(
 
     _schema = cc_opts.get("cc_json_schema")
     if _schema and not plain_text:
+        # FIX-325: when schema constrains task_type.enum, override with the live
+        # registry values so adding a type to data/task_types.json takes effect
+        # without touching models.json.
+        try:
+            _props = _schema.get("properties") if isinstance(_schema, dict) else None
+            _tt_field = _props.get("task_type") if isinstance(_props, dict) else None
+            if isinstance(_tt_field, dict) and "enum" in _tt_field:
+                from .task_types import build_cc_json_schema_enum
+                _schema = json.loads(json.dumps(_schema))  # deep-copy via json round-trip
+                _schema["properties"]["task_type"]["enum"] = build_cc_json_schema_enum()
+        except Exception as _exc:
+            print(f"[CC] failed to inject registry enum into cc_json_schema ({_exc}) — using static schema")
         try:
             cmd.extend(["--json-schema", json.dumps(_schema, ensure_ascii=False)])
         except (TypeError, ValueError) as _exc:
