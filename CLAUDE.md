@@ -65,7 +65,7 @@ Knowledge graph (`agent/wiki_graph.py`, `data/wiki/graph.json`):
 - Retrieval при построении addendum: `retrieve_relevant(graph, task_type, task_text, top_k)` — scoring = tag_overlap + text-token overlap + confidence × log(uses)
 - Инспекция: `uv run python scripts/print_graph.py [--all] [--tag email] [--edges]`
 
-Env-переменные: `RESEARCHER_MODE`, `RESEARCHER_MAX_CYCLES`, `RESEARCHER_STEPS_PER_CYCLE`, `MODEL_RESEARCHER`, `WIKI_GRAPH_ENABLED`, `WIKI_GRAPH_TOP_K`, `WIKI_GRAPH_CONFIDENCE_EPSILON`, `WIKI_GRAPH_MIN_CONFIDENCE`, `WIKI_PAGE_MAX_PATTERNS` (все в `.env.example`).
+Env-переменные: `RESEARCHER_MODE`, `RESEARCHER_MAX_CYCLES`, `RESEARCHER_STEPS_PER_CYCLE`, `MODEL_RESEARCHER`, `RESEARCHER_LOG_ENABLED`, `RESEARCHER_NEGATIVES_ENABLED`/`RESEARCHER_NEGATIVES_TOP_K` (FIX-370), `RESEARCHER_SHORT_CIRCUIT`/`RESEARCHER_SHORT_CIRCUIT_THRESHOLD` (FIX-371, offline-only), `RESEARCHER_DRIFT_HINTS`/`RESEARCHER_DRIFT_PREFIX_LEN` (FIX-372), `WIKI_GRAPH_ENABLED`, `WIKI_GRAPH_TOP_K`, `WIKI_GRAPH_CONFIDENCE_EPSILON`, `WIKI_GRAPH_MIN_CONFIDENCE`, `WIKI_PAGE_MAX_PATTERNS` (все в `.env.example`).
 
 CC-tier совместим: reflector и inner-loop используют `dispatch.call_llm_raw`, роутинг по `provider` в `models.json`.
 

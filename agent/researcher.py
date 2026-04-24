@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 
 from bitgn.vm.pcm_connect import PcmRuntimeClientSync
@@ -45,13 +46,205 @@ _WIKI_PAGE_MAX_PATTERNS = int(os.environ.get("WIKI_PAGE_MAX_PATTERNS", "10"))
 # FIX-369: gate per-cycle debug logs under logs/researcher/<task_id>/cycle_N.jsonl.
 _LOG_ENABLED = os.environ.get("RESEARCHER_LOG_ENABLED", "1") == "1"
 
+# FIX-370: pre-flight negatives awareness — surface past failures for this task_type.
+_NEGATIVES_ENABLED = os.environ.get("RESEARCHER_NEGATIVES_ENABLED", "1") == "1"
+_NEGATIVES_TOP_K = int(os.environ.get("RESEARCHER_NEGATIVES_TOP_K", "3"))
+
+# FIX-371: offline-only short-circuit — skip execution when a Successful pattern
+# matches the current task's goal shape. PAC-1 benchmark checks real side-effects,
+# so short-circuit will score 0 there — default OFF, opt-in for dev/exploration.
+_SHORT_CIRCUIT = os.environ.get("RESEARCHER_SHORT_CIRCUIT", "0") == "1"
+_SHORT_CIRCUIT_THRESHOLD = float(os.environ.get("RESEARCHER_SHORT_CIRCUIT_THRESHOLD", "0.4"))
+
+# FIX-372: post-cycle trajectory drift detection — if cycle failed and prefix
+# shape differs from known Successful patterns, inject hint into next addendum.
+_DRIFT_HINTS = os.environ.get("RESEARCHER_DRIFT_HINTS", "1") == "1"
+_DRIFT_PREFIX_LEN = int(os.environ.get("RESEARCHER_DRIFT_PREFIX_LEN", "3"))
+
 _LOG_DIR = Path(__file__).parent.parent / "logs" / "researcher"
+_NEGATIVES_DIR = Path(__file__).parent.parent / "data" / "wiki" / "archive" / "research_negatives"
+_PAGES_DIR = Path(__file__).parent.parent / "data" / "wiki" / "pages"
+_TOKEN_RE = re.compile(r"[a-z0-9]+")
+
+
+def _tokenize(text: str) -> set[str]:
+    return set(_TOKEN_RE.findall((text or "").lower()))
+
+
+# ---------------------------------------------------------------------------
+# FIX-370: research_negatives/ — "avoid these patterns" warnings
+# ---------------------------------------------------------------------------
+
+def _load_negative_warnings(task_type: str, task_text: str, top_k: int) -> str:
+    """Render top-K most-relevant past-failure blobs for this task_type.
+
+    Scoring: token overlap between task_text and concatenated what_failed entries.
+    Fail-open → '' on any IO or parse error.
+    """
+    if not _NEGATIVES_ENABLED or top_k <= 0:
+        return ""
+    if not _NEGATIVES_DIR.exists():
+        return ""
+    task_tokens = _tokenize(task_text)
+    candidates: list[tuple[int, str, list[str]]] = []
+    for f in _NEGATIVES_DIR.glob("*.json"):
+        try:
+            data = json.loads(f.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if data.get("task_type") != task_type:
+            continue
+        last = data.get("last_reflection") or {}
+        failed = [str(x) for x in (last.get("what_failed") or []) if x]
+        if not failed:
+            continue
+        fail_tokens = _tokenize(" ".join(failed))
+        overlap = len(task_tokens & fail_tokens)
+        candidates.append((overlap, str(data.get("task_id", "?")), failed))
+    if not candidates:
+        return ""
+    candidates.sort(key=lambda x: -x[0])
+    top = candidates[:top_k]
+    lines = ["## PAST FAILURES FOR THIS TYPE (avoid repeating)"]
+    for _, tid, failed in top:
+        lines.append(f"- from {tid}:")
+        for fail in failed[:3]:
+            lines.append(f"  - {fail}")
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# FIX-371/372: parse pages/<type>.md — extract Successful patterns
+# ---------------------------------------------------------------------------
+
+_MARKER_RE = re.compile(r"<!--\s*researcher:\s*([^\s:]+):([0-9a-f]+)\s*-->")
+_GOAL_RE = re.compile(r"\*\*Goal shape:\*\*\s*(.+)")
+_ANSWER_RE = re.compile(r"\*\*Final answer:\*\*\s*(.+)")
+_TRAJ_STEP_RE = re.compile(r"^\s*\d+\.\s+([a-zA-Z_][\w]*)\s*(?:\(([^)]*)\))?")
+# Canonical PCM tool names — guard against LLM-prose ("1. Treat every file...")
+# leaking non-tool words into trajectory_tools.
+_VALID_TOOLS = {
+    "tree", "find", "search", "list", "read",
+    "write", "delete", "mkdir", "move", "report_completion",
+}
+
+# Task type → wiki page name. Duplicates wiki._TYPE_TO_PAGE, kept local to avoid
+# importing private symbol. Falls back to task_type unchanged when not mapped.
+_PAGE_NAME_MAP = {
+    "think": "think", "distill": "distill", "email": "email",
+    "lookup": "lookup", "inbox": "inbox", "queue": "queue",
+    "capture": "capture", "crm": "crm", "temporal": "temporal",
+    "preject": "preject", "default": "default",
+}
+
+
+def _parse_page_patterns(task_type: str) -> list[dict]:
+    """Parse pages/<task_type>.md Successful patterns. Returns structured dicts."""
+    page_name = _PAGE_NAME_MAP.get(task_type, task_type)
+    page_path = _PAGES_DIR / f"{page_name}.md"
+    if not page_path.exists():
+        return []
+    try:
+        content = page_path.read_text(encoding="utf-8")
+    except Exception:
+        return []
+    sections = re.split(r"(?m)^## Successful pattern: ", content)
+    out: list[dict] = []
+    for sec in sections[1:]:  # [0] is preamble
+        marker = _MARKER_RE.search(sec)
+        if not marker:
+            continue
+        task_id, traj_hash = marker.group(1), marker.group(2)
+        goal_m = _GOAL_RE.search(sec)
+        goal = goal_m.group(1).strip() if goal_m else ""
+        answer_m = _ANSWER_RE.search(sec)
+        answer = answer_m.group(1).strip() if answer_m else ""
+        traj_tools: list[str] = []
+        traj_block_match = re.search(
+            r"\*\*Trajectory:\*\*\s*\n((?:.+\n?)*?)(?=\n\*\*|$)", sec
+        )
+        if traj_block_match:
+            for line in traj_block_match.group(1).splitlines():
+                m = _TRAJ_STEP_RE.match(line)
+                if m and m.group(1).lower() in _VALID_TOOLS:
+                    traj_tools.append(m.group(1).lower())
+        out.append({
+            "task_id": task_id,
+            "traj_hash": traj_hash,
+            "goal_shape": goal,
+            "final_answer": answer,
+            "trajectory_tools": traj_tools,
+        })
+    return out
+
+
+def _find_matching_pattern(
+    patterns: list[dict], task_text: str, threshold: float,
+) -> tuple[dict, float] | None:
+    """Best-overlap match between task_text and pattern.goal_shape."""
+    if not patterns:
+        return None
+    task_tokens = _tokenize(task_text)
+    if not task_tokens:
+        return None
+    best: tuple[dict, float] | None = None
+    for p in patterns:
+        goal_tokens = _tokenize(p.get("goal_shape", ""))
+        if not goal_tokens:
+            continue
+        # Jaccard similarity — symmetric, bounded [0,1].
+        inter = len(task_tokens & goal_tokens)
+        union = len(task_tokens | goal_tokens)
+        score = inter / union if union else 0.0
+        if score >= threshold and (best is None or score > best[1]):
+            best = (p, score)
+    return best
+
+
+def _detect_drift(
+    step_facts: list, patterns: list[dict], prefix_len: int,
+) -> str:
+    """If current step-fact prefix doesn't match any known pattern's prefix, emit hint.
+
+    Compares sequences of tool-kind names only (no paths/args) — stable across entity
+    redaction. Empty step_facts or empty patterns → '' (nothing to say).
+    """
+    if not step_facts or not patterns or prefix_len <= 0:
+        return ""
+    current_prefix = [
+        (getattr(f, "kind", "") or "?").lower() for f in step_facts[:prefix_len]
+    ]
+    if not any(current_prefix):
+        return ""
+    for p in patterns:
+        pattern_prefix = [t.lower() for t in (p.get("trajectory_tools") or [])[:prefix_len]]
+        if pattern_prefix and pattern_prefix == current_prefix:
+            return ""  # a pattern matches — no drift
+    # No pattern prefix matched — closest by overlap count becomes the reference.
+    best_p, best_overlap = None, -1
+    for p in patterns:
+        pattern_prefix = [t.lower() for t in (p.get("trajectory_tools") or [])[:prefix_len]]
+        if not pattern_prefix:
+            continue
+        overlap = sum(1 for a, b in zip(current_prefix, pattern_prefix) if a == b)
+        if overlap > best_overlap:
+            best_overlap, best_p = overlap, p
+    if not best_p:
+        return ""
+    ref_prefix = " → ".join((best_p.get("trajectory_tools") or [])[:prefix_len]) or "?"
+    cur_prefix = " → ".join(current_prefix) or "?"
+    return (
+        f"DRIFT: your trajectory starts with `{cur_prefix}`, "
+        f"but the verified pattern (task {best_p.get('task_id')}) starts with "
+        f"`{ref_prefix}`. Consider realigning the opening tool sequence."
+    )
 
 
 def _render_addendum(
     cycle_reflections: list[Reflection],
     wiki_patterns: str,
     graph_section: str,
+    negatives_section: str = "",
 ) -> str:
     """Compose the researcher-only addendum block injected on top of base prompt."""
     parts: list[str] = []
@@ -86,6 +279,11 @@ def _render_addendum(
 
     if wiki_patterns:
         parts.append(wiki_patterns)
+
+    # FIX-370: negatives last — rendered as an explicit AVOID block after
+    # patterns so the agent reads "here's what works" before "here's what failed".
+    if negatives_section:
+        parts.append(negatives_section)
 
     return "\n\n".join(parts)
 
@@ -177,6 +375,28 @@ def run_researcher(
     touched_node_ids: list[str] = []
     last_step_facts: list = []
 
+    # FIX-371: offline-only short-circuit. Before any inner-loop execution,
+    # check if pages/<type>.md holds a Successful pattern whose goal_shape
+    # closely overlaps the task. If so, skip execution entirely and return
+    # the cached final_answer. WARNING: no real vault mutations happen, so
+    # PAC-1 benchmark will score 0. Intended for dev/offline exploration only.
+    page_patterns = _parse_page_patterns(task_type)
+    if _SHORT_CIRCUIT and page_patterns:
+        match = _find_matching_pattern(page_patterns, task_text, _SHORT_CIRCUIT_THRESHOLD)
+        if match is not None:
+            matched_pattern, score = match
+            print(
+                f"[researcher] SHORT-CIRCUIT: matched pattern {matched_pattern['task_id']} "
+                f"(score={score:.2f} ≥ {_SHORT_CIRCUIT_THRESHOLD}). Skipping execution. "
+                f"PAC-1 benchmark WILL score 0 — set RESEARCHER_SHORT_CIRCUIT=0 for real runs."
+            )
+            stats["researcher_short_circuited"] = True
+            stats["researcher_matched_pattern"] = matched_pattern["task_id"]
+            stats["researcher_short_circuit_score"] = score
+            stats["outcome"] = "OUTCOME_OK"
+            stats["researcher_cached_answer"] = matched_pattern.get("final_answer", "")
+            return stats
+
     for cycle in range(1, max_cycles + 1):
         stats["researcher_cycles_used"] = cycle
         print(f"\n[researcher] ===== cycle {cycle}/{max_cycles} =====")
@@ -206,7 +426,13 @@ def run_researcher(
             wiki_graph.retrieve_relevant(graph, task_type, task_text, top_k=_GRAPH_TOP_K)
             if _GRAPH_ENABLED else ""
         )
-        addendum = _render_addendum(cycle_reflections, wiki_patterns, graph_section)
+        # FIX-370: pre-flight negatives awareness — surface past failures.
+        negatives_section = _load_negative_warnings(
+            task_type, task_text, _NEGATIVES_TOP_K,
+        )
+        addendum = _render_addendum(
+            cycle_reflections, wiki_patterns, graph_section, negatives_section,
+        )
 
         base_prompt = build_system_prompt(task_type)
         final_prompt = _inject_addendum(base_prompt, addendum)
@@ -243,6 +469,20 @@ def run_researcher(
         stats["input_tokens"] = stats.get("input_tokens", 0) + reflection.input_tokens
         stats["output_tokens"] = stats.get("output_tokens", 0) + reflection.output_tokens
         stats["llm_call_count"] = stats.get("llm_call_count", 0) + 1
+
+        # FIX-372: post-cycle drift detection. If reflector says not solved and
+        # the agent's trajectory prefix differs from all known Successful patterns,
+        # append a DRIFT hint onto reflection.hypothesis_for_next. The addendum
+        # builder reads `last.hypothesis_for_next` verbatim, so the hint reaches
+        # the next cycle's system prompt without any extra plumbing.
+        if _DRIFT_HINTS and not reflection.is_solved and page_patterns and step_facts:
+            drift = _detect_drift(step_facts, page_patterns, _DRIFT_PREFIX_LEN)
+            if drift:
+                existing = (reflection.hypothesis_for_next or "").strip()
+                reflection.hypothesis_for_next = (
+                    f"{existing} | {drift}" if existing else drift
+                )
+                print(f"[researcher] drift hint queued for cycle {cycle + 1}")
 
         try:
             fragment_md = render_fragment(task_id, task_type, cycle, reflection)
