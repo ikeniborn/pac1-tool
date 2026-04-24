@@ -31,6 +31,8 @@ _REFLECTOR_SYSTEM = (
 _REFLECTOR_SCHEMA_HINT = """
 {
   "outcome": "solved" | "partial" | "stuck" | "error",
+  "goal_shape": "<1 sentence ABSTRACT description of the task shape — no entity names>",
+  "final_answer": "<1 sentence summary of what was delivered, or '' if not solved>",
   "what_was_tried": ["<short bullet>", ...],
   "what_worked": ["<short bullet>", ...],
   "what_failed": ["<short bullet>", ...],
@@ -43,16 +45,27 @@ _REFLECTOR_SCHEMA_HINT = """
 }
 """.strip()
 
+_ABSTRACTION_HINT = (
+    "goal_shape and final_answer MUST be abstract — no person names, no email "
+    "addresses, no entity IDs (cont_NNN, acct_NNN), no company names, no "
+    "concrete dates. Describe the TASK SHAPE, not the task content."
+)
+
 
 @dataclass
 class Reflection:
     outcome: str = "stuck"
+    goal_shape: str = ""
+    final_answer: str = ""
     what_was_tried: list = field(default_factory=list)
     what_worked: list = field(default_factory=list)
     what_failed: list = field(default_factory=list)
     hypothesis_for_next: str = ""
     key_tool_calls: list = field(default_factory=list)
     graph_deltas: dict = field(default_factory=dict)  # new_insights/new_rules/antipatterns/reused_patterns
+    # FIX-365: reflector LLM token usage (populated by call_llm_raw via token_out)
+    input_tokens: int = 0
+    output_tokens: int = 0
 
     @property
     def is_solved(self) -> bool:
@@ -108,8 +121,10 @@ def reflect(
         f"CYCLE: {cycle}\n\n"
         f"TRAJECTORY:\n{trace}\n\n"
         f"Output JSON matching this schema (fill every field; empty arrays allowed):\n"
-        f"{_REFLECTOR_SCHEMA_HINT}"
+        f"{_REFLECTOR_SCHEMA_HINT}\n\n"
+        f"IMPORTANT: {_ABSTRACTION_HINT}"
     )
+    _tok: dict = {}
     raw = call_llm_raw(
         system=_REFLECTOR_SYSTEM,
         user_msg=user_msg,
@@ -118,7 +133,10 @@ def reflect(
         max_tokens=max_tokens,
         plain_text=True,
         max_retries=1,
+        token_out=_tok,
     )
+    _in_tok = int(_tok.get("input", 0) or 0)
+    _out_tok = int(_tok.get("output", 0) or 0)
     data = _parse_json(raw or "")
     if not data:
         return Reflection(
@@ -129,12 +147,16 @@ def reflect(
             hypothesis_for_next="retry with more explicit framing",
             key_tool_calls=[],
             graph_deltas={},
+            input_tokens=_in_tok,
+            output_tokens=_out_tok,
         )
     outcome = data.get("outcome") or "stuck"
     if outcome not in ("solved", "partial", "stuck", "error"):
         outcome = "stuck"
     return Reflection(
         outcome=outcome,
+        goal_shape=str(data.get("goal_shape", "") or ""),
+        final_answer=str(data.get("final_answer", "") or ""),
         what_was_tried=list(data.get("what_was_tried", []) or []),
         what_worked=list(data.get("what_worked", []) or []),
         what_failed=list(data.get("what_failed", []) or []),
@@ -146,6 +168,8 @@ def reflect(
             "antipatterns": data.get("antipatterns", []) or [],
             "reused_patterns": data.get("reused_patterns", []) or [],
         },
+        input_tokens=_in_tok,
+        output_tokens=_out_tok,
     )
 
 

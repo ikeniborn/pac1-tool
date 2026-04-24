@@ -321,6 +321,39 @@ def _run_single_task(trial_id: str, task_filter: list, router: ModelRouter) -> t
                 )
             except Exception as _wiki_exc:
                 print(f"[wiki] deferred fragment write failed: {_wiki_exc}")
+            # FIX-363a: score-gated promotion for researcher mode.
+            _pending = token_stats.get("researcher_pending_promotion")
+            if _pending and _score_f >= 1.0:
+                try:
+                    from agent.wiki import promote_successful_pattern
+                    from agent import wiki_graph as _wg
+                    _pp = dict(_pending)
+                    _touched = _pp.pop("touched_node_ids", [])
+                    promote_successful_pattern(**_pp)
+                    _g = _wg.load_graph()
+                    _wg.add_pattern_node(
+                        _g, _pp["task_type"], _pp["task_id"],
+                        _pp["traj_hash"], _pp["trajectory"], _touched,
+                    )
+                    _wg.save_graph(_g)
+                    print(f"[researcher] promoted {_pp['task_id']} (score=1.0)")
+                except Exception as _pp_exc:
+                    print(f"[researcher] deferred promotion failed: {_pp_exc}")
+            elif _pending:
+                print(f"[researcher] promotion skipped: score={_score_f} (<1.0)")
+            # FIX-366: score-gated refusal promotion — only correct refusals
+            # (benchmark score=1) become wiki guidance.
+            _pending_ref = token_stats.get("researcher_pending_refusal")
+            if _pending_ref and _score_f >= 1.0:
+                try:
+                    from agent.wiki import promote_verified_refusal
+                    promote_verified_refusal(**_pending_ref)
+                    print(f"[researcher] promoted refusal {_pending_ref['task_id']} "
+                          f"({_pending_ref['outcome']}, score=1.0)")
+                except Exception as _pr_exc:
+                    print(f"[researcher] refusal promotion failed: {_pr_exc}")
+            elif _pending_ref:
+                print(f"[researcher] refusal promotion skipped: score={_score_f} (<1.0)")
         style = CLI_GREEN if score == 1 else CLI_RED
         in_t   = token_stats.get("input_tokens", 0)
         out_t  = token_stats.get("output_tokens", 0)
@@ -349,7 +382,7 @@ def _run_single_task(trial_id: str, task_filter: list, router: ModelRouter) -> t
             fh.close()
 
 
-_TABLE_W = 218  # FIX-N: widened for CcCr/CcRd cache-token columns
+_TABLE_W = 225  # FIX-365: widened for researcher Циклы column
 _TABLE_SEP = "=" * _TABLE_W
 
 
@@ -359,7 +392,7 @@ def _print_table_header() -> None:
     print(f"{'ИТОГОВАЯ СТАТИСТИКА':^{_TABLE_W}}")
     print(_TABLE_SEP)
     # FIX-N: CcCr/CcRd split out CC-tier cache tokens from fresh input/output
-    print(f"{'Задание':<10} {'Оценка':>7} {'Время':>8}  {'Шаги':>5} {'Запр':>5} {'Eval':>4} {'EvMs':>6}  {'Вход(tok)':>10} {'Выход(tok)':>10} {'CcCr':>9} {'CcRd':>9} {'ток/с':>7}  {'B':>1} {'BIn':>6} {'BOt':>5}  {'Тип':<11} {'Модель':<34}  Проблемы")
+    print(f"{'Задание':<10} {'Оценка':>7} {'Время':>8}  {'Шаги':>5} {'Запр':>5} {'Цикл':>4} {'Eval':>4} {'EvMs':>6}  {'Вход(tok)':>10} {'Выход(tok)':>10} {'CcCr':>9} {'CcRd':>9} {'ток/с':>7}  {'B':>1} {'BIn':>6} {'BOt':>5}  {'Тип':<11} {'Модель':<34}  Проблемы")
     print("-" * _TABLE_W)
 
 
@@ -375,6 +408,7 @@ def _print_table_row(task_id: str, score: float, detail: list, elapsed: float, t
     ev_ms  = ts.get("ollama_eval_ms", 0)
     steps  = ts.get("step_count", 0)
     calls  = ts.get("llm_call_count", 0)
+    cycles = ts.get("researcher_cycles_used", 0)  # FIX-365
     eval_c = ts.get("evaluator_calls", 0)
     eval_ms = ts.get("evaluator_ms", 0)
     if ev_c > 0 and ev_ms > 0:
@@ -389,7 +423,7 @@ def _print_table_row(task_id: str, score: float, detail: list, elapsed: float, t
     b_flag = "✓" if ts.get("builder_used") else "—"
     b_in   = ts.get("builder_in_tok", 0)
     b_out  = ts.get("builder_out_tok", 0)
-    print(f"{task_id:<10} {score:>7.2f} {elapsed:>7.1f}s  {steps:>5} {calls:>5} {eval_c:>4} {eval_ms:>6}  {in_t:>10,} {out_t:>10,} {cc_cr:>9,} {cc_rd:>9,} {tps:>6.0f}  {b_flag:>1} {b_in:>6,} {b_out:>5,}  {t_type:<11} {m_short:<34}  {issues}")
+    print(f"{task_id:<10} {score:>7.2f} {elapsed:>7.1f}s  {steps:>5} {calls:>5} {cycles:>4} {eval_c:>4} {eval_ms:>6}  {in_t:>10,} {out_t:>10,} {cc_cr:>9,} {cc_rd:>9,} {tps:>6.0f}  {b_flag:>1} {b_in:>6,} {b_out:>5,}  {t_type:<11} {m_short:<34}  {issues}")
 
 
 def _write_summary(scores: list, run_start: float) -> None:
@@ -398,6 +432,7 @@ def _write_summary(scores: list, run_start: float) -> None:
     total = sum(s for _, s, *_ in scores) / n * 100.0
     total_elapsed = time.time() - run_start
     total_in = total_out = total_llm_ms = total_steps = total_calls = 0
+    total_cycles = 0  # FIX-365: researcher cycles
     total_cc_cr = total_cc_rd = 0  # FIX-N
     total_eval_calls = total_eval_ms_sum = 0
     total_b_used = total_b_in = total_b_out = 0
@@ -415,6 +450,7 @@ def _write_summary(scores: list, run_start: float) -> None:
         total_llm_ms += llm_ms
         total_steps += ts.get("step_count", 0)
         total_calls += ts.get("llm_call_count", 0)
+        total_cycles += ts.get("researcher_cycles_used", 0)  # FIX-365
         total_eval_calls  += ts.get("evaluator_calls", 0)
         total_eval_ms_sum += ts.get("evaluator_ms", 0)
         total_b_used += 1 if ts.get("builder_used") else 0
@@ -433,6 +469,7 @@ def _write_summary(scores: list, run_start: float) -> None:
     avg_out = total_out // n
     avg_steps = total_steps // n
     avg_calls = total_calls // n
+    avg_cycles = total_cycles // n  # FIX-365
     avg_eval_c  = total_eval_calls  // n
     avg_eval_ms = total_eval_ms_sum // n
     total_ev_c  = sum(ts.get("ollama_eval_count", 0) for *_, ts in scores)
@@ -444,8 +481,8 @@ def _write_summary(scores: list, run_start: float) -> None:
     else:
         total_tps = 0.0
     print(_TABLE_SEP)
-    print(f"{'ИТОГО':<10} {total:>6.2f}% {total_elapsed:>7.1f}s  {total_steps:>5} {total_calls:>5} {total_eval_calls:>4} {total_eval_ms_sum:>6}  {total_in:>10,} {total_out:>10,} {total_cc_cr:>9,} {total_cc_rd:>9,} {total_tps:>6.0f}  {total_b_used:>1} {total_b_in:>6,} {total_b_out:>5,}  {'':11} {'':34}")
-    print(f"{'СРЕДНЕЕ':<10} {'':>7} {avg_elapsed:>7.1f}s  {avg_steps:>5} {avg_calls:>5} {avg_eval_c:>4} {avg_eval_ms:>6}  {avg_in:>10,} {avg_out:>10,} {'':>9} {'':>9} {'':>6}  {'':>1} {'':>6} {'':>5}  {'':11} {'':34}")
+    print(f"{'ИТОГО':<10} {total:>6.2f}% {total_elapsed:>7.1f}s  {total_steps:>5} {total_calls:>5} {total_cycles:>4} {total_eval_calls:>4} {total_eval_ms_sum:>6}  {total_in:>10,} {total_out:>10,} {total_cc_cr:>9,} {total_cc_rd:>9,} {total_tps:>6.0f}  {total_b_used:>1} {total_b_in:>6,} {total_b_out:>5,}  {'':11} {'':34}")
+    print(f"{'СРЕДНЕЕ':<10} {'':>7} {avg_elapsed:>7.1f}s  {avg_steps:>5} {avg_calls:>5} {avg_cycles:>4} {avg_eval_c:>4} {avg_eval_ms:>6}  {avg_in:>10,} {avg_out:>10,} {'':>9} {'':>9} {'':>6}  {'':>1} {'':>6} {'':>5}  {'':11} {'':34}")
     print(_TABLE_SEP)
     if len(model_totals) > 1:
         print(f"\n{'─' * 84}")

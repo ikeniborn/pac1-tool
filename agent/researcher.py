@@ -28,7 +28,13 @@ from .loop import run_loop
 from .prephase import run_prephase
 from .prompt import build_system_prompt
 from .reflector import Reflection, reflect, render_fragment
-from .wiki import load_wiki_patterns, promote_successful_pattern, write_fragment
+from .wiki import load_wiki_patterns, write_fragment
+
+_TERMINAL_REFUSALS = {
+    "OUTCOME_NONE_CLARIFICATION",
+    "OUTCOME_NONE_UNSUPPORTED",
+    "OUTCOME_DENIED_SECURITY",
+}
 
 _MAX_CYCLES = int(os.environ.get("RESEARCHER_MAX_CYCLES", "10"))
 _STEPS_PER_CYCLE = int(os.environ.get("RESEARCHER_STEPS_PER_CYCLE", "15"))
@@ -48,13 +54,18 @@ def _render_addendum(
     """Compose the researcher-only addendum block injected on top of base prompt."""
     parts: list[str] = []
 
+    def _as_str(x) -> str:
+        if isinstance(x, dict):
+            return str(x.get("text") or x.get("summary") or x)
+        return str(x)
+
     if cycle_reflections:
         worked: list[str] = []
         failed: list[str] = []
         last = cycle_reflections[-1]
         for r in cycle_reflections:
-            worked.extend(r.what_worked)
-            failed.extend(r.what_failed)
+            worked.extend(_as_str(x) for x in r.what_worked)
+            failed.extend(_as_str(x) for x in r.what_failed)
         # dedup preserving order
         seen: set = set()
         worked = [w for w in worked if not (w in seen or seen.add(w))]
@@ -81,6 +92,17 @@ def _inject_addendum(base_prompt: str, addendum: str) -> str:
     if not addendum:
         return base_prompt
     return base_prompt + "\n\n" + addendum
+
+
+def _build_structured_trajectory(step_facts: list, limit: int = 12) -> list[dict]:
+    """Convert the tail of step_facts into {tool, path, summary} dicts for wiki rendering."""
+    out: list[dict] = []
+    for f in (step_facts or [])[-limit:]:
+        kind = getattr(f, "kind", "") or "?"
+        path = getattr(f, "path", "") or ""
+        summary = getattr(f, "summary", "") or ""
+        out.append({"tool": kind, "path": path, "summary": summary})
+    return out
 
 
 def _log_cycle(task_id: str, cycle: int, payload: dict) -> None:
@@ -159,6 +181,22 @@ def run_researcher(
         vm = PcmRuntimeClientSync(harness_url)
         pre = run_prephase(vm, task_text, "")
 
+        # FIX-366: re-read graph at start of each cycle — picks up updates from
+        # sibling tasks (when PARALLEL_TASKS=1 runs serially) and preserves
+        # in-memory touched_node_ids/confidence changes by merging over the disk
+        # snapshot. In-memory graph takes precedence on conflicts.
+        if _GRAPH_ENABLED and cycle > 1:
+            disk_graph = wiki_graph.load_graph()
+            for nid, node in disk_graph.nodes.items():
+                if nid not in graph.nodes:
+                    graph.nodes[nid] = node
+            _existing_edges = {(e.get("from"), e.get("rel"), e.get("to")) for e in graph.edges}
+            for e in disk_graph.edges:
+                key = (e.get("from"), e.get("rel"), e.get("to"))
+                if all(key) and key not in _existing_edges:
+                    graph.edges.append(e)
+                    _existing_edges.add(key)
+
         wiki_patterns = load_wiki_patterns(task_type)
         graph_section = (
             wiki_graph.retrieve_relevant(graph, task_type, task_text, top_k=_GRAPH_TOP_K)
@@ -197,6 +235,10 @@ def run_researcher(
             cfg=cfg,
         )
         cycle_reflections.append(reflection)
+        # FIX-365: fold reflector LLM tokens into the task totals.
+        stats["input_tokens"] = stats.get("input_tokens", 0) + reflection.input_tokens
+        stats["output_tokens"] = stats.get("output_tokens", 0) + reflection.output_tokens
+        stats["llm_call_count"] = stats.get("llm_call_count", 0) + 1
 
         try:
             fragment_md = render_fragment(task_id, task_type, cycle, reflection)
@@ -223,29 +265,48 @@ def run_researcher(
             touched = wiki_graph.merge_updates(graph, reflection.graph_deltas)
             touched_node_ids.extend(touched)
 
+        # FIX-363a: score-gated promotion — defer write to pages until main.py
+        # has the benchmark score. Researcher only prepares the payload.
         if reflection.is_solved and agent_outcome == "OUTCOME_OK":
             traj_hash = wiki_graph.hash_trajectory(step_facts)
-            trajectory = reflection.key_tool_calls or [
-                f"{getattr(f, 'kind', '?')}:{getattr(f, 'path', '')}"
-                for f in step_facts[-12:]
-            ]
-            insights = reflection.what_worked
-            promoted = promote_successful_pattern(
-                task_type=task_type,
-                task_id=task_id,
-                traj_hash=traj_hash,
-                trajectory=trajectory,
-                insights=insights,
-                max_patterns=_WIKI_PAGE_MAX_PATTERNS,
-            )
-            if _GRAPH_ENABLED:
-                wiki_graph.add_pattern_node(
-                    graph, task_type, task_id, traj_hash, trajectory, touched_node_ids
-                )
-                wiki_graph.save_graph(graph)
+            trajectory = _build_structured_trajectory(step_facts)
             stats["researcher_solved"] = True
-            stats["researcher_promoted"] = bool(promoted)
-            print(f"[researcher] SOLVED on cycle {cycle} (promoted={promoted})")
+            stats["researcher_pending_promotion"] = {
+                "task_type": task_type,
+                "task_id": task_id,
+                "traj_hash": traj_hash,
+                "trajectory": trajectory,
+                "insights": list(reflection.what_worked),
+                "goal_shape": reflection.goal_shape,
+                "final_answer": reflection.final_answer,
+                "touched_node_ids": list(touched_node_ids),
+            }
+            if _GRAPH_ENABLED:
+                wiki_graph.save_graph(graph)
+            print(f"[researcher] solved on cycle {cycle}; promotion deferred to score-gate")
+            return stats
+
+        # FIX-363b: terminal refusal — stop early. Repeating the loop risks the
+        # agent "trying harder" and polluting the vault (observed on t08).
+        if agent_outcome in _TERMINAL_REFUSALS:
+            stats["researcher_early_stop"] = agent_outcome
+            # FIX-366: defer refusal promotion to score-gate in main.py — only
+            # correct refusals (benchmark score=1) should become wiki guidance.
+            trajectory = _build_structured_trajectory(step_facts)
+            _reason = reflection.hypothesis_for_next or (
+                reflection.what_failed[0] if reflection.what_failed else ""
+            )
+            stats["researcher_pending_refusal"] = {
+                "task_type": task_type,
+                "task_id": task_id,
+                "outcome": agent_outcome,
+                "goal_shape": reflection.goal_shape,
+                "refusal_reason": _reason,
+                "trajectory": trajectory,
+            }
+            if _GRAPH_ENABLED:
+                wiki_graph.save_graph(graph)
+            print(f"[researcher] terminal refusal {agent_outcome} on cycle {cycle} — early stop")
             return stats
 
     # Exhausted cycles — archive the negative attempt + decay touched nodes.

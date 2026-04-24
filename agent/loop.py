@@ -1673,6 +1673,47 @@ def _pre_dispatch(
             except (ValueError, TypeError):
                 pass
 
+    # Guard: FIX-364 — force-read-sample-before-create for /my-invoices/*.json.
+    # The vault README documents field `line_items`, but the benchmark validator
+    # asserts path `lines[0].amount` (t10 post-mortem: agent followed README and
+    # got `line_items`; validator reported `<unset>` for `lines`). Existing
+    # invoice samples are authoritative for the actual field name. Before a
+    # write that CREATES a new /my-invoices/<id>.json (target not yet read),
+    # require that at least one existing /my-invoices/*.json has been read.
+    if (isinstance(job.function, Req_Write)
+            and job.function.path
+            and job.function.content):
+        _norm_path = job.function.path.lstrip("/")
+        _is_invoice_write = (
+            _norm_path.endswith(".json")
+            and _norm_path.startswith("my-invoices/")
+            and not _norm_path.endswith("README.MD")
+            and not _norm_path.endswith("README.md")
+        )
+        if _is_invoice_write and _norm_path not in st.read_content_cache:
+            _read_sample = any(
+                (_rp.startswith("my-invoices/") or "/my-invoices/" in _rp)
+                and _rp.endswith(".json")
+                for _rp in st.read_paths
+            )
+            # Listing the folder is an escape hatch: if the agent listed
+            # /my-invoices/ and simply found no samples, README is the only
+            # source — don't block indefinitely.
+            _listed_invoices = any(
+                "my-invoices" in _d for _d in st.listed_dirs
+            )
+            if not _read_sample and not _listed_invoices:
+                print(f"{CLI_YELLOW}[FIX-364] Invoice write blocked — no sample read{CLI_CLR}")
+                return (
+                    f"[force-read-sample] BLOCKED: Cannot create '{job.function.path}' "
+                    f"without first reading at least one existing /my-invoices/*.json sample. "
+                    f"The folder README may disagree with the canonical schema — existing "
+                    f"invoice files are the authoritative reference for field names "
+                    f"(e.g. `lines` vs `line_items`, `date` vs `issued_on`). "
+                    f"Steps: (1) list /my-invoices/; (2) read one existing invoice; "
+                    f"(3) mirror its top-level structure when writing the new invoice."
+                )
+
     # Guard: FIX-336 — force-read contact before outbox email write.
     # Agent occasionally writes outbox email using wiki-cached contact data
     # without actually reading the /contacts/ file, producing wrong recipients

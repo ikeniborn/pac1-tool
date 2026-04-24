@@ -264,12 +264,41 @@ def load_wiki_patterns(task_type: str) -> str:
     return ""
 
 
+_ENTITY_PATTERNS = [
+    (re.compile(r"\bcont_\d+\b", re.IGNORECASE), "<contact>"),
+    (re.compile(r"\bacct_\d+\b", re.IGNORECASE), "<account>"),
+    (re.compile(r"\bmgr_\d+\b", re.IGNORECASE), "<manager>"),
+    (re.compile(r"\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+\b"), "<email>"),
+    (re.compile(r"/contacts/[^\s)\]]+"), "/contacts/<file>"),
+    (re.compile(r"/accounts/[^\s)\]]+"), "/accounts/<file>"),
+    (re.compile(r"/outbox/[^\s)\]]+"), "/outbox/<file>"),
+    (re.compile(r"/inbox/[^\s)\]]+"), "/inbox/<file>"),
+    (re.compile(r"\b\d{4}-\d{2}-\d{2}\b"), "<date>"),
+]
+
+
+def _scrub_entity(text: str) -> str:
+    """FIX-362: redact vault-specific identifiers so promoted patterns stay abstract.
+
+    Strips cont_NNN / acct_NNN / mgr_NNN, email addresses, concrete entity file
+    paths, and ISO dates. Preserves overall structure so the trajectory remains
+    readable as a shape.
+    """
+    if not text:
+        return text
+    for pat, repl in _ENTITY_PATTERNS:
+        text = pat.sub(repl, text)
+    return text
+
+
 def promote_successful_pattern(
     task_type: str,
     task_id: str,
     traj_hash: str,
-    trajectory: list[str],
+    trajectory: list[dict],
     insights: list[str],
+    goal_shape: str = "",
+    final_answer: str = "",
     max_patterns: int = 10,
 ) -> bool:
     """FIX-362: promote a verified success trajectory into pages/<task_type>.md.
@@ -278,6 +307,9 @@ def promote_successful_pattern(
     reflector classifies the cycle as 'solved'. Idempotent by (task_id, traj_hash):
     repeated promotion of the same trajectory is a no-op. Oldest patterns are
     rotated to archive/ when page accumulates > max_patterns entries.
+
+    trajectory: list of {"tool": str, "path": str, "summary": str} dicts.
+    goal_shape / final_answer: abstract single-sentence summaries from reflector.
 
     Returns True if a new pattern was written, False if it was already present.
     """
@@ -291,13 +323,26 @@ def promote_successful_pattern(
         return False
 
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    traj_block = "\n".join(f"{i + 1}. {step}" for i, step in enumerate(trajectory)) or "(no trajectory)"
-    insights_block = "\n".join(f"- {ins}" for ins in insights) or "- (none)"
+
+    lines: list[str] = []
+    for i, step in enumerate(trajectory, 1):
+        tool = _scrub_entity(str(step.get("tool", "") or "?"))
+        path = _scrub_entity(str(step.get("path", "") or ""))
+        summary = _scrub_entity(str(step.get("summary", "") or ""))[:140]
+        head = f"{tool}({path})" if path else tool
+        lines.append(f"{i}. {head}" + (f" — {summary}" if summary else ""))
+    traj_block = "\n".join(lines) or "(no trajectory)"
+    insights_block = "\n".join(f"- {_scrub_entity(ins)}" for ins in insights) or "- (none)"
+    goal_line = _scrub_entity(goal_shape).strip() or "(unspecified)"
+    answer_line = _scrub_entity(final_answer).strip() or "(unspecified)"
     new_section = (
         f"\n\n## Successful pattern: {task_id} ({ts})\n"
         f"{marker}\n\n"
-        f"**Winning trajectory:**\n{traj_block}\n\n"
-        f"**Key insights:**\n{insights_block}\n"
+        f"**Goal shape:** {goal_line}\n\n"
+        f"**Final answer:** {answer_line}\n\n"
+        f"**Trajectory:**\n{traj_block}\n\n"
+        f"**Key insights:**\n{insights_block}\n\n"
+        f"**Applies when:** {task_type}\n"
     )
 
     merged = (existing.rstrip() + new_section) if existing else new_section.lstrip()
@@ -322,6 +367,79 @@ def promote_successful_pattern(
     page_path.write_text(merged, encoding="utf-8")
     if _LOG_LEVEL == "DEBUG":
         print(f"[wiki] promoted pattern {task_id}:{traj_hash[:8]} → {page_path}")
+    return True
+
+
+def promote_verified_refusal(
+    task_type: str,
+    task_id: str,
+    outcome: str,
+    goal_shape: str,
+    refusal_reason: str,
+    trajectory: list[dict],
+    max_refusals: int = 10,
+) -> bool:
+    """FIX-366: promote a verified-correct refusal into pages/<task_type>.md.
+
+    A refusal is "verified" when benchmark score == 1.0 (the graders agreed the
+    correct action was to refuse) AND the agent returned one of the terminal
+    refusal outcomes (NONE_CLARIFICATION, NONE_UNSUPPORTED, DENIED_SECURITY).
+    Lives in its own section (## Verified refusal:) so patterns and refusals
+    don't fight for space.
+
+    Idempotent via <!-- refusal: task_id:outcome_hash --> marker. Rotation at
+    max_refusals into archive/refusals/<page>.
+    """
+    page_name = _TYPE_TO_PAGE.get(task_type, task_type)
+    page_path = _PAGES_DIR / f"{page_name}.md"
+    page_path.parent.mkdir(parents=True, exist_ok=True)
+    existing = _read_page(page_name)
+
+    marker = f"<!-- refusal: {task_id}:{outcome} -->"
+    if marker in existing:
+        return False
+
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    goal_line = _scrub_entity(goal_shape).strip() or "(unspecified)"
+    reason_line = _scrub_entity(refusal_reason).strip() or "(unspecified)"
+    traj_lines: list[str] = []
+    for i, step in enumerate(trajectory[:6], 1):
+        tool = _scrub_entity(str(step.get("tool", "") or "?"))
+        path = _scrub_entity(str(step.get("path", "") or ""))
+        head = f"{tool}({path})" if path else tool
+        traj_lines.append(f"{i}. {head}")
+    probe_block = "\n".join(traj_lines) or "(no discovery steps)"
+
+    new_section = (
+        f"\n\n## Verified refusal: {task_id} ({ts})\n"
+        f"{marker}\n\n"
+        f"**Goal shape:** {goal_line}\n\n"
+        f"**Outcome:** {outcome}\n\n"
+        f"**Why refuse:** {reason_line}\n\n"
+        f"**Probes before refusal:**\n{probe_block}\n\n"
+        f"**Applies when:** {task_type}\n"
+    )
+
+    merged = (existing.rstrip() + new_section) if existing else new_section.lstrip()
+
+    sections = re.split(r"(?m)^## Verified refusal: ", merged)
+    if len(sections) - 1 > max_refusals:
+        preamble = sections[0]
+        refusals = sections[1:]
+        archived = refusals[: len(refusals) - max_refusals]
+        kept = refusals[len(refusals) - max_refusals :]
+        archive_dir = _ARCHIVE_DIR / "refusals" / page_name
+        archive_dir.mkdir(parents=True, exist_ok=True)
+        for idx, r in enumerate(archived):
+            stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+            (archive_dir / f"{page_name}_{stamp}_{idx}.md").write_text(
+                "## Verified refusal: " + r, encoding="utf-8"
+            )
+        merged = preamble + "".join("## Verified refusal: " + r for r in kept)
+
+    page_path.write_text(merged, encoding="utf-8")
+    if _LOG_LEVEL == "DEBUG":
+        print(f"[wiki] promoted refusal {task_id}:{outcome} → {page_path}")
     return True
 
 
@@ -621,10 +739,17 @@ _NEGATIVE_BOILERPLATE_PATTERNS = [
 
 
 def _sanitize_synthesized_page(content: str) -> str:
-    """FIX-328: Remove negative-boilerplate lines from synthesized wiki page."""
+    """FIX-328: Remove negative-boilerplate lines from synthesized wiki page.
+
+    FIX-363c: also run _scrub_entity to strip entity-specific data (cont_NNN,
+    acct_NNN, email addresses, concrete filenames, ISO dates) that LLM
+    synthesis tends to re-introduce from fragments. This enforces the FIX-337
+    abstraction policy across the whole lint pipeline, not just promotion.
+    """
     if not content:
         return content
     for p in _NEGATIVE_BOILERPLATE_PATTERNS:
         content = p.sub("", content)
+    content = _scrub_entity(content)
     content = re.sub(r"\n{3,}", "\n\n", content)
     return content.strip() + "\n"

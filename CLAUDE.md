@@ -47,13 +47,16 @@ Task types: `think`, `distill`, `email`, `lookup`, `inbox`, `queue`, `capture`, 
 
 Альтернативный режим для сбора данных и ручного разбора сложных задач. Активируется через `RESEARCHER_MODE=1`, normal mode остаётся нетронутым.
 
+**ВАЖНО**: выставлять `PARALLEL_TASKS=1`. Параллельные задачи все загружают `graph.json`/`pages/` одновременно при старте и не видят паттернов друг друга — знание накапливается только при последовательном исполнении.
+
 Что выключено: evaluator (skeptic-гейт, для исследования неуместен), stall-detector, `TASK_TIMEOUT_S`, DSPy prompt_builder, LLM-voting классификатора (работает только regex fast-path).
 
-Поток: внешний цикл ≤ `RESEARCHER_MAX_CYCLES` (default 10). На каждом цикле — inner `run_loop` (`researcher_mode=True`, `max_steps=RESEARCHER_STEPS_PER_CYCLE`). После inner-loop — reflector.py (1 LLM-вызов) структурирует траекторию в `{outcome, what_worked, what_failed, hypothesis_for_next, key_tool_calls, graph_deltas}`. Фрагмент пишется в `data/wiki/fragments/research/<task_type>/` (run_wiki_lint этот путь пропускает). Между циклами строится новый addendum: previous-cycle reflections + top-K узлов из графа + существующие wiki patterns.
+Поток: внешний цикл ≤ `RESEARCHER_MAX_CYCLES` (default 10). На каждом цикле — inner `run_loop` (`researcher_mode=True`, `max_steps=RESEARCHER_STEPS_PER_CYCLE`). После inner-loop — reflector.py (1 LLM-вызов) структурирует траекторию в `{outcome, what_worked, what_failed, hypothesis_for_next, key_tool_calls, graph_deltas, goal_shape, final_answer, input_tokens, output_tokens}`. Фрагмент пишется в `data/wiki/fragments/research/<task_type>/` (run_wiki_lint этот путь пропускает). Между циклами строится новый addendum: previous-cycle reflections + top-K узлов из графа + существующие wiki patterns. На cycle ≥ 2 — `graph.json` перечитывается с диска и мержится в in-memory (FIX-366) для подхвата паттернов от sequential-задач.
 
 Wiki policy:
 - **fragments** накапливаются все циклы подряд;
-- **pages** обновляются ТОЛЬКО на верифицированном успехе (`reflection.outcome=="solved"` AND агентский `OUTCOME_OK`) через `promote_successful_pattern()` → `## Successful pattern: <task_id> (date)` в `pages/<task_type>.md`. Idempotent по `task_id + hash_trajectory`. Ротация > `WIKI_PAGE_MAX_PATTERNS` → `archive/patterns/`.
+- **pages** обновляются ТОЛЬКО на верифицированном успехе (`reflection.outcome=="solved"` AND агентский `OUTCOME_OK` AND benchmark `score==1.0`) через `promote_successful_pattern()` → `## Successful pattern: <task_id> (date)` в `pages/<task_type>.md`. Idempotent по `task_id + hash_trajectory`. Ротация > `WIKI_PAGE_MAX_PATTERNS` → `archive/patterns/`. Score-gate делается в `main.py` после `end_trial()` (FIX-363a).
+- **verified refusals** (FIX-366): terminal refusal (`NONE_CLARIFICATION`/`NONE_UNSUPPORTED`/`DENIED_SECURITY`) + `score==1.0` → `promote_verified_refusal()` записывает `## Verified refusal: <task_id> (date)` в тот же `pages/<task_type>.md`. Отдельный маркер `<!-- refusal: task_id:outcome -->`, ротация в `archive/refusals/<page>/`.
 - Повторный negative с той же траекторией → `archive/research_negatives/<task_id>_<hash>.json`, затронутые узлы графа получают `degrade_confidence(-epsilon)`; узлы ниже `WIKI_GRAPH_MIN_CONFIDENCE` → `graph_archive.json`.
 
 Knowledge graph (`agent/wiki_graph.py`, `data/wiki/graph.json`):

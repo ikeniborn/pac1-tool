@@ -209,7 +209,10 @@ def add_pattern_node(
             "type": "pattern",
             "tags": [task_type],
             "text": f"pattern:{task_type}",
-            "trajectory": list(trajectory),
+            "trajectory": [
+                f"{s.get('tool','?')}({s.get('path','')})" if isinstance(s, dict) else str(s)
+                for s in trajectory
+            ],
             "task_ids": [task_id],
             "confidence": 0.8,
             "uses": 1,
@@ -297,7 +300,16 @@ def retrieve_relevant(
         conf = node.get("confidence", _DEFAULT_CONFIDENCE)
         text = node.get("text", "")
         if ntype == "pattern":
-            traj = " → ".join(node.get("trajectory", [])[:8])
+            raw_traj = node.get("trajectory", [])[:8]
+            parts: list[str] = []
+            for s in raw_traj:
+                if isinstance(s, dict):
+                    tool = s.get("tool", "?")
+                    path = s.get("path", "")
+                    parts.append(f"{tool}({path})" if path else str(tool))
+                else:
+                    parts.append(str(s))
+            traj = " → ".join(parts)
             lines.append(f"- [pattern] {traj} (conf={conf:.2f}, uses={uses})")
         elif ntype == "antipattern":
             lines.append(f"- [AVOID] {text} (conf={conf:.2f})")
