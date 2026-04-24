@@ -109,7 +109,7 @@ from bitgn.harness_pb2 import (
 )
 from connectrpc.errors import ConnectError
 
-from agent import run_agent
+from agent import run_agent, write_wiki_fragment as _write_wiki_fragment
 from agent.classifier import ModelRouter
 from agent.dspy_examples import record_example as _record_dspy_example
 from agent.dspy_examples import record_eval_example as _record_eval_example
@@ -307,6 +307,20 @@ def _run_single_task(trial_id: str, task_filter: list, router: ModelRouter) -> t
             _eval_call = token_stats.get("eval_last_call")
             if _eval_call and token_stats.get("evaluator_calls", 0) > 0:
                 _record_eval_example(**_eval_call, score=_score_f)
+        # FIX-358: score-gated wiki fragment write (moved out of run_agent).
+        # score == 1 → success fragment in fragments/<task_type>/
+        # score <  1 → error fragment in fragments/errors_<task_type>/
+        if os.getenv("WIKI_ENABLED", "1") == "1":
+            try:
+                _write_wiki_fragment(
+                    task_text=trial.instruction,
+                    task_type=token_stats.get("task_type", "default"),
+                    stats=token_stats,
+                    task_id=task_id,
+                    score=_score_f,
+                )
+            except Exception as _wiki_exc:
+                print(f"[wiki] deferred fragment write failed: {_wiki_exc}")
         style = CLI_GREEN if score == 1 else CLI_RED
         in_t   = token_stats.get("input_tokens", 0)
         out_t  = token_stats.get("output_tokens", 0)

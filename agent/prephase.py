@@ -268,42 +268,75 @@ def run_prephase(
             _vault_date_src = "tree date-prefixes"
         else:
             _vault_date_est = ""
-    # FIX-326: second fallback — if no date-prefixed filenames exist (flat vault
-    # like CRM: accounts/, reminders/, opportunities/), sample 3 JSON records per
-    # folder in priority order and take max ISO date from field values.
-    # Max(last_contacted_on, due_on, next_follow_up_on) ≈ VAULT_DATE "today".
+    # FIX-326 + FIX-352: second fallback for flat vaults (CRM: accounts/, reminders/,
+    # contacts/, opportunities/). Probe ALL present folders (no early break), sample up
+    # to 5 files per folder, and prefer MAX of "past-anchored" field values
+    # (`last_contacted_on`, `last_seen_on`, `last_activity_on`, `closed_on`, `updated_on`,
+    # `sent_at`, `received_at`) over generic max ISO.
+    #
+    # Why: `last_*` fields are the tightest lower bound for benchmark "today" — they
+    # record the most recent observation relative to the current moment. `due_on` /
+    # `next_follow_up_on` / `scheduled_on` are future-anchored (≥ today) and pollute
+    # the estimator when they happen to be the only dates in a sampled subset.
+    # The prior code sampled only 3 files from /reminders and `break`-ed on first hit,
+    # missing richer signals in /accounts — t41 post-mortem observed a 4-day
+    # undershoot (est=2026-03-16, real=2026-03-20) for exactly this reason.
     if not _vault_date_est:
         _iso_re = re.compile(r'\b(\d{4}-\d{2}-\d{2})\b')
+        _past_field_re = re.compile(
+            r'"(last_[a-z_]+|closed_on|updated_on|modified_on|sent_at|received_at|activity_at|archived_on|issued_on|created_at|opened_on|started_on|date)"\s*:\s*"(\d{4}-\d{2}-\d{2})',
+            re.IGNORECASE,
+        )
         _top_names = {e.name for e in tree_result.root.children} if tree_result is not None else set()
-        for _probe_dir in ("reminders", "accounts", "opportunities"):
+        _all_past_dates: list[str] = []
+        _all_any_dates: list[str] = []
+        _probed: list[str] = []
+        for _probe_dir in ("accounts", "contacts", "my-invoices", "reminders", "opportunities"):
             if _probe_dir not in _top_names:
                 continue
             try:
                 _entries = vm.list(ListRequest(name=f"/{_probe_dir}"))
             except Exception:
                 continue
-            _sample_dates: list[str] = []
             _sampled = 0
             for _entry in _entries.entries:
-                if _sampled >= 3:
+                if _sampled >= 5:
                     break
                 if _entry.name.upper() == "README.MD" or not _entry.name.endswith(".json"):
                     continue
                 try:
                     _r = vm.read(ReadRequest(path=f"/{_probe_dir}/{_entry.name}"))
                     if _r.content:
-                        _sample_dates.extend(_iso_re.findall(_r.content))
+                        for _m in _past_field_re.finditer(_r.content):
+                            _all_past_dates.append(_m.group(2))
+                        _all_any_dates.extend(_iso_re.findall(_r.content))
                         _sampled += 1
                 except Exception:
                     continue
-            if _sample_dates:
-                _vault_date_est = max(_sample_dates)
-                _vault_date_src = f"/{_probe_dir} max ISO date"
-                break
+            if _sampled:
+                _probed.append(f"/{_probe_dir}")
+        if _all_past_dates:
+            _vault_date_est = max(_all_past_dates)
+            _vault_date_src = f"max past-anchored field in {','.join(_probed)}"
+        elif _all_any_dates:
+            _vault_date_est = max(_all_any_dates)
+            _vault_date_src = f"max ISO date in {','.join(_probed)}"
 
+    # FIX-357: emit raw VAULT_DATE signals — no code-level calibration offset.
+    # The benchmark's real "today" is randomized per-run and the gap between
+    # observable vault signals (max inbox filename / max last_*_on / max tree
+    # prefix) and real today varies run-to-run (observed 1-9 days across runs).
+    # No constant calibration works. The LLM derives benchmark "today" from the
+    # raw signals in temporal.md rule 3 using explicit reasoning (signal source
+    # → direction of bias → candidate anchor → consistency check against task N).
     if _vault_date_est:
-        _vault_date_hint = f"VAULT_DATE: {_vault_date_est}  (estimated — verify against account `last_contacted_on` for temporal queries)"
-        print(f"{CLI_BLUE}[prephase] vault_date estimated: {_vault_date_est} (source: {_vault_date_src}){CLI_CLR}")
+        _vault_date_hint = (
+            f"VAULT_DATE: {_vault_date_est}  (source: {_vault_date_src} — this "
+            f"is a LOWER BOUND on benchmark today, not today itself. Inbox/capture "
+            f"filename prefixes and `last_*_on` fields are ≤ real today by definition; "
+            f"derive ESTIMATED_TODAY = VAULT_DATE + gap per temporal.md FIX-357.)"
+        )
+        print(f"{CLI_BLUE}[prephase] vault_date raw: {_vault_date_est} (source: {_vault_date_src}){CLI_CLR}")
 
     # Inject vault layout + AGENTS.MD as context — the agent reads this to discover
     # where "cards", "threads", "inbox", etc. actually live in the vault.

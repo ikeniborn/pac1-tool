@@ -149,6 +149,10 @@ class _LoopState:
     ledger_msg: dict | None = None
     # Tracked listed dirs (auto-list optimisation)
     listed_dirs: set = field(default_factory=set)
+    # FIX-336: tracked successfully-read file paths (used by outbox force-read guard)
+    read_paths: set = field(default_factory=set)
+    # FIX-349: cache last-read content per path for field-diff guard on write
+    read_content_cache: dict = field(default_factory=dict)
     # FIX-218: evaluator state
     eval_rejections: int = 0
     evaluator_call_count: int = 0
@@ -174,6 +178,9 @@ class _LoopState:
     successful_writes: list = field(default_factory=list)
     # FIX-303: wiki outcome — set at answer submission for fragment writing
     outcome: str = ""
+    # FIX-362: researcher mode — disables evaluator/stall/timeout inside the inner loop.
+    # Set by run_loop() when called by agent.researcher; default False preserves normal behaviour.
+    researcher_mode: bool = False
     # FIX-251: pre-write JSON snapshot for unicode fidelity check
     _pre_write_snapshot: dict | None = None
     # FIX-259: format-gate fired flag — hard-enforces CLARIFICATION outcome + evaluator bypass
@@ -1551,6 +1558,144 @@ def _pre_dispatch(
             "Report OUTCOME_NONE_CLARIFICATION immediately with zero file changes."
         )
 
+    # Guard: FIX-345 — discovery gate on report_completion for vault-dependent task types.
+    # Sonnet CC-tier occasionally short-circuits temporal/queue/inbox/lookup tasks at step 1
+    # with OUTCOME_NONE_CLARIFICATION or a bare answer, without running a single
+    # list/find/tree/search/read against the vault. Prompt/wiki-level gates (FIX-328,
+    # FIX-334) don't hold. Block report_completion until at least one discovery op
+    # has been performed.
+    if (isinstance(job.function, ReportTaskCompletion)
+            and task_type in (TASK_TEMPORAL, TASK_QUEUE, TASK_INBOX, TASK_LOOKUP)
+            and not st.listed_dirs
+            and not st.read_paths):
+        print(f"{CLI_YELLOW}[FIX-345] report_completion blocked — no discovery on task_type={task_type}{CLI_CLR}")
+        return (
+            f"[discovery-gate] BLOCKED: You cannot finalize a '{task_type}' task without "
+            f"first running at least one of list / find / tree / search / read against the "
+            f"vault. No PCM discovery tool has been called in this task. "
+            f"Claims like 'vault not mounted', 'file not found', 'cannot determine' without "
+            f"a real tool call are hallucination — the vault IS mounted. "
+            f"Do at least one discovery tool call (e.g. `list /`, `tree`, `find` for inbox/"
+            f"reminder/email artifacts named by the task), then finalize based on actual "
+            f"observed data."
+        )
+
+    # Guard: FIX-335 — duplicate-write guard.
+    # Block a second Req_Write to a path already in st.done_ops. Agent
+    # occasionally emits 2× writes to the same path (t32 post-mortem),
+    # which breaks harness expectations and inflates token usage.
+    if isinstance(job.function, Req_Write) and job.function.path:
+        _dup_target = f"WRITTEN: {job.function.path}"
+        if _dup_target in st.done_ops:
+            print(f"{CLI_YELLOW}[FIX-335] Duplicate write blocked: {job.function.path}{CLI_CLR}")
+            return (
+                f"[duplicate-write] BLOCKED: '{job.function.path}' was already written earlier "
+                f"in this task. Do NOT write to the same path twice. If you need to update "
+                f"additional files per the task (e.g., BOTH reminder AND account), write to a "
+                f"DIFFERENT path. Otherwise call report_completion."
+            )
+
+    # Guard: FIX-350 — force-read-before-write for mutating JSON records.
+    # Block Req_Write to /accounts/*.json, /reminders/*.json, /processing/*.json
+    # when no prior successful read of that exact path exists. Without a preceding
+    # read, the agent writes schema-from-memory and destroys fields (t32: agent
+    # wrote `Sarah Lin` without reading, destroying original `Tobias Hartmann`).
+    # FIX-349 field-diff guard cannot fire if there's no cached read to compare to.
+    if (isinstance(job.function, Req_Write)
+            and job.function.path
+            and job.function.content
+            and task_type in (TASK_CRM, TASK_QUEUE, TASK_INBOX, "default")):
+        _norm_path = job.function.path.lstrip("/")
+        _is_mutating_record = (
+            _norm_path.endswith(".json")
+            and (_norm_path.startswith("reminders/")
+                 or _norm_path.startswith("accounts/")
+                 or _norm_path.startswith("processing/")
+                 or "/reminders/" in _norm_path
+                 or "/accounts/" in _norm_path
+                 or "/processing/" in _norm_path)
+        )
+        if _is_mutating_record and _norm_path not in st.read_content_cache:
+            print(f"{CLI_YELLOW}[FIX-350] Write blocked — no prior read of {_norm_path}{CLI_CLR}")
+            return (
+                f"[force-read-before-write] BLOCKED: Cannot write to '{job.function.path}' "
+                f"without first reading it in this task. A write without a preceding read "
+                f"synthesizes the schema from memory and drops unrequested fields "
+                f"(account_manager, legal_name, description, notes, etc.). "
+                f"Do `read '{job.function.path}'` FIRST, preserve every top-level key "
+                f"verbatim, substitute ONLY the field(s) the task explicitly names, then write."
+            )
+
+    # Guard: FIX-349 — post-write field-diff guard (CRM/accounts preservation).
+    # Block Req_Write to /reminders/*.json, /accounts/*.json, /processing/*.json
+    # when the new JSON drops top-level keys present in the last cached read.
+    # Wiki/prompt banners (FIX-344/FIX-346) don't reliably hold; enforce at code.
+    if (isinstance(job.function, Req_Write)
+            and job.function.path
+            and job.function.content
+            and task_type in (TASK_CRM, TASK_QUEUE, TASK_INBOX, "default")):
+        _norm_path = job.function.path.lstrip("/")
+        _prev = st.read_content_cache.get(_norm_path)
+        _is_json_record = (
+            _norm_path.endswith(".json")
+            and (_norm_path.startswith("reminders/")
+                 or _norm_path.startswith("accounts/")
+                 or _norm_path.startswith("processing/")
+                 or "/reminders/" in _norm_path
+                 or "/accounts/" in _norm_path
+                 or "/processing/" in _norm_path)
+        )
+        if _prev and _is_json_record:
+            try:
+                import json as _json
+                _prev_wrap = _json.loads(_prev)
+                # Read result is wrapped: {"path": "...", "content": "<raw JSON string>"}
+                # Unwrap to raw file content before field-diff.
+                if isinstance(_prev_wrap, dict) and isinstance(_prev_wrap.get("content"), str):
+                    _old_json = _json.loads(_prev_wrap["content"])
+                else:
+                    _old_json = _prev_wrap
+                _new_json = _json.loads(job.function.content)
+                if isinstance(_old_json, dict) and isinstance(_new_json, dict):
+                    _old_keys = set(_old_json.keys())
+                    _new_keys = set(_new_json.keys())
+                    _dropped = _old_keys - _new_keys
+                    if _dropped:
+                        print(f"{CLI_YELLOW}[FIX-349] Write blocked — dropped keys: {sorted(_dropped)}{CLI_CLR}")
+                        return (
+                            f"[field-preservation] BLOCKED: Write to '{job.function.path}' "
+                            f"dropped keys {sorted(_dropped)} that exist in the read response. "
+                            f"You MUST preserve EVERY top-level key from the source read — "
+                            f"copy each unchanged key verbatim and substitute ONLY the field(s) "
+                            f"the task explicitly names. Re-read the file if needed, then resubmit "
+                            f"the write with the full object."
+                        )
+            except (ValueError, TypeError):
+                pass
+
+    # Guard: FIX-336 — force-read contact before outbox email write.
+    # Agent occasionally writes outbox email using wiki-cached contact data
+    # without actually reading the /contacts/ file, producing wrong recipients
+    # (t14, t26 post-mortem). Require at least one Req_Read on /contacts/*
+    # before allowing a Req_Write to /outbox/ for non-seq.json files.
+    if (isinstance(job.function, Req_Write)
+            and job.function.path
+            and ("/outbox/" in job.function.path or job.function.path.startswith("outbox/"))
+            and not job.function.path.rstrip("/").endswith("seq.json")
+            and task_type in (TASK_EMAIL, TASK_INBOX)):
+        _read_any_contact = any(
+            "contacts/" in _rp for _rp in st.read_paths
+        )
+        if not _read_any_contact:
+            print(f"{CLI_YELLOW}[FIX-336] Outbox write blocked — no /contacts/ read yet{CLI_CLR}")
+            return (
+                "[force-read-contact] BLOCKED: Cannot write outbox email without first reading "
+                "the recipient's /contacts/cont_*.json file. Wiki-cached contact data is stale — "
+                "the canonical email address lives in the contact file. "
+                "Steps: (1) search /contacts/ for the recipient name; (2) read the matching "
+                "contact file; (3) use THAT file's email field in the outbox write."
+            )
+
     # Guard: FIX-276 — block outbox write if email inbox cross-account entity mismatch detected
     if (isinstance(job.function, Req_Write)
             and "outbox/" in (job.function.path or "")
@@ -1687,8 +1832,10 @@ def _run_step(
     Returns True if task is complete (report_completion received or fatal error)."""
 
     # --- Task timeout check ---
+    # FIX-362: researcher mode has no wall-clock deadline — outer orchestrator
+    # bounds work by RESEARCHER_MAX_CYCLES × RESEARCHER_STEPS_PER_CYCLE instead.
     elapsed_task = time.time() - task_start
-    if elapsed_task > TASK_TIMEOUT_S:
+    if not st.researcher_mode and elapsed_task > TASK_TIMEOUT_S:
         print(f"{CLI_RED}[TIMEOUT] Task exceeded {TASK_TIMEOUT_S}s ({elapsed_task:.0f}s elapsed), stopping{CLI_CLR}")
         try:
             vm.answer(AnswerRequest(
@@ -1762,11 +1909,16 @@ def _run_step(
     # (hint retry must use a log that doesn't yet contain this step)
     st.action_fingerprints.append(f"{action_name}:{action_args}")
 
-    job, st.stall_hint_active, _stall_fired, _si, _so, _se, _sev_c, _sev_ms, _scc, _scr = _handle_stall_retry(
-        job, st.log, model, max_tokens, cfg,
-        st.action_fingerprints, st.steps_since_write, st.error_counts, st.step_facts,
-        st.stall_hint_active,
-    )
+    # FIX-362: researcher mode — skip stall hints; repetitive probing is legitimate
+    # exploration when the outer orchestrator drives the experiment.
+    _si = _so = _se = _sev_c = _sev_ms = _scc = _scr = 0
+    _stall_fired = False
+    if not st.researcher_mode:
+        job, st.stall_hint_active, _stall_fired, _si, _so, _se, _sev_c, _sev_ms, _scc, _scr = _handle_stall_retry(
+            job, st.log, model, max_tokens, cfg,
+            st.action_fingerprints, st.steps_since_write, st.error_counts, st.step_facts,
+            st.stall_hint_active,
+        )
     if _stall_fired:
         _st_accum(st, _se, _si, _so, _sev_c, _sev_ms, _scc, _scr)
         action_name = job.function.__class__.__name__
@@ -1869,6 +2021,7 @@ def _run_step(
         if _eval_bypass:
             print(f"{CLI_GREEN}[evaluator] Code-verified bypass → auto-approve{CLI_CLR}")
     if (_EVALUATOR_ENABLED
+            and not st.researcher_mode  # FIX-362: evaluator is a skeptic-gate; off in research
             and isinstance(job.function, ReportTaskCompletion)
             and not _eval_bypass
             and job.function.outcome in (
@@ -1980,6 +2133,12 @@ def _run_step(
             "tool": action_name, "result": txt[:300], "is_error": False,
         })
 
+        # FIX-336: track successful reads for downstream force-read guard
+        if isinstance(job.function, Req_Read) and not txt.startswith("ERROR"):
+            st.read_paths.add(job.function.path.lstrip("/"))
+            # FIX-349: cache raw content for field-diff guard on subsequent write
+            st.read_content_cache[job.function.path.lstrip("/")] = txt
+
         # Reset stall state on meaningful progress
         if isinstance(job.function, (Req_Write, Req_Delete, Req_Move, Req_MkDir)):
             st.steps_since_write = 0
@@ -2078,8 +2237,15 @@ def _run_step(
 
 def run_loop(vm: PcmRuntimeClientSync, model: str, _task_text: str,
              pre: PrephaseResult, cfg: dict, task_type: str = "default",
-             evaluator_model: str = "", evaluator_cfg: "dict | None" = None) -> dict:
-    """Run main agent loop. Returns token usage stats dict."""
+             evaluator_model: str = "", evaluator_cfg: "dict | None" = None,
+             researcher_mode: bool = False, max_steps: int | None = None) -> dict:
+    """Run main agent loop. Returns token usage stats dict.
+
+    FIX-362: researcher_mode=True disables evaluator, stall hints, and timeout —
+    intended to be called by agent.researcher as an inner loop inside a bounded
+    outer cycle. max_steps overrides the default 30-step cap; pass small values
+    (e.g. 15) when the outer orchestrator will retry.
+    """
     # FIX-195: run_loop() is now a thin orchestrator — logic lives in:
     #   _run_pre_route() — injection detection + semantic routing (pre-loop)
     #   _run_step()      — one iteration of the 30-step loop
@@ -2087,8 +2253,10 @@ def run_loop(vm: PcmRuntimeClientSync, model: str, _task_text: str,
     st.task_text = _task_text  # FIX-218: evaluator needs task text
     st.evaluator_model = evaluator_model or ""
     st.evaluator_cfg = evaluator_cfg or {}
+    st.researcher_mode = bool(researcher_mode)
     task_start = time.time()
     max_tokens = cfg.get("max_completion_tokens", 16384)
+    loop_cap = max_steps if (max_steps and max_steps > 0) else 30
 
     _tracer = get_task_tracer()
     _tracer.emit("task_start", 0, {
@@ -2105,8 +2273,8 @@ def run_loop(vm: PcmRuntimeClientSync, model: str, _task_text: str,
         })
         return result
 
-    # Main loop — up to 30 steps
-    for i in range(30):
+    # Main loop — up to `loop_cap` steps (30 default; FIX-362 overrides for researcher)
+    for i in range(loop_cap):
         if _run_step(i, vm, model, cfg, task_type, max_tokens, task_start, st):
             break
 

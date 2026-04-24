@@ -54,7 +54,13 @@ _LINT_PROMPTS: dict[str, str] = {
         "Format each entry as:\n"
         "## <Error Name>\n- Condition: ...\n- Root cause: ...\n- Solution: ...\n\n"
         "Rules: deduplicate entries, prefer specific over vague, "
-        "remove entries with no actionable solution, merge similar patterns."
+        "remove entries with no actionable solution, merge similar patterns.\n"
+        "FORBIDDEN — FIX-357: NEVER introduce a 'Stale Vault Date Used as Temporal "
+        "Anchor' entry or any entry that advises 'always derive current date from "
+        "system/session clock' / 'never infer today from vault file prefixes'. The "
+        "benchmark's real 'today' runs in vault-time; system clock is 3–6 weeks "
+        "ahead. Vault signals ARE the correct anchor for temporal tasks. Any error "
+        "entry matching this pattern must be dropped from the synthesis."
     ),
     "contacts": (
         "You are curating a workflow wiki for an AI file-system agent.\n"
@@ -64,8 +70,10 @@ _LINT_PROMPTS: dict[str, str] = {
         "3. Task-type specific insights and shortcuts\n\n"
         "Format as structured Markdown sections with ## headers.\n"
         "Rules: deduplicate, remove outdated entries, prefer concrete over generic.\n"
-        "IMPORTANT: do NOT add individual contact entries — do NOT output ## email, "
-        "## cont_NNN, ## <name> sections. Output only patterns, steps, and pitfalls."
+        "IMPORTANT — FIX-337: do NOT add individual contact entries — do NOT output "
+        "## email, ## cont_NNN, ## <name> sections, registry tables mapping "
+        "cont_NNN → name → email, or specific email addresses. Output only "
+        "patterns, steps, and pitfalls. No entity IDs, no person names, no emails."
     ),
     "accounts": (
         "You are curating a workflow wiki for an AI file-system agent.\n"
@@ -75,8 +83,16 @@ _LINT_PROMPTS: dict[str, str] = {
         "3. Task-type specific insights and shortcuts\n\n"
         "Format as structured Markdown sections with ## headers.\n"
         "Rules: deduplicate, remove outdated entries, prefer concrete over generic.\n"
-        "IMPORTANT: do NOT add individual account entries — do NOT output ## acct_NNN, "
-        "## <company> sections. Output only patterns, steps, and pitfalls."
+        "IMPORTANT — FIX-337: do NOT add individual account entries — do NOT output "
+        "## acct_NNN, ## <company> sections, registry tables mapping acct_NNN → "
+        "name → industry, account_manager names, or specific entity values. Output "
+        "only patterns, steps, and pitfalls. No entity IDs, no company names.\n"
+        "PRESERVE — FIX-346: keep the top-of-page 'Do NOT Mutate Fields the Task "
+        "Didn't Name' banner verbatim. Never reintroduce a 'Confirmed writable "
+        "fields: name, account_manager, status, industry' line — that phrasing "
+        "invites the agent to rewrite account_manager on reschedule tasks, which "
+        "breaks field-diff checks. If the banner is absent from EXISTING PAGE, "
+        "re-insert it at the top."
     ),
     "queue": (
         "You are curating a workflow wiki for an AI file-system agent.\n"
@@ -88,7 +104,66 @@ _LINT_PROMPTS: dict[str, str] = {
         "Rules: deduplicate, remove outdated entries, prefer concrete over generic.\n"
         "IMPORTANT: do NOT include vault-specific data — do NOT output specific handles, "
         "usernames, OTP token values, sequence IDs, channel names from specific vaults, "
-        "or entries like 'Handle X verified via Y'. Output only general patterns and steps."
+        "or entries like 'Handle X verified via Y'. Output only general patterns and steps.\n"
+        "PRESERVE — FIX-343/FIX-347/FIX-351: keep the 'Latest Invoice for an Account' sub-sequence "
+        "intact across syntheses. Strict rules: filter invoices ONLY by content.account_id "
+        "(filename first-block is NOT account_id — never use filename-prefix as an owner proxy); "
+        "never introduce a filename-suffix-as-recency fallback for unreadable candidates "
+        "(it misattributes invoices across accounts); if a potentially-"
+        "newer candidate is unreadable, return OUTCOME_NONE_CLARIFICATION rather than guess. "
+        "Keep the rule: NEVER return NONE_CLARIFICATION before running list/find/tree. "
+        "FIX-351: preserve 'Account resolution priority' block — when inbox body names a "
+        "specific company, the BODY-named company wins over sender-email domain matching. "
+        "Only fall back to sender→contact→account_id if body does NOT name a company. "
+        "Also preserve the 'recipient identity' rule: outbox `to` = exact `From:` header "
+        "of the inbox message, NOT the account primary contact or manager. "
+        "DO NOT include concrete company names, email addresses, or person names as "
+        "examples — the model treats them as directives and copies them into the outbox."
+    ),
+    "crm": (
+        "You are curating a workflow wiki for an AI file-system agent.\n"
+        "From the raw task fragments below, extract:\n"
+        "1. Proven step sequences that led to task success (with OUTCOME_OK)\n"
+        "2. Key risks and pitfalls encountered\n"
+        "3. Task-type specific insights and shortcuts\n\n"
+        "Format as structured Markdown sections with ## headers.\n"
+        "Rules: deduplicate, remove outdated entries, prefer concrete over generic.\n"
+        "IMPORTANT — no vault-specific entity data (no cont_NNN, acct_NNN, company or "
+        "person names, specific dates tied to a single task).\n"
+        "PRESERVE — FIX-344: keep the top-of-page 'Preserve All Fields on Write' banner "
+        "and its 5-step checklist verbatim. Every reschedule/audit failure we've seen "
+        "comes from the model generating a stripped-down JSON from memory and dropping "
+        "fields like contact_id, priority, region. Do not shorten, do not remove, do not "
+        "move below the fold. If the banner is absent from EXISTING PAGE, re-insert it."
+    ),
+    "temporal": (
+        "You are curating a workflow wiki for an AI file-system agent.\n"
+        "From the raw task fragments below, extract:\n"
+        "1. Proven step sequences that led to task success (with OUTCOME_OK)\n"
+        "2. Key risks and pitfalls encountered\n"
+        "3. Task-type specific insights and shortcuts\n\n"
+        "Format as structured Markdown sections with ## headers.\n"
+        "Rules: deduplicate, remove outdated entries, prefer concrete over generic.\n"
+        "PRESERVE — FIX-357: the page teaches DERIVATION of benchmark 'today' from "
+        "observable vault signals, NOT lookup from a single field. Keep the 'Baseline "
+        "Anchor — Derivation, Not Lookup' block at the top verbatim (3-rule priority: "
+        "artifact-anchored > vault-content-lookup (INVERT: candidate filename + N = "
+        "implied today) > pure arithmetic (derive ESTIMATED_TODAY = VAULT_DATE + "
+        "~5 day gap for past-anchored sources, −3 day for future-anchored)). Keep the "
+        "'Vault Content Lookup by Relative Date' block with the INVERSION approach "
+        "(iterate candidate files, compute implied_today = D + N, pick the one in "
+        "[VAULT_DATE, VAULT_DATE+10]). Do NOT re-introduce the old 'compute "
+        "TARGET_DATE = currentDate − N, search for file' logic — it assumes today is "
+        "known, which it is not.\n"
+        "NEVER embed concrete post-mortem result dates from specific runs as canonical "
+        "examples (e.g. 'VAULT_DATE = 2026-03-20 → 21-03-2026'). Benchmark today is "
+        "randomized per run; baked-in dates teach the wrong anchor. Always use symbolic "
+        "placeholders (BASE, VAULT_DATE, ESTIMATED_TODAY, ARTIFACT_DATE) in examples.\n"
+        "Do NOT re-introduce any 'VAULT_DATE is ≥7 days behind currentDate' threshold — "
+        "that logic is superseded by FIX-357. VAULT_DATE is a LOWER BOUND on today, "
+        "not a substitute for today; always add a gap to derive ESTIMATED_TODAY. "
+        "Also preserve the rule: never return NONE_CLARIFICATION on temporal tasks "
+        "before running at least one list/find/tree."
     ),
     "inbox": (
         "You are curating a workflow wiki for an AI file-system agent.\n"
@@ -101,6 +176,38 @@ _LINT_PROMPTS: dict[str, str] = {
         "IMPORTANT: do NOT include vault-specific data — do NOT output specific handles, "
         "usernames, contact names, channel entries, or OTP token values from specific vaults. "
         "Output only general patterns and steps."
+    ),
+    "email": (
+        "You are curating a workflow wiki for an AI file-system agent.\n"
+        "From the raw task fragments below, extract:\n"
+        "1. Proven step sequences that led to task success (with OUTCOME_OK)\n"
+        "2. Key risks and pitfalls encountered\n"
+        "3. Task-type specific insights and shortcuts\n\n"
+        "Format as structured Markdown sections with ## headers.\n"
+        "Rules: deduplicate, remove outdated entries, prefer concrete over generic.\n"
+        "IMPORTANT — FIX-337: do NOT include ANY vault-specific entity data.\n"
+        "  - NO email addresses (no user@domain strings),\n"
+        "  - NO contact IDs (cont_NNN) or account IDs (acct_NNN, mgr_NNN),\n"
+        "  - NO company names, person names, role titles tied to specific records,\n"
+        "  - NO 'wiki-known account/contact' shortcuts that let the agent skip a\n"
+        "    contact-file read,\n"
+        "  - NO registries / tables mapping account↔contact↔email.\n"
+        "The agent MUST always read /contacts/ before writing outbox — wiki-cached\n"
+        "recipient info caused wrong-recipient failures (t14/t26). Output only\n"
+        "ABSTRACT workflow patterns (e.g. 'search contacts by name → read → use\n"
+        "that file's email field'). Entity-specific data is the poison, not the cure."
+    ),
+    "lookup": (
+        "You are curating a workflow wiki for an AI file-system agent.\n"
+        "From the raw task fragments below, extract:\n"
+        "1. Proven step sequences that led to task success (with OUTCOME_OK)\n"
+        "2. Key risks and pitfalls encountered\n"
+        "3. Task-type specific insights and shortcuts\n\n"
+        "Format as structured Markdown sections with ## headers.\n"
+        "Rules: deduplicate, remove outdated entries, prefer concrete over generic.\n"
+        "IMPORTANT — FIX-337: do NOT output vault-specific entity data (cont_NNN,\n"
+        "acct_NNN, email addresses, person names, company names). Output only\n"
+        "abstract workflow patterns."
     ),
     "_pattern_default": (
         "You are curating a workflow wiki for an AI file-system agent.\n"
@@ -124,15 +231,18 @@ def _read_page(name: str) -> str:
 
 
 def load_wiki_base(task_text: str = "") -> str:
-    """Load errors.md + contacts.md + accounts.md for prephase injection.
+    """Load contacts.md + accounts.md for prephase injection.
 
+    FIX-358: `errors.md` НЕ загружается в runtime-prompt агента. Синтез errors.md
+    из fragments/errors/ продолжается (curated knowledge base для людей), но
+    провальные ран'ы (NONE_CLARIFICATION, DENIED_SECURITY, stall) не должны
+    самоподкреплять ложные паттерны через подмешивание в prompt следующих задач.
     Fail-open: returns '' if wiki not yet accumulated.
     task_text is reserved for Phase 3 entity extraction.
     """
     del task_text  # Phase 3: will extract email/names to load matching entity pages
     parts = []
     for name, header in [
-        ("errors",   "Wiki: Known Errors & Solutions"),
         ("contacts", "Wiki: Known Contacts"),
         ("accounts", "Wiki: Known Accounts"),
     ]:
@@ -152,6 +262,67 @@ def load_wiki_patterns(task_type: str) -> str:
     if content:
         return f"## Wiki: {task_type} Patterns\n{content}"
     return ""
+
+
+def promote_successful_pattern(
+    task_type: str,
+    task_id: str,
+    traj_hash: str,
+    trajectory: list[str],
+    insights: list[str],
+    max_patterns: int = 10,
+) -> bool:
+    """FIX-362: promote a verified success trajectory into pages/<task_type>.md.
+
+    Called by agent.researcher only when the inner loop reports done AND the
+    reflector classifies the cycle as 'solved'. Idempotent by (task_id, traj_hash):
+    repeated promotion of the same trajectory is a no-op. Oldest patterns are
+    rotated to archive/ when page accumulates > max_patterns entries.
+
+    Returns True if a new pattern was written, False if it was already present.
+    """
+    page_name = _TYPE_TO_PAGE.get(task_type, task_type)
+    page_path = _PAGES_DIR / f"{page_name}.md"
+    page_path.parent.mkdir(parents=True, exist_ok=True)
+    existing = _read_page(page_name)
+
+    marker = f"<!-- researcher: {task_id}:{traj_hash} -->"
+    if marker in existing:
+        return False
+
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    traj_block = "\n".join(f"{i + 1}. {step}" for i, step in enumerate(trajectory)) or "(no trajectory)"
+    insights_block = "\n".join(f"- {ins}" for ins in insights) or "- (none)"
+    new_section = (
+        f"\n\n## Successful pattern: {task_id} ({ts})\n"
+        f"{marker}\n\n"
+        f"**Winning trajectory:**\n{traj_block}\n\n"
+        f"**Key insights:**\n{insights_block}\n"
+    )
+
+    merged = (existing.rstrip() + new_section) if existing else new_section.lstrip()
+
+    # Rotate oldest sections if above cap.
+    sections = re.split(r"(?m)^## Successful pattern: ", merged)
+    # sections[0] = preamble; sections[1:] = individual patterns (without the leading "## Successful pattern: ")
+    if len(sections) - 1 > max_patterns:
+        keep_n = max_patterns
+        preamble = sections[0]
+        patterns = sections[1:]
+        archived = patterns[: len(patterns) - keep_n]
+        kept = patterns[len(patterns) - keep_n :]
+        archive_dir = _ARCHIVE_DIR / "patterns" / page_name
+        archive_dir.mkdir(parents=True, exist_ok=True)
+        for idx, pat in enumerate(archived):
+            stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+            archive_path = archive_dir / f"{page_name}_{stamp}_{idx}.md"
+            archive_path.write_text("## Successful pattern: " + pat, encoding="utf-8")
+        merged = preamble + "".join("## Successful pattern: " + p for p in kept)
+
+    page_path.write_text(merged, encoding="utf-8")
+    if _LOG_LEVEL == "DEBUG":
+        print(f"[wiki] promoted pattern {task_id}:{traj_hash[:8]} → {page_path}")
+    return True
 
 
 def write_fragment(task_id: str, category: str, content: str) -> None:
@@ -239,22 +410,64 @@ def format_fragment(
     done_ops: list,
     stall_hints: list,
     eval_last_call: dict | None,
+    score: float = -1.0,
 ) -> list[tuple[str, str]]:
-    """Format wiki fragments based on task outcome.
+    """Format wiki fragments gated by benchmark score (FIX-358).
 
     Returns list of (content, category) pairs. Empty list = nothing to write.
-    Always extracts entity fragments from step_facts regardless of outcome.
+
+    Score routing:
+      score == 1.0  → success: category = task_type (e.g. `temporal`, `crm`)
+      score  < 1.0  → failure: category = `errors/<task_type>` (nested, domain-separated)
+      score == -1.0 → legacy fallback: gate by self-reported outcome (unused
+                      in main.py path — kept for safety if called without score).
+
+    Entity fragments (contacts/accounts) — only on score == 1.0: incorrect runs
+    may contain mis-extracted entity data. On failure we don't pollute entity pages.
     """
     results: list[tuple[str, str]] = []
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
-    # Main outcome fragment
-    write_main = outcome in (
-        "OUTCOME_OK",
-        "OUTCOME_DENIED_SECURITY",
-        "OUTCOME_NONE_CLARIFICATION",
-    ) or bool(stall_hints)
+    # Score-gated routing (FIX-358)
+    if score >= 1.0:
+        # Success path: write success fragment into task_type page
+        raw = _build_raw_fragment(
+            outcome, task_type, task_id, task_text, today,
+            step_facts, done_ops, stall_hints, eval_last_call,
+        )
+        category = task_type if task_type in _TYPE_TO_PAGE else "default"
+        results.append((raw, category))
 
+        # Entity fragments — only on verified success
+        contact_facts = [
+            f for f in step_facts
+            if hasattr(f, "path") and "contacts/" in (f.path or "")
+        ]
+        account_facts = [
+            f for f in step_facts
+            if hasattr(f, "path") and "accounts/" in (f.path or "")
+        ]
+        if contact_facts:
+            results.append((_build_entity_raw(task_id, today, contact_facts), "contacts"))
+        if account_facts:
+            results.append((_build_entity_raw(task_id, today, account_facts), "accounts"))
+        return results
+
+    if 0.0 <= score < 1.0:
+        # Failure path: domain-separated errors (not mixed into pages used at runtime)
+        raw = _build_raw_fragment(
+            outcome, task_type, task_id, task_text, today,
+            step_facts, done_ops, stall_hints, eval_last_call,
+        )
+        domain = task_type if task_type in _TYPE_TO_PAGE else "default"
+        results.append((raw, f"errors/{domain}"))
+        return results
+
+    # Legacy path (score == -1.0, caller didn't pass score) — conservative default:
+    # behave as before to avoid data loss, but this branch should be dead in prod.
+    write_main = outcome in (
+        "OUTCOME_OK", "OUTCOME_DENIED_SECURITY", "OUTCOME_NONE_CLARIFICATION",
+    ) or bool(stall_hints)
     if write_main:
         raw = _build_raw_fragment(
             outcome, task_type, task_id, task_text, today,
@@ -264,21 +477,6 @@ def format_fragment(
         if category not in _TYPE_TO_PAGE:
             category = "errors"
         results.append((raw, category))
-
-    # Entity fragments — always extract from step_facts, independent of outcome
-    contact_facts = [
-        f for f in step_facts
-        if hasattr(f, "path") and "contacts/" in (f.path or "")
-    ]
-    account_facts = [
-        f for f in step_facts
-        if hasattr(f, "path") and "accounts/" in (f.path or "")
-    ]
-    if contact_facts:
-        results.append((_build_entity_raw(task_id, today, contact_facts), "contacts"))
-    if account_facts:
-        results.append((_build_entity_raw(task_id, today, account_facts), "accounts"))
-
     return results
 
 
@@ -295,13 +493,30 @@ def run_wiki_lint(model: str = "", cfg: dict | None = None) -> None:
     if not _FRAGMENTS_DIR.exists():
         return
 
-    categories = [d.name for d in _FRAGMENTS_DIR.iterdir() if d.is_dir()]
+    # FIX-358: categories include top-level (e.g. `temporal`, `crm`) and
+    # nested `errors/<domain>` subdirs. Errors pages land at `pages/errors/<domain>.md`
+    # (not loaded into runtime prompts — curated-only, domain-separated history).
+    categories: list[str] = []
+    for top in sorted(_FRAGMENTS_DIR.iterdir()):
+        if not top.is_dir():
+            continue
+        # FIX-362: research/* fragments are consumed by agent.researcher's inner
+        # addendum builder, not by LLM lint synthesis — skip them here.
+        if top.name == "research":
+            continue
+        if top.name == "errors":
+            for sub in sorted(top.iterdir()):
+                if sub.is_dir():
+                    categories.append(f"errors/{sub.name}")
+        else:
+            categories.append(top.name)
+
     if not categories:
         return
 
     print(f"[wiki-lint] processing {len(categories)} categories: {categories}")
 
-    for category in sorted(categories):
+    for category in categories:
         frag_dir = _FRAGMENTS_DIR / category
         fragments = sorted(frag_dir.glob("*.md"))
         if not fragments:
@@ -313,8 +528,9 @@ def run_wiki_lint(model: str = "", cfg: dict | None = None) -> None:
         merged = _llm_synthesize(existing, new_entries, category, model, cfg)
         merged = _sanitize_synthesized_page(merged)  # FIX-328
 
-        _PAGES_DIR.mkdir(parents=True, exist_ok=True)
-        (_PAGES_DIR / f"{category}.md").write_text(merged, encoding="utf-8")
+        page_path = _PAGES_DIR / f"{category}.md"
+        page_path.parent.mkdir(parents=True, exist_ok=True)
+        page_path.write_text(merged, encoding="utf-8")
 
         archive_dir = _ARCHIVE_DIR / category
         archive_dir.mkdir(parents=True, exist_ok=True)
@@ -335,7 +551,18 @@ def _llm_synthesize(
     if not model:
         return _concat_merge(existing, new_entries)
 
-    synthesis_prompt = _LINT_PROMPTS.get(category, _LINT_PROMPTS["_pattern_default"])
+    # FIX-360: skip LLM synthesis when there's nothing to merge (single new
+    # fragment, empty existing page). Concat is equivalent, and the CC tier
+    # often returns empty result here (model attempts a banned built-in tool,
+    # tool_use block is stripped, result="" → 3×retry before fallback).
+    if len(new_entries) == 1 and not (existing or "").strip():
+        return _concat_merge(existing, new_entries)
+
+    # FIX-358: errors/<domain> categories fall back to the errors-synthesis prompt
+    if category.startswith("errors/") and category not in _LINT_PROMPTS:
+        synthesis_prompt = _LINT_PROMPTS.get("errors", _LINT_PROMPTS["_pattern_default"])
+    else:
+        synthesis_prompt = _LINT_PROMPTS.get(category, _LINT_PROMPTS["_pattern_default"])
     combined_new = "\n\n---\n\n".join(new_entries)
     user_msg = (
         f"{synthesis_prompt}\n\n"
@@ -379,6 +606,17 @@ _NEGATIVE_BOILERPLATE_PATTERNS = [
     re.compile(r"(?im)^.*\bcandidate patterns?\b.*\buntil\b.*$"),
     re.compile(r"(?im)^.*\bunverified\b.*\bdo not treat\b.*$"),
     re.compile(r"(?im)^>\s*No\s+`?OUTCOME_OK`?\s+marker.*$"),
+    # FIX-361: broader clarification-bias catchers. The sanitizer already killed
+    # "Halt and request clarification"; these cover the paraphrases that leaked
+    # into email/default/accounts pages and drove a 66% regression run by
+    # pushing the agent to premature OUTCOME_NONE_CLARIFICATION. Do NOT match
+    # the full enum form `OUTCOME_NONE_CLARIFICATION` — queue.md legitimately
+    # uses it (protected by FIX-351).
+    re.compile(r"(?im)^.*\breturn clarification\b.*$"),
+    re.compile(r"(?im)^.*\bescalate to clarification\b.*$"),
+    re.compile(r"(?im)^.*=\s*clarification\b(?!\s*[A-Z_]).*$"),
+    re.compile(r"(?im)^.*\bclarification,\s*not\s+guessing\b.*$"),
+    re.compile(r"(?im)^.*\bclarification,\s*never\s+a\s+write\b.*$"),
 ]
 
 

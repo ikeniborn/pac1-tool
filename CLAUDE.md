@@ -37,10 +37,34 @@ Key variables:
 - `EVALUATOR_ENABLED` / `PROMPT_BUILDER_ENABLED` — enable/disable DSPy subsystems
 - `MODEL_DEFAULT`, `MODEL_EMAIL`, `MODEL_LOOKUP`, `MODEL_WIKI`, etc. — per-task-type model routing (`MODEL_WIKI` controls wiki-lint; all support `claude-code/*` prefix for CC tier)
 - `CC_ENABLED=1`, `ICLAUDE_CMD`, `CC_MAX_RETRIES` — Claude Code tier config (see `.env.example`)
+- `RESEARCHER_MODE=1` — альтернативный режим (FIX-362); выключает evaluator/stall/timeout, делегирует в `agent/researcher.py`
 
 `models.json` contains per-model provider settings and per-task-type model assignments.
 
 Task types: `think`, `distill`, `email`, `lookup`, `inbox`, `queue`, `capture`, `crm`, `temporal`, `preject`.
+
+### Researcher mode (FIX-362)
+
+Альтернативный режим для сбора данных и ручного разбора сложных задач. Активируется через `RESEARCHER_MODE=1`, normal mode остаётся нетронутым.
+
+Что выключено: evaluator (skeptic-гейт, для исследования неуместен), stall-detector, `TASK_TIMEOUT_S`, DSPy prompt_builder, LLM-voting классификатора (работает только regex fast-path).
+
+Поток: внешний цикл ≤ `RESEARCHER_MAX_CYCLES` (default 10). На каждом цикле — inner `run_loop` (`researcher_mode=True`, `max_steps=RESEARCHER_STEPS_PER_CYCLE`). После inner-loop — reflector.py (1 LLM-вызов) структурирует траекторию в `{outcome, what_worked, what_failed, hypothesis_for_next, key_tool_calls, graph_deltas}`. Фрагмент пишется в `data/wiki/fragments/research/<task_type>/` (run_wiki_lint этот путь пропускает). Между циклами строится новый addendum: previous-cycle reflections + top-K узлов из графа + существующие wiki patterns.
+
+Wiki policy:
+- **fragments** накапливаются все циклы подряд;
+- **pages** обновляются ТОЛЬКО на верифицированном успехе (`reflection.outcome=="solved"` AND агентский `OUTCOME_OK`) через `promote_successful_pattern()` → `## Successful pattern: <task_id> (date)` в `pages/<task_type>.md`. Idempotent по `task_id + hash_trajectory`. Ротация > `WIKI_PAGE_MAX_PATTERNS` → `archive/patterns/`.
+- Повторный negative с той же траекторией → `archive/research_negatives/<task_id>_<hash>.json`, затронутые узлы графа получают `degrade_confidence(-epsilon)`; узлы ниже `WIKI_GRAPH_MIN_CONFIDENCE` → `graph_archive.json`.
+
+Knowledge graph (`agent/wiki_graph.py`, `data/wiki/graph.json`):
+- Узлы: `insight`, `rule`, `pattern`, `antipattern` с `{tags, confidence, uses, last_seen}`
+- Рёбра: `requires`, `conflicts_with`, `generalizes`, `precedes`
+- Retrieval при построении addendum: `retrieve_relevant(graph, task_type, task_text, top_k)` — scoring = tag_overlap + text-token overlap + confidence × log(uses)
+- Инспекция: `uv run python scripts/print_graph.py [--all] [--tag email] [--edges]`
+
+Env-переменные: `RESEARCHER_MODE`, `RESEARCHER_MAX_CYCLES`, `RESEARCHER_STEPS_PER_CYCLE`, `RESEARCHER_MODEL`, `WIKI_GRAPH_ENABLED`, `WIKI_GRAPH_TOP_K`, `WIKI_GRAPH_CONFIDENCE_EPSILON`, `WIKI_GRAPH_MIN_CONFIDENCE`, `WIKI_PAGE_MAX_PATTERNS` (все в `.env.example`).
+
+CC-tier совместим: reflector и inner-loop используют `dispatch.call_llm_raw`, роутинг по `provider` в `models.json`.
 
 ### Task-type registry (FIX-325)
 
@@ -87,7 +111,7 @@ main.py → run_agent()
 
 ### Key Patterns
 
-**Codegen Architecture** (`prompt.py`): The system prompt instructs the agent to write Python code rather than raw JSON. Code runs in a restricted sandbox and produces JSON output — enables complex data analysis (aggregation, date arithmetic, filtering).
+**Tool-Based Architecture** (`prompt.py`): The system prompt instructs the agent to emit structured JSON commands (validated via Pydantic `NextStep`) that name one of the 9 PCM tools. The dispatcher parses the JSON and invokes the matching protobuf RPC against the PCM harness. Claude-native function calling (`tools=`, `tool_use`/`tool_result` blocks) is **not** used — the model is a pure text generator producing JSON. For the Claude Code tier (`cc_client.py`), all built-in tools are explicitly banned via `--disallowed-tools` (FIX-340).
 
 **Discovery-First Prompting**: No vault paths are hardcoded in the system prompt. The agent discovers folder roles from `AGENTS.MD`, pre-loaded in prephase.
 

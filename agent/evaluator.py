@@ -394,6 +394,33 @@ def evaluate_completion(
                 issues = []
                 correction = ""
 
+        # FIX-355: evaluator suggestions that flip VAULT_DATE-based temporal
+        # arithmetic back to currentDate are almost always wrong — benchmark
+        # "today" runs in vault-time (3–5 weeks behind system clock). If the
+        # agent picked VAULT_DATE per FIX-353 and the evaluator proposes
+        # "use currentDate / current date instead", suppress the correction.
+        # Post-mortem t41: agent correctly computed VAULT_DATE+21=2026-04-15
+        # (2 days off expected); evaluator flipped it to currentDate+21=
+        # 2026-05-14 (31 days off). Suggestion caused regression, not fix.
+        if not approved and task_type == "temporal":
+            _agent_state = (getattr(report, "current_state", "") or "").lower()
+            _agent_steps = " ".join(
+                getattr(report, "completed_steps_laconic", []) or []
+            ).lower()
+            _agent_picked_vault = any(
+                _k in (_agent_state + " " + _agent_steps)
+                for _k in ("vault_date", "vault-date", "fix-353", "fix-348", "vault time")
+            )
+            _hint_pushes_currentdate = any(
+                _k in (correction + " " + " ".join(issues)).lower()
+                for _k in ("currentdate", "current date", "system clock", "system date", "use today")
+            )
+            if _agent_picked_vault and _hint_pushes_currentdate:
+                print(f"{CLI_YELLOW}[evaluator] FIX-355: suppressing currentDate push for temporal — agent picked VAULT_DATE per FIX-353{CLI_CLR}")
+                approved = True
+                issues = []
+                correction = ""
+
         return EvalVerdict(approved=approved, issues=issues, correction_hint=correction)
 
     except Exception as e:

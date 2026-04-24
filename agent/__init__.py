@@ -4,16 +4,20 @@ import os
 
 from bitgn.vm.pcm_connect import PcmRuntimeClientSync
 
-from .classifier import ModelRouter, TASK_PREJECT
+from .classifier import ModelRouter, TASK_PREJECT, classify_task
 from .loop import run_loop
 from .prephase import run_prephase
 from .prompt import build_system_prompt
 from .prompt_builder import build_dynamic_addendum
-from .dspy_examples import winning_type as _dspy_winner
-from .wiki import load_wiki_base, load_wiki_patterns, format_fragment, write_fragment
+from .wiki import load_wiki_patterns, format_fragment, write_fragment
 
 _PROMPT_BUILDER_ENABLED = os.getenv("PROMPT_BUILDER_ENABLED", "1") == "1"
 _WIKI_ENABLED = os.getenv("WIKI_ENABLED", "1") == "1"
+# FIX-362: researcher mode master switch. When enabled, run_agent() bypasses
+# the prompt_builder / evaluator / stall / timeout pipeline and delegates to
+# agent.researcher.run_researcher, which drives a bounded outer cycle with
+# reflection, wiki graph retrieval, and success-gated page promotion.
+_RESEARCHER_MODE = os.getenv("RESEARCHER_MODE", "0") == "1"
 try:
     _PROMPT_BUILDER_MAX_TOKENS = int(os.getenv("PROMPT_BUILDER_MAX_TOKENS", "500"))
 except ValueError:
@@ -27,31 +31,24 @@ def _inject_addendum(base_prompt: str, addendum: str) -> str:
     return base_prompt + "\n\n## TASK-SPECIFIC GUIDANCE\n" + addendum
 
 
-_WIKI_DEDUP_SUCCESS = os.getenv("WIKI_DEDUP_SUCCESS") == "1"
+def write_wiki_fragment(
+    task_text: str,
+    task_type: str,
+    stats: dict,
+    task_id: str,
+    score: float,
+) -> None:
+    """Write wiki fragments gated by benchmark score (FIX-358). Fail-open.
 
-
-def _write_wiki_fragment(vm: "PcmRuntimeClientSync", task_text: str, task_type: str, stats: dict, task_id: str = "") -> None:
-    """Write wiki fragments after task completion. Fail-open.
-
-    FIX-N+3: when WIKI_DEDUP_SUCCESS=1, skip writes for task_types that conflict
-    with the pinned winning type for this task_text (protects the wiki corpus
-    from classifier drift). Successes (OUTCOME_OK) always flow through — they
-    are the signal used to pin winners elsewhere in the pipeline.
-
-    FIX-N+6: task_id is passed explicitly from main.py (the harness trial.task_id,
-    e.g. 't01', 't05'). Falls back to vm._task_id (set only under TRACE_ENABLED=1)
-    and finally to a slug of task_text for resilience.
+    Called by main.py AFTER client.end_trial() returns the benchmark score.
+    score == 1.0 → success fragment in `fragments/<task_type>/`.
+    score <  1.0 → error fragment in `fragments/errors/<task_type>/`.
     """
     outcome = stats.get("outcome", "")
-    if _WIKI_DEDUP_SUCCESS and outcome != "OUTCOME_OK":
-        pinned = _dspy_winner(task_text)
-        if pinned is not None and pinned != task_type:
-            print(f"[wiki] skip fragment: task_type={task_type!r} conflicts with pinned {pinned!r}")
-            return
     try:
-        task_id = task_id or getattr(vm, "_task_id", "") or task_text[:20].replace(" ", "_")
+        task_id = task_id or task_text[:20].replace(" ", "_")
         fragments = format_fragment(
-            outcome=stats.get("outcome", ""),
+            outcome=outcome,
             task_type=task_type,
             task_id=task_id,
             task_text=task_text,
@@ -59,6 +56,7 @@ def _write_wiki_fragment(vm: "PcmRuntimeClientSync", task_text: str, task_type: 
             done_ops=stats.get("done_ops", []),
             stall_hints=stats.get("stall_hints", []),
             eval_last_call=stats.get("eval_last_call"),
+            score=score,
         )
         for content, category in fragments:
             if content and category:
@@ -81,6 +79,26 @@ def run_agent(router: ModelRouter, harness_url: str, task_text: str, task_id: st
     Returns a dict with keys: input_tokens, output_tokens, thinking_tokens, model_used,
     task_type.
     """
+    # FIX-362: Researcher mode short-circuits the full pipeline. It classifies
+    # via the fast regex path (no LLM voting), picks a single model, and runs
+    # an outer cycle with reflection + graph retrieval. Evaluator/stall/timeout
+    # all stay off. Normal mode is unaffected by this branch.
+    if _RESEARCHER_MODE:
+        from .researcher import run_researcher
+        task_type = classify_task(task_text)
+        researcher_model = os.getenv("RESEARCHER_MODEL") or router._select_model(task_type)
+        researcher_cfg = router._adapt_config(
+            router.configs.get(researcher_model, {}), task_type
+        )
+        return run_researcher(
+            harness_url=harness_url,
+            task_text=task_text,
+            task_id=task_id or task_text[:20].replace(" ", "_"),
+            task_type=task_type,
+            model=researcher_model,
+            cfg=researcher_cfg,
+        )
+
     vm = PcmRuntimeClientSync(harness_url)
 
     pre = run_prephase(vm, task_text, "")
@@ -100,19 +118,20 @@ def run_agent(router: ModelRouter, harness_url: str, task_text: str, task_id: st
         stats["builder_in_tok"] = 0
         stats["builder_out_tok"] = 0
         stats["builder_addendum"] = ""
-        if _WIKI_ENABLED:
-            _write_wiki_fragment(vm, task_text, task_type, stats, task_id=task_id)
+        # FIX-358: wiki fragment write deferred to main.py (score-gated)
         return stats
 
-    # Wiki-Memory stage B: inject base (errors/contacts/accounts) + task-type patterns (FIX-103, FIX-304)
+    # Wiki-Memory stage B (FIX-358): inject ONLY task-type patterns.
+    # `load_wiki_base` (contacts.md + accounts.md) removed — entity-catalog
+    # injection was redundant: FIX-346/FIX-350 enforce force-read-before-write
+    # against the live vault for /accounts/ and /contacts/, so wiki-cached
+    # entity data was both unnecessary and a staleness risk.
     if _WIKI_ENABLED:
-        _wiki_base = load_wiki_base(task_text)      # FIX-304: errors, contacts, accounts for all types
         _wiki_patterns = load_wiki_patterns(task_type)
-        _wiki_inject = "\n\n".join(p for p in [_wiki_base, _wiki_patterns] if p)
-        if _wiki_inject:
+        if _wiki_patterns:
             for i in range(len(pre.preserve_prefix) - 1, -1, -1):
                 if pre.preserve_prefix[i].get("role") == "user":
-                    pre.preserve_prefix[i]["content"] += f"\n\n{_wiki_inject}"
+                    pre.preserve_prefix[i]["content"] += f"\n\n{_wiki_patterns}"
                     pre.log[i]["content"] = pre.preserve_prefix[i]["content"]
                     break
 
@@ -148,6 +167,5 @@ def run_agent(router: ModelRouter, harness_url: str, task_text: str, task_id: st
     stats["builder_in_tok"] = builder_in_tok
     stats["builder_out_tok"] = builder_out_tok
     stats["builder_addendum"] = addendum
-    if _WIKI_ENABLED:
-        _write_wiki_fragment(vm, task_text, task_type, stats, task_id=task_id)
+    # FIX-358: wiki fragment write deferred to main.py (score-gated)
     return stats

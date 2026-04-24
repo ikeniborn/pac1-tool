@@ -59,7 +59,7 @@ def _collect_stdout(pipe, buf: list[str]) -> None:
         pass
 
 
-def _parse_envelope(lines: list[str]) -> tuple[str, int, int, int, int]:
+def _parse_envelope(lines: list[str]) -> tuple[str, int, int, int, int, str]:
     """Extract result text and token usage from iclaude --output-format json.
     Envelope shape: {"type":"result","subtype":"success","result":"...",
                      "usage":{"input_tokens":N,"cache_creation_input_tokens":N,
@@ -67,9 +67,11 @@ def _parse_envelope(lines: list[str]) -> tuple[str, int, int, int, int]:
                      "modelUsage":{"<model>":{"inputTokens":N,"outputTokens":N,
                                               "cacheCreationInputTokens":N,
                                               "cacheReadInputTokens":N}}}.
-    Returns (text, fresh_in_tok, out_tok, cache_creation, cache_read).
+    Returns (text, fresh_in_tok, out_tok, cache_creation, cache_read, stop_reason).
     FIX-N: separates fresh input from cached tokens (Claude API semantics —
     usage.input_tokens is ONLY the non-cached portion of the last message).
+    FIX-361: also returns stop_reason to let the caller detect a legitimately
+    empty generation (end_turn with result="") and skip pointless retries.
     Scans lines in reverse for the last success envelope."""
     for line in reversed(lines):
         line = line.strip()
@@ -84,6 +86,9 @@ def _parse_envelope(lines: list[str]) -> tuple[str, int, int, int, int]:
         text = obj.get("result", "")
         if not isinstance(text, str):
             continue
+        stop_reason = obj.get("stop_reason") or ""
+        if not isinstance(stop_reason, str):
+            stop_reason = ""
         in_tok = 0
         out_tok = 0
         cache_cr = 0
@@ -103,8 +108,8 @@ def _parse_envelope(lines: list[str]) -> tuple[str, int, int, int, int]:
                         out_tok += int(per_model.get("outputTokens") or 0)
                         cache_cr += int(per_model.get("cacheCreationInputTokens") or 0)
                         cache_rd += int(per_model.get("cacheReadInputTokens") or 0)
-        return text, in_tok, out_tok, cache_cr, cache_rd
-    return "", 0, 0, 0, 0
+        return text, in_tok, out_tok, cache_cr, cache_rd, stop_reason
+    return "", 0, 0, 0, 0, ""
 
 
 def _spawn_once(
@@ -205,8 +210,33 @@ def cc_complete(
         sys_prompt += (
             "\n\n# Output format\n"
             "Return ONLY a valid JSON object. "
-            "No preamble, no code fences, no commentary."
+            "No preamble, no code fences, no commentary.\n"
+            "\n# Execution model (FIX-340)\n"
+            "You are a PURE LLM text generator. You have NO local tools: NO "
+            "Bash, NO Glob, NO Grep, NO Read, NO Write — they are disabled. "
+            "Your subprocess cwd is an empty tmpdir and is irrelevant. The "
+            "vault lives in the PCM harness — your JSON `function` field "
+            "describes the NEXT PCM tool call; the host agent dispatches it "
+            "and returns the result in the NEXT user message.\n"
+            "Do NOT claim 'vault not mounted', 'filesystem unmounted', or "
+            "'file not found' unless a PCM tool call in THIS conversation "
+            "returned such an error. Observations from your own environment "
+            "(ls, glob, cwd) are hallucinations and must be ignored."
         )
+
+    # FIX-340: ban ALL Claude Code built-in tools. iclaude's underlying `claude`
+    # ships with Bash/Glob/Grep/Read/Write/Edit/Task/WebFetch/WebSearch/TodoWrite
+    # built-in — NOT covered by --mcp-config, NOT MCP. When enabled, the model
+    # tries to satisfy "find /inbox/msg_001.txt" via its own Read/Glob on the
+    # subprocess cwd (/tmp/cc_cwd_*), fails, declares "vault not mounted", and
+    # returns OUTCOME_NONE_CLARIFICATION (t19, t29 post-mortem).
+    # iclaude must act as a PURE LLM text-generator: produce PCM JSON only; the
+    # agent loop dispatches the described PCM tool through the BitGN harness.
+    _CC_BUILTIN_TOOLS_BAN = (
+        "Bash BashOutput KillShell KillBash Glob Grep Read Write Edit MultiEdit "
+        "NotebookEdit NotebookRead TodoWrite Task WebFetch WebSearch "
+        "SlashCommand ExitPlanMode AskUserQuestion"
+    )
 
     cmd = [
         *shlex.split(_ICLAUDE_CMD),
@@ -214,6 +244,7 @@ def cc_complete(
         "--print",
         "--strict-mcp-config",
         "--mcp-config", cfg_path,
+        "--disallowed-tools", _CC_BUILTIN_TOOLS_BAN,
         "--system-prompt", sys_prompt,
         "--output-format", "json",
     ]
@@ -261,7 +292,7 @@ def cc_complete(
     try:
         for attempt in range(_CC_MAX_RETRIES + 1):
             stdout_lines, exit_code, fail_reason = _spawn_once(cmd, cwd, env, cc_timeout)
-            text, in_tok, out_tok, cache_cr, cache_rd = _parse_envelope(stdout_lines)
+            text, in_tok, out_tok, cache_cr, cache_rd, stop_reason = _parse_envelope(stdout_lines)
             if text:
                 if token_out is not None:
                     token_out["input"] = in_tok
@@ -270,12 +301,26 @@ def cc_complete(
                     token_out["cache_read"] = cache_rd      # FIX-N
                 return text
 
+            # FIX-361: legitimately empty generation — model produced output
+            # tokens but result="" (likely a banned built-in tool_use stripped
+            # by iclaude). Retry cannot fix this; fail fast to skip the 4s×N
+            # backoff and let the caller fall back.
+            legitimately_empty = (
+                stop_reason == "end_turn" and out_tok > 0 and fail_reason == "ok"
+            )
+
             # FIX-N+4: diagnostic — dump tail of stdout so we can distinguish
             # "iclaude crashed silently" vs "envelope parse failed" vs "rate-limited".
             _debug = os.environ.get("CC_DEBUG_EMPTY") == "1"
-            if _debug or attempt >= _CC_MAX_RETRIES:
+            if _debug or attempt >= _CC_MAX_RETRIES or legitimately_empty:
                 tail = "".join(stdout_lines[-8:]).rstrip()[:800] or "<empty>"
                 print(f"[CC] stdout tail (last {min(8, len(stdout_lines))} lines):\n{tail}")
+            if legitimately_empty:
+                print(
+                    f"[CC] empty result with stop_reason=end_turn, output_tokens={out_tok} "
+                    f"— not retrying (likely banned tool_use stripped)"
+                )
+                break
             if attempt < _CC_MAX_RETRIES:
                 print(
                     f"[CC] {fail_reason} or empty "
