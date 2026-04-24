@@ -1,0 +1,12 @@
+{
+  "task_id": "t42",
+  "task_type": "default",
+  "traj_hash": "6404b89d8149",
+  "cycles": 10,
+  "last_reflection": {
+    "outcome": "partial",
+    "what_failed": [
+      "reporttaskcompletion returned ERROR INVALID_ARGUMENT — result was not delivered to the user"
+    ]
+  }
+}

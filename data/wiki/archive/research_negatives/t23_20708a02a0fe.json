@@ -1,0 +1,12 @@
+{
+  "task_id": "t23",
+  "task_type": "default",
+  "traj_hash": "20708a02a0fe",
+  "cycles": 10,
+  "last_reflection": {
+    "outcome": "error",
+    "what_failed": [
+      "reporttaskcompletion call returned ERROR INVALID_ARGUMENT — the tool call was malformed or used incorrect parameters"
+    ]
+  }
+}

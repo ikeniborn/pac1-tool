@@ -1,0 +1,14 @@
+{
+  "task_id": "t43",
+  "task_type": "default",
+  "traj_hash": "071f03a47066",
+  "cycles": 15,
+  "last_reflection": {
+    "outcome": "partial",
+    "what_failed": [
+      "reporttaskcompletion call returned ERROR INVALID_ARGUMENT — result was never delivered",
+      "DONE_OPS remained empty, so no confirmed answer was recorded",
+      "File listing was truncated; the target date (48 days prior) was not conclusively matched in the visible slice"
+    ]
+  }
+}

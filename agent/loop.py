@@ -181,6 +181,8 @@ class _LoopState:
     # FIX-362: researcher mode — disables evaluator/stall/timeout inside the inner loop.
     # Set by run_loop() when called by agent.researcher; default False preserves normal behaviour.
     researcher_mode: bool = False
+    # FIX-374: last ReportTaskCompletion — exposed to researcher outer-loop evaluator gate.
+    last_report: "ReportTaskCompletion | None" = None
     # FIX-251: pre-write JSON snapshot for unicode fidelity check
     _pre_write_snapshot: dict | None = None
     # FIX-259: format-gate fired flag — hard-enforces CLARIFICATION outcome + evaluator bypass
@@ -834,6 +836,8 @@ def _st_to_result(st: _LoopState) -> dict:
         "step_facts": st.step_facts,
         "done_ops": st.done_ops,
         "stall_hints": [f.summary for f in st.step_facts if f.kind == "stall"],
+        # FIX-374: last ReportTaskCompletion for researcher evaluator gate
+        "report": st.last_report,
     }
 
 
@@ -2250,6 +2254,7 @@ def _run_step(
 
     if isinstance(job.function, ReportTaskCompletion):
         st.outcome = job.function.outcome  # FIX-303: capture for wiki fragment writing
+        st.last_report = job.function  # FIX-374: evaluator gate needs full report in researcher mode
         status = CLI_GREEN if job.function.outcome == "OUTCOME_OK" else CLI_YELLOW
         print(f"{status}agent {job.function.outcome}{CLI_CLR}. Summary:")
         for item in job.function.completed_steps_laconic:

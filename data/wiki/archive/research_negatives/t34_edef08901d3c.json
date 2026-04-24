@@ -1,0 +1,15 @@
+{
+  "task_id": "t34",
+  "task_type": "default",
+  "traj_hash": "edef08901d3c",
+  "cycles": 10,
+  "last_reflection": {
+    "outcome": "partial",
+    "what_failed": [
+      "acct_009 was never read — a candidate file identified by search was left uninspected",
+      "acct_004 status is 'active', not 'security review' — fails the account-status filter",
+      "Dutch nationality of the account was not confirmed for any candidate",
+      "reporttaskcompletion call returned ERROR INVALID_ARGUMENT — answer was never delivered"
+    ]
+  }
+}

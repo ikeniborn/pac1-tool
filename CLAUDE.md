@@ -59,13 +59,25 @@ Wiki policy:
 - **verified refusals** (FIX-366): terminal refusal (`NONE_CLARIFICATION`/`NONE_UNSUPPORTED`/`DENIED_SECURITY`) + `score==1.0` → `promote_verified_refusal()` записывает `## Verified refusal: <task_id> (date)` в тот же `pages/<task_type>.md`. Отдельный маркер `<!-- refusal: task_id:outcome -->`, ротация в `archive/refusals/<page>/`.
 - Повторный negative с той же траекторией → `archive/research_negatives/<task_id>_<hash>.json`, затронутые узлы графа получают `degrade_confidence(-epsilon)`; узлы ниже `WIKI_GRAPH_MIN_CONFIDENCE` → `graph_archive.json`.
 
+Cycle-retry policy (FIX-374): benchmark score недоступен внутри trial'а, поэтому между циклами работают два разных механизма продолжения.
+- **Terminal refusal** (`OUTCOME_NONE_CLARIFICATION`/`NONE_UNSUPPORTED`/`DENIED_SECURITY`) — retry с хинтом `REFUSAL_RETRY: ...` в `hypothesis_for_next` до `RESEARCHER_REFUSAL_MAX_RETRIES` раз (default 3), далее принимаем refusal и short-circuit с `pending_refusal`. Evaluator не вызывается (наблюдаемый false-approve на t11). Cap нужен чтобы агент, сходящийся на refusal, не жёг все `max_cycles` впустую.
+- **Self-OUTCOME_OK** при `RESEARCHER_EVAL_GATED=1` и `cycle < max_cycles` — вызов `evaluate_completion()` как прокси-score. `approved=False` → `EVAL_REJECTED: ...` в `hypothesis_for_next`, `continue`. `approved=True` → short-circuit + `pending_promotion`. Fail-open на любой ошибке evaluator'а.
+- Запись в `pages/` по-прежнему гейчится реальным `score≥1.0` в `main.py`.
+- Env: `RESEARCHER_EVAL_GATED` (default 0), `RESEARCHER_EVAL_SKEPTICISM=high`, `RESEARCHER_EVAL_EFFICIENCY=mid`. Refusal-retry всегда включён в researcher mode, флага нет.
+- DSPy сбор: при `DSPY_COLLECT=1` + `RESEARCHER_EVAL_GATED=1` последний gate-call записывается в `data/dspy_eval_examples.jsonl` с реальным `score` как label (`score==1.0 → yes`, иначе `no`). Особо ценны false-approves (approved + score=0) — учат evaluator ловить неверные self-OUTCOME_OK. Builder-примеры не собираются (addendum строит reflector).
+
+OUTCOME_FLIP_HINT + diversification detector (FIX-375): два симметричных механизма выхода из local minimum reflector'а.
+- **OK-side flip**: в ветке evaluator reject при ≥2 rejection'ах с Jaccard-similarity reason'ов ≥ threshold ИЛИ монотонности последних `K+1` сырых `hypothesis_for_next` — в `hypothesis_for_next` добавляется `OUTCOME_FLIP_HINT: ...consider OUTCOME_NONE_CLARIFICATION/UNSUPPORTED`. Цель: t43-класс (reflector залип на одной интерпретации, evaluator отклоняет с одним и тем же reason).
+- **Refusal last-chance**: после `RESEARCHER_REFUSAL_MAX_RETRIES` exhausted вместо сразу accept — один extra цикл с зеркальным `OUTCOME_FLIP_HINT: ...attempt any plausible interpretation where task IS answerable`. Цель: t11/t19-класс (агент упорно refuse'ит, но задача может быть решаема).
+- Env: `RESEARCHER_FLIP_HINT_ENABLED=1`, `RESEARCHER_FLIP_REASON_SIMILARITY_THRESHOLD=0.5`, `RESEARCHER_FLIP_HYP_MONOTONIC_K=2`, `RESEARCHER_FLIP_HYP_SIMILARITY_THRESHOLD=0.6`, `RESEARCHER_REFUSAL_LAST_CHANCE=1`. Stats: `researcher_flip_hints_injected`.
+
 Knowledge graph (`agent/wiki_graph.py`, `data/wiki/graph.json`):
 - Узлы: `insight`, `rule`, `pattern`, `antipattern` с `{tags, confidence, uses, last_seen}`
 - Рёбра: `requires`, `conflicts_with`, `generalizes`, `precedes`
 - Retrieval при построении addendum: `retrieve_relevant(graph, task_type, task_text, top_k)` — scoring = tag_overlap + text-token overlap + confidence × log(uses)
 - Инспекция: `uv run python scripts/print_graph.py [--all] [--tag email] [--edges]`
 
-Env-переменные: `RESEARCHER_MODE`, `RESEARCHER_MAX_CYCLES`, `RESEARCHER_STEPS_PER_CYCLE`, `MODEL_RESEARCHER`, `RESEARCHER_LOG_ENABLED`, `RESEARCHER_NEGATIVES_ENABLED`/`RESEARCHER_NEGATIVES_TOP_K` (FIX-370), `RESEARCHER_SHORT_CIRCUIT`/`RESEARCHER_SHORT_CIRCUIT_THRESHOLD` (FIX-371, offline-only), `RESEARCHER_DRIFT_HINTS`/`RESEARCHER_DRIFT_PREFIX_LEN` (FIX-372), `WIKI_GRAPH_ENABLED`, `WIKI_GRAPH_TOP_K`, `WIKI_GRAPH_CONFIDENCE_EPSILON`, `WIKI_GRAPH_MIN_CONFIDENCE`, `WIKI_PAGE_MAX_PATTERNS` (все в `.env.example`).
+Env-переменные: `RESEARCHER_MODE`, `RESEARCHER_MAX_CYCLES`, `RESEARCHER_STEPS_PER_CYCLE`, `MODEL_RESEARCHER`, `RESEARCHER_LOG_ENABLED`, `RESEARCHER_NEGATIVES_ENABLED`/`RESEARCHER_NEGATIVES_TOP_K` (FIX-370), `RESEARCHER_SHORT_CIRCUIT`/`RESEARCHER_SHORT_CIRCUIT_THRESHOLD` (FIX-371, offline-only), `RESEARCHER_DRIFT_HINTS`/`RESEARCHER_DRIFT_PREFIX_LEN` (FIX-372), `RESEARCHER_EVAL_GATED`/`RESEARCHER_EVAL_SKEPTICISM`/`RESEARCHER_EVAL_EFFICIENCY` (FIX-374), `RESEARCHER_FLIP_HINT_ENABLED`/`RESEARCHER_FLIP_REASON_SIMILARITY_THRESHOLD`/`RESEARCHER_FLIP_HYP_MONOTONIC_K`/`RESEARCHER_FLIP_HYP_SIMILARITY_THRESHOLD`/`RESEARCHER_REFUSAL_LAST_CHANCE` (FIX-375), `WIKI_GRAPH_ENABLED`, `WIKI_GRAPH_TOP_K`, `WIKI_GRAPH_CONFIDENCE_EPSILON`, `WIKI_GRAPH_MIN_CONFIDENCE`, `WIKI_PAGE_MAX_PATTERNS` (все в `.env.example`).
 
 CC-tier совместим: reflector и inner-loop используют `dispatch.call_llm_raw`, роутинг по `provider` в `models.json`.
 

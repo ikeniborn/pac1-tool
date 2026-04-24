@@ -61,6 +61,30 @@ _SHORT_CIRCUIT_THRESHOLD = float(os.environ.get("RESEARCHER_SHORT_CIRCUIT_THRESH
 _DRIFT_HINTS = os.environ.get("RESEARCHER_DRIFT_HINTS", "1") == "1"
 _DRIFT_PREFIX_LEN = int(os.environ.get("RESEARCHER_DRIFT_PREFIX_LEN", "3"))
 
+# FIX-374: evaluator gate between outer cycles. Proxy for benchmark score
+# (unavailable mid-trial). Agent self-OUTCOME_OK or terminal refusal go through
+# evaluator first; on reject + cycles_remaining > 0, continue instead of short-
+# circuit. Wiki promotion remains gated by real benchmark score in main.py.
+_EVAL_GATED = os.environ.get("RESEARCHER_EVAL_GATED", "0") == "1"
+_EVAL_SKEPTICISM = os.environ.get("RESEARCHER_EVAL_SKEPTICISM", "high")
+_EVAL_EFFICIENCY = os.environ.get("RESEARCHER_EVAL_EFFICIENCY", "mid")
+_REFUSAL_MAX_RETRIES = int(os.environ.get("RESEARCHER_REFUSAL_MAX_RETRIES", "3"))
+
+# FIX-375: OUTCOME_FLIP_HINT + diversification detector. When the agent keeps
+# proposing the same outcome (OK rejected repeatedly with similar reason, OR
+# hypotheses monotonic), inject a hint suggesting the opposite outcome. Also
+# gives one last-chance cycle after refusal cap, with the flip hint, to give
+# the agent a chance to find an answerable interpretation before final accept.
+_FLIP_HINT_ENABLED = os.environ.get("RESEARCHER_FLIP_HINT_ENABLED", "1") == "1"
+_FLIP_REASON_SIM_THRESHOLD = float(
+    os.environ.get("RESEARCHER_FLIP_REASON_SIMILARITY_THRESHOLD", "0.5")
+)
+_FLIP_HYP_MONOTONIC_K = int(os.environ.get("RESEARCHER_FLIP_HYP_MONOTONIC_K", "2"))
+_FLIP_HYP_SIM_THRESHOLD = float(
+    os.environ.get("RESEARCHER_FLIP_HYP_SIMILARITY_THRESHOLD", "0.6")
+)
+_REFUSAL_LAST_CHANCE = os.environ.get("RESEARCHER_REFUSAL_LAST_CHANCE", "1") == "1"
+
 _LOG_DIR = Path(__file__).parent.parent / "logs" / "researcher"
 _NEGATIVES_DIR = Path(__file__).parent.parent / "data" / "wiki" / "archive" / "research_negatives"
 _PAGES_DIR = Path(__file__).parent.parent / "data" / "wiki" / "pages"
@@ -69,6 +93,29 @@ _TOKEN_RE = re.compile(r"[a-z0-9]+")
 
 def _tokenize(text: str) -> set[str]:
     return set(_TOKEN_RE.findall((text or "").lower()))
+
+
+def _jaccard(a: str, b: str) -> float:
+    ta, tb = _tokenize(a), _tokenize(b)
+    if not ta or not tb:
+        return 0.0
+    union = ta | tb
+    return len(ta & tb) / len(union) if union else 0.0
+
+
+def _is_monotonic_hypothesis(history: list[str], k: int, threshold: float) -> bool:
+    """True if the last k+1 entries are pairwise similar above threshold.
+
+    Used to detect reflector getting stuck in one interpretation.
+    """
+    if len(history) < k + 1:
+        return False
+    recent = history[-(k + 1):]
+    for i in range(len(recent)):
+        for j in range(i + 1, len(recent)):
+            if _jaccard(recent[i], recent[j]) < threshold:
+                return False
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -305,6 +352,23 @@ def _build_structured_trajectory(step_facts: list, limit: int = 12) -> list[dict
     return out
 
 
+def _reset_task_log_dir(task_id: str) -> None:
+    """Wipe logs/researcher/<task_id>/ before a new run.
+
+    Prevents stale cycle_N.jsonl files from a previous run (which had more
+    cycles) masquerading as part of the current run. Fail-open.
+    """
+    if not _LOG_ENABLED:
+        return
+    try:
+        import shutil
+        d = _LOG_DIR / (task_id or "task")
+        if d.exists():
+            shutil.rmtree(d)
+    except Exception as e:
+        print(f"[researcher] log reset failed: {e}")
+
+
 def _log_cycle(task_id: str, cycle: int, payload: dict) -> None:
     if not _LOG_ENABLED:
         return
@@ -317,6 +381,84 @@ def _log_cycle(task_id: str, cycle: int, payload: dict) -> None:
         )
     except Exception as e:
         print(f"[researcher] log write failed: {e}")
+
+
+# ---------------------------------------------------------------------------
+# FIX-374: evaluator gate — proxy-score between outer cycles
+# ---------------------------------------------------------------------------
+
+
+def _evaluator_gate(
+    *,
+    task_text: str,
+    task_type: str,
+    report,
+    done_ops: list[str],
+    step_facts: list,
+    model: str,
+    cfg: dict,
+    stats: dict,
+) -> tuple[bool, list[str], str]:
+    """Call evaluator as a benchmark-score proxy. Fail-open on any error.
+
+    Returns: (approved, issues, correction_hint).
+    Side-effect: on successful call, stores DSPy sample in stats["eval_last_call"]
+    and bumps stats["evaluator_calls"] so main.py can feed it to record_eval_example
+    after end_trial (benchmark score becomes the ground truth label).
+    """
+    if report is None:
+        return (True, [], "")
+    try:
+        from .evaluator import evaluate_completion  # lazy — avoid DSPy import when disabled
+        from .log_compaction import build_digest
+    except Exception as exc:
+        print(f"[researcher] evaluator gate import failed ({exc}) — fail-open")
+        return (True, [], "")
+
+    digest = ""
+    try:
+        if _EVAL_EFFICIENCY == "high" and step_facts:
+            digest = build_digest(step_facts)
+    except Exception:
+        digest = ""
+
+    try:
+        verdict = evaluate_completion(
+            task_text=task_text,
+            task_type=task_type,
+            report=report,
+            done_ops=done_ops,
+            digest_str=digest,
+            model=model,
+            cfg=cfg,
+            skepticism=_EVAL_SKEPTICISM,
+            efficiency=_EVAL_EFFICIENCY,
+        )
+    except Exception as exc:
+        print(f"[researcher] evaluator gate failed ({exc}) — fail-open")
+        return (True, [], "")
+
+    # DSPy sample: mirror the shape loop.py:2131 uses so main.py's existing
+    # record_eval_example path picks it up unchanged. Last gate call wins —
+    # it's the one tied to the cycle that produced the final benchmark score.
+    _steps_list = getattr(report, "completed_steps_laconic", []) or []
+    _steps_str = "\n".join(f"- {s}" for s in _steps_list)
+    stats["eval_last_call"] = {
+        "task_text": task_text,
+        "task_type": task_type,
+        "proposed_outcome": getattr(report, "outcome", "") or "",
+        "agent_message": getattr(report, "message", "") or "",
+        "done_ops": "\n".join(f"- {op}" for op in done_ops) or "(none)",
+        "completed_steps": _steps_str or "(none)",
+        "skepticism_level": _EVAL_SKEPTICISM,
+    }
+    stats["evaluator_calls"] = stats.get("evaluator_calls", 0) + 1
+
+    return (
+        bool(getattr(verdict, "approved", True)),
+        list(getattr(verdict, "issues", []) or []),
+        str(getattr(verdict, "correction_hint", "") or ""),
+    )
 
 
 def _empty_stats() -> dict:
@@ -375,6 +517,10 @@ def run_researcher(
     stats["builder_out_tok"] = 0
     stats["builder_addendum"] = ""
 
+    # Wipe stale cycle files from a prior run of this task — otherwise a
+    # shorter new run leaves cycle_N.jsonl files from the previous, longer run.
+    _reset_task_log_dir(task_id)
+
     graph = wiki_graph.load_graph() if _GRAPH_ENABLED else wiki_graph.Graph()
     cycle_reflections: list[Reflection] = []
     touched_node_ids: list[str] = []
@@ -401,6 +547,10 @@ def run_researcher(
             stats["outcome"] = "OUTCOME_OK"
             stats["researcher_cached_answer"] = matched_pattern.get("final_answer", "")
             return stats
+
+    # FIX-375: state for diversification detector + flip-hint logic.
+    _hypothesis_history: list[str] = []
+    _eval_reject_reasons: list[str] = []
 
     for cycle in range(1, max_cycles + 1):
         stats["researcher_cycles_used"] = cycle
@@ -470,6 +620,10 @@ def run_researcher(
             cfg=cfg,
         )
         cycle_reflections.append(reflection)
+        # FIX-375: capture RAW reflector hypothesis before any hint mutations
+        # (drift/refusal_retry/eval_rejected/flip). Detector measures reflector
+        # monotonicity, not our own injected suffixes.
+        _hypothesis_history.append(reflection.hypothesis_for_next or "")
         # FIX-365: fold reflector LLM tokens into the task totals.
         stats["input_tokens"] = stats.get("input_tokens", 0) + reflection.input_tokens
         stats["output_tokens"] = stats.get("output_tokens", 0) + reflection.output_tokens
@@ -518,9 +672,140 @@ def run_researcher(
             touched = wiki_graph.merge_updates(graph, reflection.graph_deltas)
             touched_node_ids.extend(touched)
 
+        # FIX-374: terminal refusals in researcher mode retry up to
+        # RESEARCHER_REFUSAL_MAX_RETRIES times (default 3). Beyond that, the
+        # agent has clearly converged on refusal — wasting remaining cycles is
+        # pointless. Evaluator is not consulted: observed false-approve on t11.
+        if agent_outcome in _TERMINAL_REFUSALS and cycle < max_cycles:
+            _retries = stats.get("researcher_refusal_retries", 0)
+            if _retries < _REFUSAL_MAX_RETRIES:
+                stats["researcher_refusal_retries"] = _retries + 1
+                _reason = (
+                    (reflection.what_failed[0] if reflection.what_failed else "")
+                    or "refusal retry — search harder for actionable path"
+                )
+                _existing = (reflection.hypothesis_for_next or "").strip()
+                reflection.hypothesis_for_next = (
+                    f"{_existing} | REFUSAL_RETRY: {_reason}" if _existing
+                    else f"REFUSAL_RETRY: {_reason}"
+                )
+                print(
+                    f"[researcher] terminal refusal {agent_outcome} on cycle {cycle} "
+                    f"— retrying ({_retries + 1}/{_REFUSAL_MAX_RETRIES})"
+                )
+                continue
+            # FIX-375: refusal last-chance — one extra cycle with flip hint
+            # before final accept. Gives the agent a chance to find an
+            # answerable interpretation after exhausting retry budget.
+            if (
+                _REFUSAL_LAST_CHANCE
+                and _FLIP_HINT_ENABLED
+                and not stats.get("researcher_refusal_last_chance_used")
+            ):
+                stats["researcher_refusal_last_chance_used"] = True
+                stats["researcher_flip_hints_injected"] = (
+                    stats.get("researcher_flip_hints_injected", 0) + 1
+                )
+                _last_reason = (
+                    (reflection.what_failed[0] if reflection.what_failed else "")
+                    or "refused with same reasoning"
+                )[:200]
+                _flip = (
+                    f"OUTCOME_FLIP_HINT: You've refused {_REFUSAL_MAX_RETRIES} times "
+                    f"citing '{_last_reason}'. If there's ANY plausible interpretation "
+                    f"where the task IS answerable (different tool semantics, different "
+                    f"target folder, different definition of the verb), attempt it now. "
+                    f"This is your last cycle before final accept."
+                )
+                _existing = (reflection.hypothesis_for_next or "").strip()
+                reflection.hypothesis_for_next = (
+                    f"{_existing} | {_flip}" if _existing else _flip
+                )
+                print(
+                    f"[researcher] terminal refusal {agent_outcome} on cycle {cycle} "
+                    f"— last-chance cycle with OUTCOME_FLIP_HINT"
+                )
+                continue
+            print(
+                f"[researcher] terminal refusal {agent_outcome} on cycle {cycle} "
+                f"— retry limit {_REFUSAL_MAX_RETRIES} reached, accepting refusal"
+            )
+
+        # FIX-374: evaluator gate on self-OUTCOME_OK — decide whether to trust
+        # the cycle outcome before short-circuiting. On reject + cycles remaining,
+        # inject verdict as a hint for the next cycle and continue.
+        _gate_relevant = (
+            _EVAL_GATED
+            and cycle < max_cycles
+            and reflection.is_solved
+            and agent_outcome == "OUTCOME_OK"
+        )
+        if _gate_relevant:
+            _report = cycle_stats.get("report")
+            _approved, _issues, _hint = _evaluator_gate(
+                task_text=task_text,
+                task_type=task_type,
+                report=_report,
+                done_ops=done_ops,
+                step_facts=step_facts,
+                model=model,
+                cfg=cfg,
+                stats=stats,
+            )
+            stats["researcher_eval_calls"] = stats.get("researcher_eval_calls", 0) + 1
+            if not _approved:
+                stats["researcher_eval_rejections"] = stats.get("researcher_eval_rejections", 0) + 1
+                _reason = "; ".join(_issues[:3]) or _hint or "evaluator rejected outcome"
+                _eval_reject_reasons.append(_reason)
+                # FIX-375: OK-flip hint — if evaluator rejects OK with similar
+                # reason ≥2 times in a row, OR reflector hypotheses are
+                # monotonic, suggest OUTCOME flip as escape from local minimum.
+                _should_flip = False
+                if _FLIP_HINT_ENABLED:
+                    if len(_eval_reject_reasons) >= 2 and _jaccard(
+                        _eval_reject_reasons[-1], _eval_reject_reasons[-2]
+                    ) >= _FLIP_REASON_SIM_THRESHOLD:
+                        _should_flip = True
+                    elif _is_monotonic_hypothesis(
+                        _hypothesis_history, _FLIP_HYP_MONOTONIC_K, _FLIP_HYP_SIM_THRESHOLD
+                    ):
+                        _should_flip = True
+                _flip_suffix = ""
+                if _should_flip:
+                    _flip_suffix = (
+                        " | OUTCOME_FLIP_HINT: You've proposed OUTCOME_OK multiple times "
+                        "and evaluator rejected each with similar concerns. The task may "
+                        "be unanswerable as stated — consider OUTCOME_NONE_CLARIFICATION "
+                        "or OUTCOME_NONE_UNSUPPORTED as a valid answer."
+                    )
+                    stats["researcher_flip_hints_injected"] = (
+                        stats.get("researcher_flip_hints_injected", 0) + 1
+                    )
+                    print(f"[researcher] OK-flip hint injected on cycle {cycle}")
+                _existing = (reflection.hypothesis_for_next or "").strip()
+                reflection.hypothesis_for_next = (
+                    f"{_existing} | EVAL_REJECTED: {_reason}{_flip_suffix}" if _existing
+                    else f"EVAL_REJECTED: {_reason}{_flip_suffix}"
+                )
+                print(
+                    f"[researcher] evaluator rejected cycle {cycle} "
+                    f"(OUTCOME_OK): {_reason} — continuing"
+                )
+                continue
+            else:
+                print(
+                    f"[researcher] evaluator approved cycle {cycle} "
+                    f"(OUTCOME_OK) — proceeding to short-circuit"
+                )
+
         # FIX-363a: score-gated promotion — defer write to pages until main.py
         # has the benchmark score. Researcher only prepares the payload.
         if reflection.is_solved and agent_outcome == "OUTCOME_OK":
+            # FIX-374: expose the reflector-built addendum used in the winning
+            # cycle as a builder example. main.py:300 records it with the real
+            # benchmark score; optimize_prompts filters by score >= 0.8.
+            stats["builder_used"] = True
+            stats["builder_addendum"] = addendum
             traj_hash = wiki_graph.hash_trajectory(step_facts)
             trajectory = _build_structured_trajectory(step_facts)
             stats["researcher_solved"] = True
