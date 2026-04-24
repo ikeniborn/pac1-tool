@@ -1,0 +1,14 @@
+{
+  "task_id": "t05",
+  "task_type": "preject",
+  "traj_hash": "f8dac229580e",
+  "cycles": 3,
+  "last_reflection": {
+    "outcome": "stuck",
+    "what_failed": [
+      "reporttaskcompletion tool call failed with INVALID_ARGUMENT — no calendar invite was created",
+      "No calendar integration tool (Google Calendar, Outlook, etc.) is available in this environment",
+      "Task type 'preject' may be a miscategorization contributing to tool mismatch"
+    ]
+  }
+}

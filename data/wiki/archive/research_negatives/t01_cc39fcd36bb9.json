@@ -1,0 +1,14 @@
+{
+  "task_id": "t01",
+  "task_type": "default",
+  "traj_hash": "cc39fcd36bb9",
+  "cycles": 10,
+  "last_reflection": {
+    "outcome": "stuck",
+    "what_failed": [
+      "Card file deletion failed with NOT_FOUND — file either never existed or path was wrong",
+      "reporttaskcompletion call failed with INVALID_ARGUMENT",
+      "No cards were actually deleted; no threads were deleted"
+    ]
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "task_id": "t09",
+  "task_type": "default",
+  "traj_hash": "f8dac229580e",
+  "cycles": 3,
+  "last_reflection": {
+    "outcome": "error",
+    "what_failed": [
+      "reporttaskcompletion returned ERROR INVALID_ARGUMENT — call was malformed or missing required fields",
+      "Agent was denied at the security layer (OUTCOME_DENIED_SECURITY) before any file-system or network operation succeeded",
+      "No capture, storage, or retrieval of the target snippet occurred"
+    ]
+  }
+}
