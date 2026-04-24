@@ -363,6 +363,11 @@ def run_researcher(
     stats["researcher_mode"] = True
     stats["researcher_cycles_used"] = 0
     stats["researcher_solved"] = False
+    # FIX-373: reflector token usage tracked separately from agent totals.
+    # stats["input_tokens"]/["output_tokens"] keep aggregating everything
+    # (inner-loop agent + reflector) — these two isolate the reflector overhead.
+    stats["researcher_in_tok"] = 0
+    stats["researcher_out_tok"] = 0
     stats["model_used"] = model
     stats["task_type"] = task_type
     stats["builder_used"] = False
@@ -469,6 +474,10 @@ def run_researcher(
         stats["input_tokens"] = stats.get("input_tokens", 0) + reflection.input_tokens
         stats["output_tokens"] = stats.get("output_tokens", 0) + reflection.output_tokens
         stats["llm_call_count"] = stats.get("llm_call_count", 0) + 1
+        # FIX-373: isolate reflector tokens so the summary can show researcher
+        # overhead alongside the task total.
+        stats["researcher_in_tok"] = stats.get("researcher_in_tok", 0) + reflection.input_tokens
+        stats["researcher_out_tok"] = stats.get("researcher_out_tok", 0) + reflection.output_tokens
 
         # FIX-372: post-cycle drift detection. If reflector says not solved and
         # the agent's trajectory prefix differs from all known Successful patterns,
