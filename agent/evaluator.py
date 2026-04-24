@@ -11,6 +11,7 @@ in optimize_prompts.py as the baseline prompt source.
 """
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 
@@ -19,6 +20,12 @@ from pydantic import BaseModel, Field
 
 from .dispatch import CLI_CLR, CLI_YELLOW
 from .dspy_lm import DispatchLM
+
+# FIX-367: researcher wiki + knowledge graph injection into evaluator context.
+_WIKI_EVAL_ENABLED = os.environ.get("EVALUATOR_WIKI_ENABLED", "1") == "1"
+_GRAPH_EVAL_ENABLED = os.environ.get("WIKI_GRAPH_ENABLED", "1") == "1"
+_GRAPH_EVAL_TOP_K = int(os.environ.get("EVALUATOR_GRAPH_TOP_K", "5"))
+_WIKI_EVAL_MAX_CHARS = int(os.environ.get("EVALUATOR_WIKI_MAX_CHARS", "4000"))
 
 # ---------------------------------------------------------------------------
 # Hard-gate: verbatim preservation of quoted task values in writes
@@ -162,6 +169,20 @@ class EvaluateCompletion(dspy.Signature):
     - Channel handles are platform-assigned user IDs, NOT company names.
       If agent resolved handle → contact → account, this is the SAME account, NOT cross-account.
 
+    REFERENCE BEHAVIORS (FIX-367):
+    - `reference_patterns` contains verified patterns from prior benchmark-scored runs:
+      `## Successful pattern:` shapes are trajectories that achieved score=1.0 on OUTCOME_OK,
+      `## Verified refusal:` shapes are terminal refusals (CLARIFICATION/UNSUPPORTED/DENIED_SECURITY)
+      that also achieved score=1.0. These are ground-truth anchors, not suggestions.
+    - If agent's trajectory shape + proposed_outcome matches a Successful pattern → APPROVE.
+    - If agent's trajectory shape + proposed_outcome matches a Verified refusal → APPROVE
+      (refusal was correct in a prior verified run of the same shape).
+    - `graph_insights` contains top-K tagged insights/rules/antipatterns from the knowledge graph
+      scored by relevance to this task. Use antipatterns ([AVOID]) as rejection evidence;
+      use rules/insights as approval support when the trajectory follows them.
+    - Wiki/graph context is ADVISORY. When it conflicts with the hardcoded INBOX RULES
+      above, the hardcoded rules win (they encode benchmark-level safety invariants).
+
     IMPORTANT: reject ONLY when done_ops or completed_steps directly contradict the proposed
     outcome. Missing or incomplete evidence alone is NOT a contradiction — do not reject.
     """
@@ -175,6 +196,12 @@ class EvaluateCompletion(dspy.Signature):
     done_ops: str = dspy.InputField(desc="completed file operations, '(none)' if empty")
     completed_steps: str = dspy.InputField()
     skepticism_level: str = dspy.InputField(desc="low | mid | high — review strictness")
+    reference_patterns: str = dspy.InputField(
+        desc="Verified patterns from researcher wiki (Successful + Verified refusal). '(none)' if empty."
+    )
+    graph_insights: str = dspy.InputField(
+        desc="Top-K relevant insights/rules/antipatterns from knowledge graph. '(none)' if empty."
+    )
 
     approved_str: str = dspy.OutputField(desc="'yes' or 'no'")
     issues_str: str = dspy.OutputField(
@@ -273,6 +300,48 @@ def _build_eval_prompt(
 
 
 # ---------------------------------------------------------------------------
+# FIX-367: researcher wiki + knowledge graph context builders
+# ---------------------------------------------------------------------------
+
+def _load_reference_patterns(task_type: str, max_chars: int) -> str:
+    """Load researcher-promoted patterns (Successful + Verified refusal) for task_type.
+
+    Returns the page content truncated to max_chars. Fail-open → '' on any error.
+    """
+    if not _WIKI_EVAL_ENABLED:
+        return ""
+    try:
+        from .wiki import load_wiki_patterns
+        raw = load_wiki_patterns(task_type)
+        if not raw:
+            return ""
+        if len(raw) > max_chars:
+            raw = raw[:max_chars] + "\n[... truncated]"
+        return raw
+    except Exception as exc:
+        print(f"{CLI_YELLOW}[evaluator] wiki load failed ({exc}) — skipping patterns{CLI_CLR}")
+        return ""
+
+
+def _load_graph_insights(task_type: str, task_text: str, top_k: int) -> str:
+    """Retrieve top-K relevant knowledge-graph nodes for this task.
+
+    Mirrors researcher/prompt_builder graph retrieval. Fail-open → ''.
+    """
+    if not _GRAPH_EVAL_ENABLED:
+        return ""
+    try:
+        from . import wiki_graph
+        g = wiki_graph.load_graph()
+        if not g.nodes:
+            return ""
+        return wiki_graph.retrieve_relevant(g, task_type, task_text, top_k=top_k)
+    except Exception as exc:
+        print(f"{CLI_YELLOW}[evaluator] graph retrieve failed ({exc}) — skipping insights{CLI_CLR}")
+        return ""
+
+
+# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
@@ -328,6 +397,10 @@ def evaluate_completion(
         except Exception as exc:
             print(f"{CLI_YELLOW}[evaluator] failed to load program ({exc}), using defaults{CLI_CLR}")
 
+    # FIX-367: inject researcher-accumulated wiki patterns + graph insights.
+    ref_patterns = _load_reference_patterns(task_type, _WIKI_EVAL_MAX_CHARS) or "(none)"
+    graph_insights = _load_graph_insights(task_type, task_text, _GRAPH_EVAL_TOP_K) or "(none)"
+
     lm = DispatchLM(model, cfg, max_tokens=max_tok)
     try:
         with dspy.context(lm=lm, adapter=dspy.JSONAdapter()):
@@ -339,6 +412,8 @@ def evaluate_completion(
                 done_ops=ops_str,
                 completed_steps=steps_str or "(none)",
                 skepticism_level=skepticism,
+                reference_patterns=ref_patterns,
+                graph_insights=graph_insights,
             )
 
         approved_str_clean = (result.approved_str or "").strip().lower()

@@ -86,7 +86,8 @@ def run_agent(router: ModelRouter, harness_url: str, task_text: str, task_id: st
     if _RESEARCHER_MODE:
         from .researcher import run_researcher
         task_type = classify_task(task_text)
-        researcher_model = os.getenv("RESEARCHER_MODEL") or router._select_model(task_type)
+        # FIX-368: MODEL_RESEARCHER follows MODEL_* convention.
+        researcher_model = os.getenv("MODEL_RESEARCHER") or router._select_model(task_type)
         researcher_cfg = router._adapt_config(
             router.configs.get(researcher_model, {}), task_type
         )

@@ -65,7 +65,7 @@ Knowledge graph (`agent/wiki_graph.py`, `data/wiki/graph.json`):
 - Retrieval при построении addendum: `retrieve_relevant(graph, task_type, task_text, top_k)` — scoring = tag_overlap + text-token overlap + confidence × log(uses)
 - Инспекция: `uv run python scripts/print_graph.py [--all] [--tag email] [--edges]`
 
-Env-переменные: `RESEARCHER_MODE`, `RESEARCHER_MAX_CYCLES`, `RESEARCHER_STEPS_PER_CYCLE`, `RESEARCHER_MODEL`, `WIKI_GRAPH_ENABLED`, `WIKI_GRAPH_TOP_K`, `WIKI_GRAPH_CONFIDENCE_EPSILON`, `WIKI_GRAPH_MIN_CONFIDENCE`, `WIKI_PAGE_MAX_PATTERNS` (все в `.env.example`).
+Env-переменные: `RESEARCHER_MODE`, `RESEARCHER_MAX_CYCLES`, `RESEARCHER_STEPS_PER_CYCLE`, `MODEL_RESEARCHER`, `WIKI_GRAPH_ENABLED`, `WIKI_GRAPH_TOP_K`, `WIKI_GRAPH_CONFIDENCE_EPSILON`, `WIKI_GRAPH_MIN_CONFIDENCE`, `WIKI_PAGE_MAX_PATTERNS` (все в `.env.example`).
 
 CC-tier совместим: reflector и inner-loop используют `dispatch.call_llm_raw`, роутинг по `provider` в `models.json`.
 
@@ -121,6 +121,8 @@ main.py → run_agent()
 **Four-Tier LLM Dispatch** (`dispatch.py`): Anthropic SDK / Claude Code → OpenRouter → Ollama, with automatic retry on `429`/`502`/`503`. Tier is picked by `provider` in `models.json`: `claude-code/*` models route to `cc_client.cc_complete()` (stateless `iclaude` subprocess over OAuth) instead of the Anthropic SDK — mutually exclusive, not cascade. Env-gated by `CC_ENABLED=1`.
 
 **DSPy Prompt Optimization**: `prompt_builder.py` generates 3–6 bullet points of task-specific guidance; `evaluator.py` does quality review. Both are compiled via COPRO and stored in `data/`. They fail-open if compiled programs are missing.
+
+**Evaluator consumes researcher knowledge (FIX-367)**: `evaluate_completion()` injects two extra InputFields into `EvaluateCompletion`: `reference_patterns` (content of `data/wiki/pages/<task_type>.md` — Successful patterns + Verified refusals score-gated promoted by researcher) and `graph_insights` (top-K relevant nodes via `wiki_graph.retrieve_relevant`). Wiki/graph are ADVISORY — on conflict with hardcoded INBOX/ENTITY rules the hardcoded rules win. Env-gates: `EVALUATOR_WIKI_ENABLED`, `EVALUATOR_WIKI_MAX_CHARS`, `EVALUATOR_GRAPH_TOP_K` (graph additionally gated behind `WIKI_GRAPH_ENABLED`). After growing researcher corpus recompile per-type evaluator programs: `uv run python optimize_prompts.py --target evaluator`.
 
 **Stall Detection** (`stall.py`): Detects same-tool loops (3×), repeated path errors (2×), exploration stalls (6+ steps without write/delete). Adaptive hints escalate at 12+ steps.
 

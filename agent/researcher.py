@@ -42,6 +42,8 @@ _GRAPH_ENABLED = os.environ.get("WIKI_GRAPH_ENABLED", "1") == "1"
 _GRAPH_TOP_K = int(os.environ.get("WIKI_GRAPH_TOP_K", "5"))
 _GRAPH_EPSILON = float(os.environ.get("WIKI_GRAPH_CONFIDENCE_EPSILON", "0.05"))
 _WIKI_PAGE_MAX_PATTERNS = int(os.environ.get("WIKI_PAGE_MAX_PATTERNS", "10"))
+# FIX-369: gate per-cycle debug logs under logs/researcher/<task_id>/cycle_N.jsonl.
+_LOG_ENABLED = os.environ.get("RESEARCHER_LOG_ENABLED", "1") == "1"
 
 _LOG_DIR = Path(__file__).parent.parent / "logs" / "researcher"
 
@@ -106,6 +108,8 @@ def _build_structured_trajectory(step_facts: list, limit: int = 12) -> list[dict
 
 
 def _log_cycle(task_id: str, cycle: int, payload: dict) -> None:
+    if not _LOG_ENABLED:
+        return
     try:
         d = _LOG_DIR / (task_id or "task")
         d.mkdir(parents=True, exist_ok=True)
