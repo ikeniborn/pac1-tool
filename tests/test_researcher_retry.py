@@ -92,6 +92,22 @@ def _setup_patches(*, cycle_stats_seq, reflections_seq):
 
 def _call_run_researcher(monkeypatch, patches, env=None):
     """Reload researcher with desired env, patch module-level deps, call run_researcher."""
+    # Hermetic defaults — keep tests independent of local .env. Individual tests
+    # can still override by passing the same key in `env`.
+    _hermetic = {
+        "RESEARCHER_REFUSAL_DYNAMIC": "0",
+        "RESEARCHER_HINT_FORCING": "0",
+        "RESEARCHER_MIDCYCLE_BREAKOUT": "0",
+        "RESEARCHER_STEPS_ADAPTIVE": "0",
+        "RESEARCHER_SOFT_STALL": "0",
+        "RESEARCHER_GRAPH_QUARANTINE": "0",
+        "RESEARCHER_DRIFT_HINTS": "0",
+        "RESEARCHER_REFLECTOR_DIVERSIFY": "0",
+        "RESEARCHER_TOTAL_STEP_BUDGET": "0",
+        "RESEARCHER_EVAL_FAIL_CLOSED": "0",
+    }
+    for k, v in _hermetic.items():
+        monkeypatch.setenv(k, v)
     for k, v in (env or {}).items():
         monkeypatch.setenv(k, v)
     import agent.researcher as researcher
@@ -300,6 +316,10 @@ def test_refusal_last_chance_adds_one_cycle(monkeypatch):
             "RESEARCHER_REFUSAL_LAST_CHANCE": "1",
             "RESEARCHER_FLIP_HINT_ENABLED": "1",
             "RESEARCHER_EVAL_GATED": "0",
+            # FIX-377: outcome-loop guard trips at 4 consecutive identical
+            # refusals by default; raise the limit so this test isolates
+            # FIX-375 last-chance behaviour.
+            "RESEARCHER_OUTCOME_LOOP_LIMIT": "100",
             "WIKI_GRAPH_ENABLED": "0",
         },
     )
@@ -357,6 +377,9 @@ def test_ok_loop_hard_guard(monkeypatch):
             "RESEARCHER_MAX_CYCLES": "10",
             "RESEARCHER_EVAL_GATED": "0",
             "RESEARCHER_OK_LOOP_LIMIT": "5",
+            # FIX-377: keep outcome-loop guard above OK_LOOP trip cycle so
+            # this test isolates FIX-375b/C identical-answer guard.
+            "RESEARCHER_OUTCOME_LOOP_LIMIT": "100",
             "WIKI_GRAPH_ENABLED": "0",
         },
     )
@@ -419,6 +442,97 @@ def test_evaluator_approved_with_stuck_reflector(monkeypatch):
     assert stats["evaluator_calls"] >= 1
     assert "researcher_pending_promotion" in stats
     assert stats["researcher_solved"] is True
+
+
+def test_refusal_counter_resets_on_ok(monkeypatch):
+    """FIX-377: refusal cycle (counter=1) → OK cycle (reset to 0) → refusal
+    cycle (counter=1, NOT 2). Counter must depend strictly on agent_outcome."""
+    # Sequence: refusal, OK, refusal, refusal, refusal, refusal-accept
+    outcomes = [
+        "OUTCOME_NONE_CLARIFICATION",
+        "OUTCOME_OK",
+        "OUTCOME_NONE_CLARIFICATION",
+        "OUTCOME_NONE_CLARIFICATION",
+        "OUTCOME_NONE_CLARIFICATION",
+        "OUTCOME_NONE_CLARIFICATION",
+    ]
+    patches = _setup_patches(
+        cycle_stats_seq=[
+            _fake_cycle_stats(o, report=_fake_report(o)) for o in outcomes
+        ],
+        # All reflections "stuck" so OK doesn't short-circuit via is_solved path.
+        reflections_seq=[_fake_reflection("stuck") for _ in outcomes],
+    )
+    # Evaluator off so OK passes through without short-circuit; we'll patch
+    # the OK gate via env (EVAL_GATED=0) — OK then continues to next cycle.
+    stats = _call_run_researcher(
+        monkeypatch, patches,
+        env={
+            "RESEARCHER_MAX_CYCLES": "10",
+            "RESEARCHER_REFUSAL_MAX_RETRIES": "3",
+            "RESEARCHER_REFUSAL_LAST_CHANCE": "0",
+            "RESEARCHER_EVAL_GATED": "0",
+            "WIKI_GRAPH_ENABLED": "0",
+        },
+    )
+    # After OK reset, three refusals would increment counter to 3, then 4th
+    # refusal hits cap and accepts (cycles 3,4,5 retry; cycle 6 accepts).
+    assert stats["researcher_refusal_retries"] == 3
+    # Total cycles: 1 refusal + 1 OK + 3 retries + 1 accept = 6
+    assert stats["researcher_cycles_used"] == 6
+    assert stats["researcher_early_stop"] == "OUTCOME_NONE_CLARIFICATION"
+
+
+def test_refusal_counter_unaffected_by_consecutive_ok(monkeypatch):
+    """FIX-377: pure OUTCOME_OK sequence keeps counter at 0."""
+    patches = _setup_patches(
+        cycle_stats_seq=[
+            _fake_cycle_stats("OUTCOME_OK", report=_fake_report("OUTCOME_OK"))
+            for _ in range(4)
+        ],
+        # stuck reflections so OK doesn't short-circuit via is_solved path.
+        reflections_seq=[_fake_reflection("stuck") for _ in range(4)],
+    )
+    stats = _call_run_researcher(
+        monkeypatch, patches,
+        env={
+            "RESEARCHER_MAX_CYCLES": "4",
+            "RESEARCHER_EVAL_GATED": "0",
+            "RESEARCHER_OK_LOOP_LIMIT": "100",  # disable hard guard
+            "WIKI_GRAPH_ENABLED": "0",
+        },
+    )
+    assert stats.get("researcher_refusal_retries", 0) == 0
+
+
+def test_refusal_counter_grows_regardless_of_reflection_outcome(monkeypatch):
+    """FIX-377: counter depends ONLY on agent_outcome ∈ _TERMINAL_REFUSALS.
+    Even if reflection.outcome='solved', a refusal agent_outcome still
+    increments. Reflection branch must not bypass the cap."""
+    patches = _setup_patches(
+        cycle_stats_seq=[
+            _fake_cycle_stats(
+                "OUTCOME_NONE_CLARIFICATION",
+                report=_fake_report("OUTCOME_NONE_CLARIFICATION"),
+            )
+            for _ in range(5)
+        ],
+        # All reflections claim 'solved' — but agent_outcome is refusal.
+        reflections_seq=[_fake_reflection("solved") for _ in range(5)],
+    )
+    stats = _call_run_researcher(
+        monkeypatch, patches,
+        env={
+            "RESEARCHER_MAX_CYCLES": "10",
+            "RESEARCHER_REFUSAL_MAX_RETRIES": "3",
+            "RESEARCHER_REFUSAL_LAST_CHANCE": "0",
+            "RESEARCHER_EVAL_GATED": "0",
+            "WIKI_GRAPH_ENABLED": "0",
+        },
+    )
+    # Cap reached despite reflection 'solved'.
+    assert stats["researcher_refusal_retries"] == 3
+    assert stats["researcher_cycles_used"] == 4
 
 
 def test_refusal_no_evaluator_call(monkeypatch):
