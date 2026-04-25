@@ -4,14 +4,19 @@
 - Solution: Before invoking search, construct a concrete query from available task fields (recipient address, subject keywords, or sender). If no query term can be derived, skip the search and proceed with the information already in hand rather than issuing an empty call.
 
 ## Email Task Abandoned After Read-Only Probing
-- Condition: Task requests composing and sending a brief email, but the agent only reads `/outbox/<file> (or similar counter) and performs no send/write operation, terminating with a clarification outcome.
-- Root cause: Agent treats fully-specified email parameters (recipient, subject, body all provided) as ambiguous and stops to ask for clarification instead of executing the send.
+- Condition: Task requests composing and sending a brief email with recipient, subject, and body all provided, but the agent only performs read/list/search probes (e.g., reads `/outbox/<file> lists `/contacts`) and terminates with a clarification outcome instead of sending.
+- Root cause: Agent treats fully-specified email parameters as ambiguous and stops to ask for clarification instead of executing the send.
 - Solution: When recipient, subject, and body are all explicitly given in the task, proceed directly to compose and dispatch the email. Reserve clarification requests for cases where a required field is genuinely missing or contradictory.
 
 ## Outbox Sequence Read Without Write
 - Condition: Agent reads `/outbox/<file> to obtain the next message id but never uses the id to create an outbox entry.
 - Root cause: The read is performed as preparation for a send that is subsequently skipped, wasting the sequence lookup and leaving the task incomplete.
 - Solution: Only read the outbox sequence file as part of a committed send flow. If the agent decides not to send, do not read the counter; if it reads the counter, follow through by writing the new outbox message with that id.
+
+## Contacts Directory Listed Instead of Queried
+- Condition: Agent lists `/contacts` and finds only `README.MD`, gaining no useful recipient information, while the task already specifies a concrete recipient address.
+- Root cause: Agent performs exploratory directory listings to "verify" a recipient whose address is already fully provided in the task, substituting unneeded discovery for the requested action.
+- Solution: When the recipient address is explicitly given, skip contact-directory lookups and use the provided address directly. Only consult `/contacts` when a name-to-address resolution is actually required.
 
 ## Task Completion Reported Without Required Arguments
 - Condition: Agent invokes the task-completion reporting operation with missing or malformed arguments, producing an INVALID_ARGUMENT error.

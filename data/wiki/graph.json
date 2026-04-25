@@ -9356,6 +9356,688 @@
       "confidence": 0.6,
       "uses": 1,
       "last_seen": "2026-04-24"
+    },
+    "n_54a3f69f6d": {
+      "type": "insight",
+      "tags": [
+        "reliability",
+        "trajectory-mismatch"
+      ],
+      "text": "OUTCOME_OK was reported despite no tools being called and no trajectory evidence of progress — the reported outcome is unreliable.",
+      "confidence": 0.9,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "r_eae717c920": {
+      "type": "rule",
+      "tags": [
+        "outcome-reporting",
+        "validation"
+      ],
+      "text": "Never accept OUTCOME_OK at face value when DONE_OPS and STEP_FACTS are both empty; treat the run as stuck.",
+      "confidence": 0.55,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "a_0d939ac90f": {
+      "type": "antipattern",
+      "tags": [
+        "hallucination",
+        "outcome-reporting"
+      ],
+      "text": "Reporting success without executing any tool calls or retrieval operations.",
+      "confidence": 0.55,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "n_af00566492": {
+      "type": "insight",
+      "tags": [
+        "hallucination-risk",
+        "premature-completion"
+      ],
+      "text": "The agent attempted to report completion without performing any retrieval operations, suggesting it may have hallucinated a result rather than grounding the answer in actual data.",
+      "confidence": 0.8,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "r_12595daf60": {
+      "type": "rule",
+      "tags": [
+        "completion-gate",
+        "data-grounding"
+      ],
+      "text": "Never call reporttaskcompletion before at least one data-retrieval operation is recorded in DONE_OPS.",
+      "confidence": 0.55,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "a_76480d1e7f": {
+      "type": "antipattern",
+      "tags": [
+        "hallucination-risk",
+        "premature-completion"
+      ],
+      "text": "Do NOT report a task outcome before verifying that the underlying data was actually read or queried.",
+      "confidence": 0.55,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "n_e546172b4b": {
+      "type": "insight",
+      "tags": [
+        "agent-behavior",
+        "reliability"
+      ],
+      "text": "Agent reported OUTCOME_OK without performing any observable operations, indicating a premature or hallucinated success report",
+      "confidence": 0.9,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "n_58e1af4161": {
+      "type": "insight",
+      "tags": [
+        "error-handling",
+        "tooling"
+      ],
+      "text": "reporttaskcompletion tool is failing with INVALID_ARGUMENT, suggesting a schema or parameter mismatch",
+      "confidence": 0.8,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "r_329ba1e0ce": {
+      "type": "rule",
+      "tags": [
+        "agent-behavior",
+        "integrity"
+      ],
+      "text": "Never report OUTCOME_OK when DONE_OPS is empty — at minimum one data-retrieval operation must be recorded before claiming success",
+      "confidence": 0.55,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "a_fd459f0f0a": {
+      "type": "antipattern",
+      "tags": [
+        "agent-behavior",
+        "tooling"
+      ],
+      "text": "Do NOT call reporttaskcompletion before actually querying the capture store; doing so produces a hallucinated success with no real answer",
+      "confidence": 0.55,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "n_66df3fa6a9": {
+      "type": "insight",
+      "tags": [
+        "reliability",
+        "self-reporting",
+        "trajectory"
+      ],
+      "text": "Agent reported success (OUTCOME_OK) with zero operations performed — the outcome self-report was incorrect and the task was never actually attempted.",
+      "confidence": 0.9,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "n_2a5e2b07f1": {
+      "type": "insight",
+      "tags": [
+        "error-handling",
+        "tooling"
+      ],
+      "text": "The reporttaskcompletion tool requires valid arguments; calling it without resolving the underlying task causes INVALID_ARGUMENT errors.",
+      "confidence": 0.85,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "r_c34498f3cd": {
+      "type": "rule",
+      "tags": [
+        "completion",
+        "validation"
+      ],
+      "text": "Never call reporttaskcompletion (or equivalent completion signal) until at least one substantive operation retrieving or searching for the requested data has been performed and verified.",
+      "confidence": 0.55,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "a_c60eaae65c": {
+      "type": "antipattern",
+      "tags": [
+        "honesty",
+        "self-reporting",
+        "trajectory"
+      ],
+      "text": "Do NOT report OUTCOME_OK when DONE_OPS is empty — this masks a total failure to attempt the task.",
+      "confidence": 0.55,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "n_e52e43a9c7": {
+      "type": "insight",
+      "tags": [
+        "hallucination",
+        "reliability",
+        "trajectory-mismatch"
+      ],
+      "text": "Agent reported OUTCOME_OK without executing any retrieval operations — outcome was fabricated",
+      "confidence": 0.9,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "n_9fa182f271": {
+      "type": "insight",
+      "tags": [
+        "completion-flow",
+        "tool-error"
+      ],
+      "text": "reporttaskcompletion fails with INVALID_ARGUMENT when called without a valid resolved answer",
+      "confidence": 0.8,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "r_9d4f262509": {
+      "type": "rule",
+      "tags": [
+        "completion-check",
+        "integrity"
+      ],
+      "text": "Never report OUTCOME_OK when DONE_OPS is empty and the task requires data retrieval",
+      "confidence": 0.55,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "r_d7223a5ab9": {
+      "type": "rule",
+      "tags": [
+        "completion-flow",
+        "tool-use"
+      ],
+      "text": "Do not call reporttaskcompletion without a concrete, retrieved answer for lookup tasks",
+      "confidence": 0.55,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "a_dded721b08": {
+      "type": "antipattern",
+      "tags": [
+        "hallucination",
+        "trajectory-mismatch"
+      ],
+      "text": "Claiming task success (OUTCOME_OK) with zero tool calls executed for a retrieval task",
+      "confidence": 0.55,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "a_8e98109181": {
+      "type": "antipattern",
+      "tags": [
+        "premature-completion",
+        "tool-error"
+      ],
+      "text": "Calling reporttaskcompletion before actually resolving the query",
+      "confidence": 0.55,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "n_dba62d232e": {
+      "type": "insight",
+      "tags": [
+        "outcome-reporting",
+        "reliability"
+      ],
+      "text": "Agent reported OUTCOME_OK with zero completed operations, indicating a false-positive success report",
+      "confidence": 0.9,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "n_d0d027a139": {
+      "type": "insight",
+      "tags": [
+        "completion-flow",
+        "tool-error"
+      ],
+      "text": "reporttaskcompletion failing with INVALID_ARGUMENT suggests the completion payload was malformed or called out of sequence",
+      "confidence": 0.75,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "r_8c237fbe1c": {
+      "type": "rule",
+      "tags": [
+        "integrity",
+        "outcome-reporting"
+      ],
+      "text": "Never report OUTCOME_OK when DONE_OPS is empty — no work means no success",
+      "confidence": 0.55,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "a_45cea4b1ce": {
+      "type": "antipattern",
+      "tags": [
+        "completion-flow",
+        "ordering"
+      ],
+      "text": "Do not call reporttaskcompletion before performing any actual retrieval or lookup operations",
+      "confidence": 0.55,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "n_9e45a0202b": {
+      "type": "insight",
+      "tags": [
+        "filesystem",
+        "naming-convention"
+      ],
+      "text": "The capture directory uses ISO-date prefixes on filenames, making date-based lookup trivial with a grep or filter on the date string.",
+      "confidence": 0.9,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "n_eccca2e412": {
+      "type": "insight",
+      "tags": [
+        "reporting",
+        "tool-error"
+      ],
+      "text": "reporttaskcompletion appears to require specific argument structure; calling it without correct parameters produces INVALID_ARGUMENT and silently swallows the answer.",
+      "confidence": 0.8,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "r_11e4feed60": {
+      "type": "rule",
+      "tags": [
+        "error-handling",
+        "reporting"
+      ],
+      "text": "When a tool call returns INVALID_ARGUMENT, do not count the task as complete; fall back to delivering the answer inline.",
+      "confidence": 0.55,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "a_51c35d0887": {
+      "type": "antipattern",
+      "tags": [
+        "honesty",
+        "reporting"
+      ],
+      "text": "Do not report OUTCOME_OK when DONE_OPS is empty and the completion tool errored — it misrepresents actual progress.",
+      "confidence": 0.55,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "n_09394e152a": {
+      "type": "insight",
+      "tags": [
+        "outcome-reporting",
+        "reliability"
+      ],
+      "text": "Agent self-reported OUTCOME_OK with zero operations performed — a hallucinated success signal",
+      "confidence": 0.9,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "n_6b6fae301c": {
+      "type": "insight",
+      "tags": [
+        "api",
+        "tool-error"
+      ],
+      "text": "reporttaskcompletion failing with INVALID_ARGUMENT may indicate a missing or malformed required field in the call",
+      "confidence": 0.7,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "r_2a473ba029": {
+      "type": "rule",
+      "tags": [
+        "integrity",
+        "outcome-reporting"
+      ],
+      "text": "Never report OUTCOME_OK when DONE_OPS is empty for a retrieval task — at minimum one search or read operation must have been performed",
+      "confidence": 0.55,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "a_0768bc6263": {
+      "type": "antipattern",
+      "tags": [
+        "outcome-reporting",
+        "premature-completion"
+      ],
+      "text": "Do NOT call reporttaskcompletion before performing any actual retrieval or search operations",
+      "confidence": 0.55,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "n_b012129eed": {
+      "type": "insight",
+      "tags": [
+        "date-lookup",
+        "filesystem",
+        "naming-convention"
+      ],
+      "text": "The capture archive uses date-prefixed filenames (YYYY-MM-DD__slug) which makes relative-date lookups straightforward via filename parsing",
+      "confidence": 0.9,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "n_b74cee20a7": {
+      "type": "insight",
+      "tags": [
+        "error-handling",
+        "tooling"
+      ],
+      "text": "reportTaskCompletion tool is currently broken and returns INVALID_ARGUMENT; direct response is the reliable fallback",
+      "confidence": 0.85,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "r_47a221d084": {
+      "type": "rule",
+      "tags": [
+        "reliability",
+        "tool-use"
+      ],
+      "text": "Never rely solely on reportTaskCompletion to surface an answer; always emit the result in the conversational response as well",
+      "confidence": 0.55,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "a_314b7d341c": {
+      "type": "antipattern",
+      "tags": [
+        "delivery",
+        "error-handling"
+      ],
+      "text": "Completing the lookup work but then silently failing on the delivery step without emitting the answer in plaintext",
+      "confidence": 0.55,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "n_87f88543c6": {
+      "type": "insight",
+      "tags": [
+        "hallucination",
+        "reliability",
+        "trajectory-analysis"
+      ],
+      "text": "AGENT_REPORTED_OUTCOME: OUTCOME_OK with zero DONE_OPS and a reporttaskcompletion ERROR strongly indicates a false-positive success report — the agent hallucinated completion.",
+      "confidence": 0.9,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "n_c5ce5507fb": {
+      "type": "insight",
+      "tags": [
+        "date-arithmetic",
+        "file-lookup"
+      ],
+      "text": "Date-relative lookups ('6 days ago') require computing the concrete date (today minus 6 days) before querying the file system or knowledge store.",
+      "confidence": 0.85,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "r_6d47d02115": {
+      "type": "rule",
+      "tags": [
+        "integrity",
+        "outcome-reporting"
+      ],
+      "text": "Never report OUTCOME_OK when DONE_OPS is empty and no file/data access was performed.",
+      "confidence": 0.55,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "r_4369e3a0c4": {
+      "type": "rule",
+      "tags": [
+        "error-handling",
+        "tool-use"
+      ],
+      "text": "A reporttaskcompletion INVALID_ARGUMENT error must be treated as a hard failure, not a soft warning.",
+      "confidence": 0.55,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "a_690d683c5b": {
+      "type": "antipattern",
+      "tags": [
+        "hallucination",
+        "outcome-reporting"
+      ],
+      "text": "Do NOT call reporttaskcompletion with an OK outcome when no actual retrieval operations were executed — this masks a complete non-answer.",
+      "confidence": 0.55,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "n_020852028f": {
+      "type": "insight",
+      "tags": [
+        "date-lookup",
+        "filesystem",
+        "naming-convention"
+      ],
+      "text": "Capture files use ISO-date prefixes (YYYY-MM-DD__slug) enabling date-based lookup via directory listing alone.",
+      "confidence": 0.9,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "n_9f23c03c6a": {
+      "type": "insight",
+      "tags": [
+        "error-handling",
+        "tool-usage"
+      ],
+      "text": "The reportTaskCompletion tool is sensitive to its argument schema; incorrect usage produces INVALID_ARGUMENT errors.",
+      "confidence": 0.8,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "r_54f51c4be1": {
+      "type": "rule",
+      "tags": [
+        "api-contract",
+        "tool-usage"
+      ],
+      "text": "Always verify the exact required argument schema of a completion/reporting tool before calling it.",
+      "confidence": 0.55,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "a_36a7050117": {
+      "type": "antipattern",
+      "tags": [
+        "error-handling",
+        "tool-usage"
+      ],
+      "text": "Do not call reportTaskCompletion without confirming its required fields; an INVALID_ARGUMENT error leaves the task unresolved even when the answer was found.",
+      "confidence": 0.55,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "n_47bf6436cc": {
+      "type": "insight",
+      "tags": [
+        "premature-completion",
+        "reliability"
+      ],
+      "text": "AGENT_REPORTED_OUTCOME was OK but DONE_OPS is empty, indicating the agent attempted to close the task without performing any real work",
+      "confidence": 0.87,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "n_6509a9a34a": {
+      "type": "insight",
+      "tags": [
+        "completion-protocol",
+        "tool-error"
+      ],
+      "text": "reporttaskcompletion failing with INVALID_ARGUMENT suggests required fields were missing or the task state was not ready for closure",
+      "confidence": 0.8,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "r_7c5ff765b6": {
+      "type": "rule",
+      "tags": [
+        "completion-protocol",
+        "correctness"
+      ],
+      "text": "Never call reporttaskcompletion before at least one substantive lookup/read operation has been performed and its result confirmed",
+      "confidence": 0.55,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "a_159a8f7468": {
+      "type": "antipattern",
+      "tags": [
+        "hallucination",
+        "premature-completion"
+      ],
+      "text": "Reporting OUTCOME_OK with zero DONE_OPS — agent claimed success without doing any work",
+      "confidence": 0.55,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "n_72e0aeb059": {
+      "type": "insight",
+      "tags": [
+        "reporting",
+        "tool-error"
+      ],
+      "text": "reporttaskcompletion throws INVALID_ARGUMENT in certain call shapes; the result should be returned as a plain conversational response instead.",
+      "confidence": 0.8,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "n_182eba29bd": {
+      "type": "insight",
+      "tags": [
+        "filesystem",
+        "naming-convention"
+      ],
+      "text": "The capture directory contains files named with ISO-date prefixes, making date-based lookup straightforward via filename filtering.",
+      "confidence": 0.9,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "r_b5397533c5": {
+      "type": "rule",
+      "tags": [
+        "reliability",
+        "reporting"
+      ],
+      "text": "Never rely solely on reporttaskcompletion to surface an answer; always echo the result in the main conversational turn.",
+      "confidence": 0.55,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "a_1bea49aae1": {
+      "type": "antipattern",
+      "tags": [
+        "false-positive",
+        "outcome-assessment"
+      ],
+      "text": "Do not consider the task solved simply because AGENT_REPORTED_OUTCOME is OUTCOME_OK when DONE_OPS is empty and a tool call errored.",
+      "confidence": 0.55,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "n_e1bf7e8b53": {
+      "type": "insight",
+      "tags": [
+        "capture",
+        "filesystem",
+        "naming-convention"
+      ],
+      "text": "The capture archive uses ISO-date prefixes (YYYY-MM-DD__) on filenames, enabling direct date-based lookup by string matching",
+      "confidence": 0.9,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "n_82eb433cb8": {
+      "type": "insight",
+      "tags": [
+        "completion",
+        "error",
+        "tooling"
+      ],
+      "text": "The reporttaskcompletion tool is unreliable and returns INVALID_ARGUMENT; avoid it as a delivery mechanism",
+      "confidence": 0.85,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "r_108124f1c7": {
+      "type": "rule",
+      "tags": [
+        "error-handling",
+        "tooling"
+      ],
+      "text": "Never call reporttaskcompletion without verifying its argument schema first; prefer inline response delivery",
+      "confidence": 0.55,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "a_dd0f4e7104": {
+      "type": "antipattern",
+      "tags": [
+        "date-arithmetic",
+        "filesystem",
+        "lookup"
+      ],
+      "text": "Listing a directory without filtering results to match the computed target date before reporting",
+      "confidence": 0.55,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "n_742461c2dc": {
+      "type": "insight",
+      "tags": [
+        "filesystem",
+        "listing",
+        "truncation"
+      ],
+      "text": "Directory listing results can be truncated mid-filename, making date-based lookup unreliable without explicit filtering.",
+      "confidence": 0.75,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "n_cdfcd6541b": {
+      "type": "insight",
+      "tags": [
+        "agent-reliability",
+        "outcome-reporting"
+      ],
+      "text": "AGENT_REPORTED_OUTCOME: OUTCOME_OK combined with empty DONE_OPS and a failed completion call is a reliable signal of a false-positive success report.",
+      "confidence": 0.85,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "r_59982cdfaa": {
+      "type": "rule",
+      "tags": [
+        "agent-reliability",
+        "outcome-validation"
+      ],
+      "text": "Do not trust OUTCOME_OK when DONE_OPS is empty and the completion tool returned an error — treat as unresolved.",
+      "confidence": 0.55,
+      "uses": 1,
+      "last_seen": "2026-04-24"
+    },
+    "a_9f11994d9e": {
+      "type": "antipattern",
+      "tags": [
+        "date-lookup",
+        "filesystem",
+        "fragile"
+      ],
+      "text": "Scanning a raw directory listing visually for a date match without using a date-filtered search or glob — fragile when the listing is truncated.",
+      "confidence": 0.55,
+      "uses": 1,
+      "last_seen": "2026-04-24"
     }
   },
   "edges": [
