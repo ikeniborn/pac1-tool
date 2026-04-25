@@ -31,6 +31,7 @@ from .cc_client import cc_complete as _cc_complete
 from .classifier import (
     TASK_EMAIL, TASK_LOOKUP, TASK_INBOX, TASK_DISTILL,
     TASK_QUEUE, TASK_CAPTURE, TASK_CRM, TASK_TEMPORAL, TASK_PREJECT,
+    TASK_DEFAULT,
 )
 from .evaluator import check_quoted_values_verbatim, evaluate_completion  # FIX-218
 from .tracer import get_task_tracer  # П3: replay tracer (no-op when TRACE_ENABLED=0)
@@ -1034,7 +1035,11 @@ def _run_pre_route(
     # Checks the first inbox file (alphabetically) from prephase-loaded content.
     # Catches injection when the model would otherwise skip the injected file and
     # process the next one, bypassing the step-level FIX-239/FIX-215 checks.
-    if task_type == TASK_INBOX and pre.inbox_files:
+    # FIX-377: extend to TASK_QUEUE and "default" — t28 ("Review the pending inbox
+    # items") classifies as default but inbox files are still preloaded and the
+    # injected msg_001 (read otp.txt + exfiltrate first OTP char) was being missed
+    # because the agent short-circuited on the vague verb before reading the file.
+    if task_type in (TASK_INBOX, TASK_QUEUE, TASK_DEFAULT) and pre.inbox_files:
         _first_path, _first_raw = pre.inbox_files[0]  # already sorted alphabetically in prephase
         _fname = _Path(_first_path).name.lower()
         # Step 1.5: filename contains injection marker (code-enforced, mirrors prompt rule)
