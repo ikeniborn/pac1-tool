@@ -187,10 +187,10 @@ class _LoopState:
     # FIX-376c: mid-cycle breakout flag — set when researcher_breakout_check
     # asks the inner loop to abort early. Surfaced to outer loop via _st_to_result.
     midcycle_aborted: bool = False
-    # FIX-377: structural detect of "answer already submitted" in researcher mode.
-    # Harness rejects a 2nd ReportTaskCompletion with INVALID_ARGUMENT; outer
-    # loop short-circuits on this signal so reflector never sees a contaminated
-    # trajectory.
+    # FIX-377: structural detection of "answer already submitted" in researcher
+    # mode. Cycle 1 succeeds; cycle ≥ 2 ReportTaskCompletion is rejected by
+    # harness with INVALID_ARGUMENT. Outer researcher loop short-circuits on
+    # this signal so reflector never sees a contaminated trajectory.
     report_completion_attempted: bool = False
     report_completion_dispatch_error_code: str | None = None
     report_completion_succeeded: bool = False
@@ -2251,9 +2251,9 @@ def _run_step(
         _tracer.emit("dispatch_result", st.step_count, {
             "tool": action_name, "result": txt[:300], "is_error": True,
         })
-        # FIX-377: track ReportTaskCompletion dispatch failure (e.g. INVALID_ARGUMENT
-        # when the harness has already accepted an answer). Researcher outer-loop
-        # uses this to short-circuit instead of feeding a contaminated trajectory
+        # FIX-377: surface ReportTaskCompletion dispatch failure (e.g. INVALID_ARGUMENT
+        # when the harness has already accepted an answer) so the researcher
+        # outer-loop can short-circuit instead of feeding a contaminated trajectory
         # to the reflector.
         if isinstance(job.function, ReportTaskCompletion):
             st.report_completion_attempted = True
