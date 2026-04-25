@@ -140,6 +140,7 @@ def test_tc1_varied_reflection_does_not_disturb_counter(monkeypatch):
             "RESEARCHER_FLIP_HINT_ENABLED": "1",
             "RESEARCHER_EVAL_GATED": "0",
             "WIKI_GRAPH_ENABLED": "0",
+            "RESEARCHER_OUTCOME_LOOP_LIMIT": "100",
         },
     )
     # 3 retries + 1 last-chance + 1 final accept = 5 cycles
