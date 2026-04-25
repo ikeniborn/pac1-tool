@@ -96,6 +96,49 @@ def _check_write_payload_injection(content: str) -> bool:
     _norm = _normalize_for_injection(content)
     return any(p.search(_norm) for p in _WRITE_PAYLOAD_INJECTION_PATTERNS)
 
+
+# ---------------------------------------------------------------------------
+# FIX-377: Pasted-external-content injection markers
+#
+# Distinguishes the t09 case (pasted external content + embedded
+# runtime_override / quoted-message asserting agent permissions / delimiter
+# block claiming to override policy) from the t33 case (plain capture of a
+# benign quoted excerpt attributed to an external site, no override markers).
+# Used as a structural test for the wiki "Verified refusal: t09" pattern so
+# that capture tasks like t33 are not falsely refused.
+# ---------------------------------------------------------------------------
+
+_PASTED_INJECTION_MARKERS = [
+    # Override directives — runtime/system/policy override blocks.
+    re.compile(r"\b(runtime|system|policy|security)_override\b", re.IGNORECASE),
+    re.compile(r"\boverride\s*[:=]\s*(true|enabled|on|1)\b", re.IGNORECASE),
+    # Authority-claiming permission directives commonly seen in t09's
+    # quoted-message payload.
+    re.compile(r"\b(export_contacts|share_thread|grant_access|disable_audit)\b", re.IGNORECASE),
+    re.compile(r"\bconfirmation\s*=\s*not[-_]required\b", re.IGNORECASE),
+    # Delimiter blocks claiming to be system/policy/jailbreak directives.
+    re.compile(r"^\s*#{0,3}\s*(SYSTEM|POLICY|ADMIN|JAILBREAK|DEVELOPER)\s+(OVERRIDE|DIRECTIVE|MODE)\b", re.IGNORECASE | re.MULTILINE),
+    re.compile(r"<\s*(system|policy|admin)[-_]?override\s*>", re.IGNORECASE),
+]
+
+
+def _pasted_external_has_injection_markers(text: str) -> bool:
+    """FIX-377: True iff pasted external content carries injection markers.
+
+    A plain capture task that quotes a benign excerpt attributed to an
+    external site (no override directives, no embedded permissions, no
+    system blocks) returns False — it is NOT injection.
+    """
+    if not text:
+        return False
+    norm = _normalize_for_injection(text)
+    if any(p.search(norm) for p in _PASTED_INJECTION_MARKERS):
+        return True
+    # Reuse write-payload markers (FIX-321/329): bridge/relay/trusted-patch
+    # headers also count as injection markers when found in pasted content.
+    return any(p.search(norm) for p in _WRITE_PAYLOAD_INJECTION_PATTERNS)
+
+
 # ---------------------------------------------------------------------------
 # FIX-250: Write-scope code enforcement (FIX-208)
 # ---------------------------------------------------------------------------

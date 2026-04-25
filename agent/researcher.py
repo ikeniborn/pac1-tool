@@ -169,6 +169,14 @@ def _detect_drift_lcs(
 # to break the loop (observed t43: 15× OUTCOME_OK same answer, all rejected).
 _OK_LOOP_LIMIT = int(os.environ.get("RESEARCHER_OK_LOOP_LIMIT", "5"))
 
+# FIX-377: outcome-only loop guard. Trips on N consecutive cycles with the
+# same agent_outcome (any value) regardless of message/answer text. Targets
+# t11-class: 9 cycles of OUTCOME_NONE_CLARIFICATION where each refusal is
+# rephrased (especially after OUTCOME_FLIP_HINT) so FIX-375b/C identical-
+# answer guard never trips. Operates in parallel with FIX-375b/C; either
+# may fire first.
+_OUTCOME_LOOP_LIMIT = int(os.environ.get("RESEARCHER_OUTCOME_LOOP_LIMIT", "4"))
+
 # FIX-376a: evaluator fail-closed — on LLM/parse error inside the gate, return
 # inconclusive instead of silent approve. Researcher continues to next cycle
 # without injecting a misleading EVAL_REJECTED hint and without short-circuit.
@@ -768,6 +776,10 @@ def run_researcher(
     _outcome_history: list[str] = []
     _consecutive_ok_count = 0
     _last_ok_answer = ""
+    # FIX-377: outcome-only loop guard — counts consecutive identical
+    # agent_outcome regardless of message text (catches rephrased refusals).
+    _consecutive_same_outcome_count = 0
+    _prev_agent_outcome = ""
     # FIX-376b: hint forcing state — track type and consecutive count of the
     # last hint that was injected via reflection.hypothesis_for_next.
     _last_hint_type = ""
@@ -1050,6 +1062,14 @@ def run_researcher(
         else:
             _consecutive_ok_count = 0
             _last_ok_answer = ""
+        # FIX-377: outcome-only counter — increments on identical agent_outcome
+        # (any value), resets on change. Catches refusal rephrasing where
+        # FIX-375b/C identical-message guard misses.
+        if agent_outcome and agent_outcome == _prev_agent_outcome:
+            _consecutive_same_outcome_count += 1
+        else:
+            _consecutive_same_outcome_count = 1 if agent_outcome else 0
+        _prev_agent_outcome = agent_outcome or ""
         cycle_reflections.append(reflection)
         # FIX-377: snapshot cycle 1 — needed if cycle 2's report dispatch fails
         # with INVALID_ARGUMENT (harness already accepted cycle 1's answer).
@@ -1148,12 +1168,55 @@ def run_researcher(
                 stats.get("researcher_graph_merge_skipped", 0) + 1
             )
 
+        # FIX-377: reset refusal retry budget on any non-refusal outcome (most
+        # importantly OUTCOME_OK). Counter must depend STRICTLY on agent_outcome,
+        # not on reflection branches — observed t11 produced 9 refusal cycles
+        # despite RESEARCHER_REFUSAL_MAX_RETRIES=3 because the cap check was
+        # bypassed by reflection-dependent branches. Reset happens BEFORE the
+        # terminal-refusal block so an OK→refusal chain restarts cleanly.
+        if agent_outcome == "OUTCOME_OK":
+            stats["researcher_refusal_retries"] = 0
+            stats["researcher_refusal_last_chance_used"] = False
+
+        # FIX-377 (refusal branch): outcome-only loop guard preempts FIX-374
+        # refusal-retry when the agent has produced N consecutive identical
+        # refusals regardless of message text. Catches t11-class where each
+        # refusal is rephrased (especially after OUTCOME_FLIP_HINT) so the
+        # FIX-375b/C identical-answer guard never matches and the refusal-
+        # retry loop just burns cycles producing variant refusal text.
+        if (
+            agent_outcome in _TERMINAL_REFUSALS
+            and _consecutive_same_outcome_count >= _OUTCOME_LOOP_LIMIT
+            and cycle < max_cycles
+        ):
+            stats["researcher_outcome_loop_break"] = True
+            stats["researcher_early_stop"] = agent_outcome
+            trajectory = _build_structured_trajectory(step_facts)
+            _reason = reflection.hypothesis_for_next or (
+                reflection.what_failed[0] if reflection.what_failed else ""
+            )
+            stats["researcher_pending_refusal"] = {
+                "task_type": task_type,
+                "task_id": task_id,
+                "outcome": agent_outcome,
+                "goal_shape": reflection.goal_shape,
+                "refusal_reason": _reason,
+                "trajectory": trajectory,
+            }
+            if _GRAPH_ENABLED:
+                wiki_graph.save_graph(graph)
+            print(
+                f"[researcher] outcome-loop guard tripped on cycle {cycle} "
+                f"(consec={_consecutive_same_outcome_count} {agent_outcome}) "
+                f"— accepting refusal"
+            )
+            return stats
+
         # FIX-374: terminal refusals in researcher mode retry up to
         # RESEARCHER_REFUSAL_MAX_RETRIES times (default 3). Beyond that, the
         # agent has clearly converged on refusal — wasting remaining cycles is
         # pointless. Evaluator is not consulted: observed false-approve on t11.
         if agent_outcome in _TERMINAL_REFUSALS and cycle < max_cycles:
-            _retries = stats.get("researcher_refusal_retries", 0)
             # FIX-376f: dynamic cap — scale with cycles_remaining so refusals
             # can never burn the full max_cycles budget by themselves. When
             # disabled, fall back to the static FIX-374 limit.
@@ -1165,6 +1228,10 @@ def run_researcher(
                 )
             else:
                 _refusal_cap = _REFUSAL_MAX_RETRIES
+            # FIX-377: cap check moved to top of refusal block so reflection-
+            # dependent logic below cannot bypass it. Counter increments
+            # STRICTLY here, gated only on agent_outcome ∈ _TERMINAL_REFUSALS.
+            _retries = stats.get("researcher_refusal_retries", 0)
             if _retries < _refusal_cap:
                 stats["researcher_refusal_retries"] = _retries + 1
                 _reason = (
@@ -1266,6 +1333,39 @@ def run_researcher(
             print(
                 f"[researcher] OK-loop hard-guard tripped on cycle {cycle} "
                 f"(consec={_consecutive_ok_count}) — flipping to refusal"
+            )
+            return stats
+
+        # FIX-377 (OK branch): outcome-only loop guard for OUTCOME_OK cases
+        # where final_answer rotates between cycles (FIX-375b/C identical-
+        # answer guard would not match). Mirrors FIX-375b/C semantics —
+        # emits pending_refusal with OUTCOME_NONE_CLARIFICATION. Runs after
+        # FIX-375b/C so the same-answer detector wins ties on its threshold.
+        if (
+            agent_outcome == "OUTCOME_OK"
+            and _consecutive_same_outcome_count >= _OUTCOME_LOOP_LIMIT
+            and cycle < max_cycles
+        ):
+            stats["researcher_outcome_loop_break"] = True
+            stats["researcher_early_stop"] = "OUTCOME_NONE_CLARIFICATION"
+            trajectory = _build_structured_trajectory(step_facts)
+            stats["researcher_pending_refusal"] = {
+                "task_type": task_type,
+                "task_id": task_id,
+                "outcome": "OUTCOME_NONE_CLARIFICATION",
+                "goal_shape": reflection.goal_shape,
+                "refusal_reason": (
+                    f"outcome-loop guard: {_consecutive_same_outcome_count} "
+                    f"consecutive OUTCOME_OK — task likely unanswerable"
+                ),
+                "trajectory": trajectory,
+            }
+            if _GRAPH_ENABLED:
+                wiki_graph.save_graph(graph)
+            print(
+                f"[researcher] outcome-loop guard tripped on cycle {cycle} "
+                f"(consec={_consecutive_same_outcome_count} OUTCOME_OK) "
+                f"— flipping to refusal"
             )
             return stats
 
