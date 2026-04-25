@@ -131,12 +131,20 @@ def _lcs_ratio(a: list[str], b: list[str]) -> tuple[float, int]:
 
 
 def _detect_drift_lcs(
-    step_facts: list, patterns: list[dict], lcs_min: float,
+    step_facts: list,
+    patterns: list[dict],
+    lcs_min: float,
+    task_type: str,
+    goal_shape: str | None = None,
 ) -> str:
     """Full-trajectory drift hint via LCS. Returns '' when at least one pattern
     keeps an LCS-ratio ≥ lcs_min against the current trajectory.
     """
     if not step_facts or not patterns:
+        return ""
+    # FIX-377: same task-type/goal-shape filter as _detect_drift.
+    patterns = _filter_patterns_by_task(patterns, task_type, goal_shape)
+    if not patterns:
         return ""
     current = [(getattr(f, "kind", "") or "?").lower() for f in step_facts]
     if not any(current):
@@ -426,6 +434,9 @@ def _parse_page_patterns(task_type: str) -> list[dict]:
             "goal_shape": goal,
             "final_answer": answer,
             "trajectory_tools": traj_tools,
+            # FIX-377: stamp source page's task_type so downstream drift detectors
+            # can refuse cross-task references (email-task vs t35-lookup pattern).
+            "task_type": task_type,
         })
     return out
 
@@ -453,8 +464,56 @@ def _find_matching_pattern(
     return best
 
 
+# FIX-377: drift hints must reference patterns from the same task_type as the
+# current task. Earlier behaviour compared trajectories across types — an email
+# task would get advice keyed off a t35-lookup pattern, which is meaningless.
+# Patterns missing the `task_type` field are kept for backward compatibility
+# (legacy fragments / external callers).
+def _filter_patterns_by_task(
+    patterns: list[dict], task_type: str, goal_shape: str | None = None,
+    goal_jaccard_threshold: float = 0.3,
+) -> list[dict]:
+    if not patterns:
+        return []
+    same_type: list[dict] = []
+    for p in patterns:
+        p_type = p.get("task_type")
+        if p_type is None or p_type == task_type:
+            same_type.append(p)
+    if not same_type:
+        return []
+    goal_shape = (goal_shape or "").strip()
+    if not goal_shape:
+        return same_type
+    cur_tokens = set(goal_shape.lower().split())
+    if not cur_tokens:
+        return same_type
+    filtered: list[dict] = []
+    for p in same_type:
+        p_goal = p.get("goal_shape")
+        # Patterns lacking goal_shape — keep (backward-compat); cannot judge.
+        if p_goal is None:
+            filtered.append(p)
+            continue
+        p_tokens = set(str(p_goal).lower().split())
+        if not p_tokens:
+            # Empty goal_shape on the pattern — same logic as missing field.
+            filtered.append(p)
+            continue
+        inter = len(cur_tokens & p_tokens)
+        union = len(cur_tokens | p_tokens)
+        jaccard = inter / union if union else 0.0
+        if jaccard >= goal_jaccard_threshold:
+            filtered.append(p)
+    return filtered
+
+
 def _detect_drift(
-    step_facts: list, patterns: list[dict], prefix_len: int,
+    step_facts: list,
+    patterns: list[dict],
+    prefix_len: int,
+    task_type: str,
+    goal_shape: str | None = None,
 ) -> str:
     """If current step-fact prefix doesn't match any known pattern's prefix, emit hint.
 
@@ -462,6 +521,10 @@ def _detect_drift(
     redaction. Empty step_facts or empty patterns → '' (nothing to say).
     """
     if not step_facts or not patterns or prefix_len <= 0:
+        return ""
+    # FIX-377: drop cross-task patterns before any comparison.
+    patterns = _filter_patterns_by_task(patterns, task_type, goal_shape)
+    if not patterns:
         return ""
     current_prefix = [
         (getattr(f, "kind", "") or "?").lower() for f in step_facts[:prefix_len]
@@ -1023,10 +1086,19 @@ def run_researcher(
         # builder reads `last.hypothesis_for_next` verbatim, so the hint reaches
         # the next cycle's system prompt without any extra plumbing.
         if _DRIFT_HINTS and not reflection.is_solved and page_patterns and step_facts:
-            drift = _detect_drift(step_facts, page_patterns, _DRIFT_PREFIX_LEN)
+            # FIX-377: pass task_type + reflector goal_shape so drift detectors
+            # only reference same-task patterns and (when goal_shape known)
+            # only those with matching goal-shape.
+            drift = _detect_drift(
+                step_facts, page_patterns, _DRIFT_PREFIX_LEN,
+                task_type, getattr(reflection, "goal_shape", None),
+            )
             # FIX-376h: full-trace LCS fallback when prefix-check returns nothing.
             if not drift and _DRIFT_FULL_TRACE:
-                drift = _detect_drift_lcs(step_facts, page_patterns, _DRIFT_LCS_MIN)
+                drift = _detect_drift_lcs(
+                    step_facts, page_patterns, _DRIFT_LCS_MIN,
+                    task_type, getattr(reflection, "goal_shape", None),
+                )
                 if drift:
                     stats["researcher_drift_lcs_hints"] = (
                         stats.get("researcher_drift_lcs_hints", 0) + 1
