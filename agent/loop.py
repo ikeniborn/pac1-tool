@@ -186,6 +186,13 @@ class _LoopState:
     # FIX-376c: mid-cycle breakout flag — set when researcher_breakout_check
     # asks the inner loop to abort early. Surfaced to outer loop via _st_to_result.
     midcycle_aborted: bool = False
+    # FIX-377: structural detect of "answer already submitted" in researcher mode.
+    # Harness rejects a 2nd ReportTaskCompletion with INVALID_ARGUMENT; outer
+    # loop short-circuits on this signal so reflector never sees a contaminated
+    # trajectory.
+    report_completion_attempted: bool = False
+    report_completion_dispatch_error_code: str | None = None
+    report_completion_succeeded: bool = False
     # FIX-251: pre-write JSON snapshot for unicode fidelity check
     _pre_write_snapshot: dict | None = None
     # FIX-259: format-gate fired flag — hard-enforces CLARIFICATION outcome + evaluator bypass
@@ -843,6 +850,11 @@ def _st_to_result(st: _LoopState) -> dict:
         "report": st.last_report,
         # FIX-376c: surface mid-cycle abort to outer researcher loop
         "midcycle_aborted": st.midcycle_aborted,
+        # FIX-377: surface ReportTaskCompletion dispatch state so researcher
+        # can detect "answer already submitted" via INVALID_ARGUMENT.
+        "report_completion_attempted": st.report_completion_attempted,
+        "report_completion_dispatch_error_code": st.report_completion_dispatch_error_code,
+        "report_completion_succeeded": st.report_completion_succeeded,
     }
 
 
@@ -1736,14 +1748,30 @@ def _pre_dispatch(
         _read_any_contact = any(
             "contacts/" in _rp for _rp in st.read_paths
         )
+        # FIX-378: после ≥2 search-операций по /contacts/ с пустым результатом
+        # считаем что recipient точно не в vault. Гейт срабатывает один раз;
+        # повторных попыток write блокировать не нужно — иначе агент сдаётся
+        # с OUTCOME_NONE_CLARIFICATION на валидной email-задаче (t11 post-mortem).
+        if not _read_any_contact:
+            _empty_searches = 0
+            for _f in st.step_facts:
+                if _f.kind != "search" or not (_f.path or "").startswith("/contacts"):
+                    continue
+                _summary_lower = (_f.summary or "").lower()
+                if not _summary_lower or "no match" in _summary_lower or "not found" in _summary_lower or _f.error:
+                    _empty_searches += 1
+                    if _empty_searches >= 2:
+                        _read_any_contact = True  # bypass: recipient absent after thorough search
+                        break
         if not _read_any_contact:
             print(f"{CLI_YELLOW}[FIX-336] Outbox write blocked — no /contacts/ read yet{CLI_CLR}")
             return (
-                "[force-read-contact] BLOCKED: Cannot write outbox email without first reading "
-                "the recipient's /contacts/cont_*.json file. Wiki-cached contact data is stale — "
-                "the canonical email address lives in the contact file. "
-                "Steps: (1) search /contacts/ for the recipient name; (2) read the matching "
-                "contact file; (3) use THAT file's email field in the outbox write."
+                "[force-read-contact] BLOCKED: Read recipient's /contacts/<id>.json file before "
+                "writing /outbox/. Wiki-cached contact data may be stale.\n"
+                "Steps: (1) search /contacts/ by recipient name; (2) read matching contact file; "
+                "(3) use THAT file's email field in outbox write.\n"
+                "If recipient absent from /contacts/ after >=2 different searches, this gate "
+                "auto-relaxes - proceed with the write using the address from the task."
             )
 
     # Guard: FIX-276 — block outbox write if email inbox cross-account entity mismatch detected
@@ -2218,6 +2246,13 @@ def _run_step(
         _tracer.emit("dispatch_result", st.step_count, {
             "tool": action_name, "result": txt[:300], "is_error": True,
         })
+        # FIX-377: track ReportTaskCompletion dispatch failure (e.g. INVALID_ARGUMENT
+        # when the harness has already accepted an answer). Researcher outer-loop
+        # uses this to short-circuit instead of feeding a contaminated trajectory
+        # to the reflector.
+        if isinstance(job.function, ReportTaskCompletion):
+            st.report_completion_attempted = True
+            st.report_completion_dispatch_error_code = exc.code.name
         # Record repeated errors for stall detection
         _err_path = getattr(job.function, "path", getattr(job.function, "from_name", "?"))
         st.error_counts[(action_name, _err_path, exc.code.name)] += 1
@@ -2271,6 +2306,8 @@ def _run_step(
     if isinstance(job.function, ReportTaskCompletion):
         st.outcome = job.function.outcome  # FIX-303: capture for wiki fragment writing
         st.last_report = job.function  # FIX-374: evaluator gate needs full report in researcher mode
+        st.report_completion_attempted = True  # FIX-377
+        st.report_completion_succeeded = True  # FIX-377
         status = CLI_GREEN if job.function.outcome == "OUTCOME_OK" else CLI_YELLOW
         print(f"{status}agent {job.function.outcome}{CLI_CLR}. Summary:")
         for item in job.function.completed_steps_laconic:

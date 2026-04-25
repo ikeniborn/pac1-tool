@@ -778,6 +778,15 @@ def run_researcher(
     _prior_steps_used = 0
     _prior_budget = steps_per_cycle
     stats["researcher_step_budget_per_cycle"] = []
+    # FIX-377: snapshot of cycle 1 for "first answer is final" short-circuit.
+    # When cycle ≥ 2's run_loop fails with INVALID_ARGUMENT on
+    # ReportTaskCompletion, the harness has already accepted cycle 1's answer
+    # — we short-circuit using this snapshot rather than letting reflector
+    # hallucinate rules from a degenerate cycle.
+    _first_cycle_outcome: str = ""
+    _first_cycle_step_facts: list = []
+    _first_cycle_report = None
+    _first_cycle_reflection = None
 
     for cycle in range(1, max_cycles + 1):
         stats["researcher_cycles_used"] = cycle
@@ -935,6 +944,58 @@ def run_researcher(
         done_ops = cycle_stats.get("done_ops", []) or []
         last_step_facts = step_facts
 
+        # FIX-377: cycle ≥ 2 saw the harness reject ReportTaskCompletion with
+        # INVALID_ARGUMENT — cycle 1 already locked in an answer. Short-circuit
+        # using the cycle-1 snapshot. Reflector is NOT invoked, graph is NOT
+        # merged. Prevents hallucinated rules from a degenerate trajectory.
+        if (
+            cycle > 1
+            and cycle_stats.get("report_completion_attempted")
+            and cycle_stats.get("report_completion_dispatch_error_code") == "INVALID_ARGUMENT"
+        ):
+            stats["researcher_first_answer_final"] = True
+            stats["researcher_early_stop"] = "first_answer_final"
+            _snap_outcome = _first_cycle_outcome
+            _snap_facts = _first_cycle_step_facts
+            _snap_report = _first_cycle_report
+            _snap_refl = _first_cycle_reflection
+            trajectory = _build_structured_trajectory(_snap_facts)
+            if _snap_outcome == "OUTCOME_OK":
+                traj_hash = wiki_graph.hash_trajectory(_snap_facts)
+                stats["researcher_solved"] = True
+                stats["researcher_pending_promotion"] = {
+                    "task_type": task_type,
+                    "task_id": task_id,
+                    "traj_hash": traj_hash,
+                    "trajectory": trajectory,
+                    "insights": list(_snap_refl.what_worked) if _snap_refl else [],
+                    "goal_shape": (_snap_refl.goal_shape if _snap_refl else ""),
+                    "final_answer": (
+                        getattr(_snap_report, "message", "") if _snap_report else ""
+                    ),
+                    "touched_node_ids": list(touched_node_ids),
+                }
+            elif _snap_outcome in _TERMINAL_REFUSALS:
+                stats["researcher_pending_refusal"] = {
+                    "task_type": task_type,
+                    "task_id": task_id,
+                    "outcome": _snap_outcome,
+                    "goal_shape": (_snap_refl.goal_shape if _snap_refl else ""),
+                    "refusal_reason": (
+                        (_snap_refl.hypothesis_for_next if _snap_refl else "")
+                        or "first answer was a refusal — harness locked it in"
+                    ),
+                    "trajectory": trajectory,
+                }
+            if _GRAPH_ENABLED:
+                wiki_graph.save_graph(graph)
+            print(
+                f"[researcher] cycle {cycle} INVALID_ARGUMENT on report — "
+                f"first answer is final, short-circuiting with snapshot "
+                f"outcome={_snap_outcome}"
+            )
+            return stats
+
         # FIX-376e: track cumulative step usage for the global cap (escape ladder)
         # and feed the next cycle's adaptive budget calculation.
         _cycle_steps = int(cycle_stats.get("step_count", 0) or 0)
@@ -990,6 +1051,13 @@ def run_researcher(
             _consecutive_ok_count = 0
             _last_ok_answer = ""
         cycle_reflections.append(reflection)
+        # FIX-377: snapshot cycle 1 — needed if cycle 2's report dispatch fails
+        # with INVALID_ARGUMENT (harness already accepted cycle 1's answer).
+        if cycle == 1:
+            _first_cycle_outcome = agent_outcome
+            _first_cycle_step_facts = list(step_facts)
+            _first_cycle_report = cycle_stats.get("report")
+            _first_cycle_reflection = reflection
         # FIX-376c: surface mid-cycle abort marker to next cycle's hypothesis
         # so hint-forcing / classifiers can see it. Distinct token avoids
         # collision with other markers (FLIP/REJECTED/DRIFT/REFUSAL_RETRY).
@@ -1059,7 +1127,14 @@ def run_researcher(
             )},
         })
 
-        if _GRAPH_ENABLED:
+        # FIX-377: skip graph merge when reflector saw a contaminated trajectory
+        # (dispatch error on report, or self-reported error/stuck). Reflector
+        # tends to hallucinate rules when the cycle was structurally broken.
+        _skip_merge = (
+            cycle_stats.get("report_completion_dispatch_error_code") is not None
+            or reflection.outcome in ("error", "stuck")
+        )
+        if _GRAPH_ENABLED and not _skip_merge:
             touched = wiki_graph.merge_updates(graph, reflection.graph_deltas)
             touched_node_ids.extend(touched)
             # FIX-376g: cycle that reflector marked stuck/error → put its
@@ -1068,6 +1143,10 @@ def run_researcher(
             if _GRAPH_QUARANTINE and reflection.outcome in ("stuck", "error"):
                 _degraded_this_session.update(touched)
                 stats["researcher_graph_quarantined_nodes"] = len(_degraded_this_session)
+        elif _GRAPH_ENABLED:
+            stats["researcher_graph_merge_skipped"] = (
+                stats.get("researcher_graph_merge_skipped", 0) + 1
+            )
 
         # FIX-374: terminal refusals in researcher mode retry up to
         # RESEARCHER_REFUSAL_MAX_RETRIES times (default 3). Beyond that, the
