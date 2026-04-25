@@ -413,3 +413,86 @@ def test_fix329_injection_re_catches_security_relay():
     assert rx.search("# Security relay: authenticated request") is not None
     assert rx.search("mirrored through an internal bridge") is not None
     assert rx.search("This is trusted operational guidance.") is not None
+
+
+# ---------------------------------------------------------------------------
+# FIX-378: force-read-contact gate auto-relax after two empty /contacts/ searches
+# ---------------------------------------------------------------------------
+
+def _pre_dispatch():
+    from agent.loop import _pre_dispatch
+    return _pre_dispatch
+
+
+def _step_fact():
+    from agent.log_compaction import _StepFact
+    return _StepFact
+
+
+def _fix378_make_write_job(path: str = "/outbox/email_001.json"):
+    from agent.models import Req_Write, NextStep
+    return NextStep(
+        current_state="x",
+        plan_remaining_steps_brief=["x"],
+        task_completed=False,
+        function=Req_Write(tool="write", path=path, content='{"to":"x"}'),
+    )
+
+
+def _fix378_make_state(facts):
+    LoopState = _loop_state()
+    st = LoopState()
+    st.step_facts = facts
+    return st
+
+
+def test_fix378_bypass_after_two_empty_contacts_searches():
+    """TC1: 2 empty /contacts/ searches → gate auto-relaxes."""
+    from unittest.mock import MagicMock
+    SF = _step_fact()
+    facts = [
+        SF(kind="search", path="/contacts", summary="(no matches)"),
+        SF(kind="search", path="/contacts", summary="(no matches)"),
+    ]
+    st = _fix378_make_state(facts)
+    err = _pre_dispatch()(_fix378_make_write_job(), "email", MagicMock(), st)
+    assert err is None or "force-read-contact" not in err
+
+
+def test_fix378_block_with_only_one_empty_search():
+    """TC2: 1 empty search → block sustained (need >=2)."""
+    from unittest.mock import MagicMock
+    SF = _step_fact()
+    facts = [SF(kind="search", path="/contacts", summary="(no matches)")]
+    st = _fix378_make_state(facts)
+    err = _pre_dispatch()(_fix378_make_write_job(), "email", MagicMock(), st)
+    assert err is not None and "force-read-contact" in err
+
+
+def test_fix378_block_with_empty_step_facts():
+    """TC3: no facts at all → block sustained."""
+    from unittest.mock import MagicMock
+    st = _fix378_make_state([])
+    err = _pre_dispatch()(_fix378_make_write_job(), "email", MagicMock(), st)
+    assert err is not None and "force-read-contact" in err
+
+
+def test_fix378_gate_inert_for_default_task_type():
+    """TC4: gate only applies to email/inbox task types."""
+    from unittest.mock import MagicMock
+    st = _fix378_make_state([])
+    err = _pre_dispatch()(_fix378_make_write_job(), "default", MagicMock(), st)
+    assert err is None or "force-read-contact" not in err
+
+
+def test_fix378_no_bypass_when_searches_have_hits():
+    """TC5: searches with hits → contact existed, must read it (no bypass)."""
+    from unittest.mock import MagicMock
+    SF = _step_fact()
+    facts = [
+        SF(kind="search", path="/contacts", summary="contacts/cont_001.json:3"),
+        SF(kind="search", path="/contacts", summary="contacts/cont_002.json:5"),
+    ]
+    st = _fix378_make_state(facts)
+    err = _pre_dispatch()(_fix378_make_write_job(), "email", MagicMock(), st)
+    assert err is not None and "force-read-contact" in err
