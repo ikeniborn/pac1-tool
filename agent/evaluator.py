@@ -77,6 +77,45 @@ def check_quoted_values_verbatim(
             )
     return True, ""
 
+# ---------------------------------------------------------------------------
+# FIX-377: Hard-gate — grounding_refs must cover every vault ID in agent message.
+# ---------------------------------------------------------------------------
+
+_VAULT_ID_RE = re.compile(r"\b[a-z]{2,5}_\d{2,4}\b", re.IGNORECASE)
+
+
+def validate_grounding_refs(report) -> tuple[bool, str]:
+    """Return (ok, issue) — every vault ID mentioned in message must appear in a grounding_ref.
+
+    Vault IDs follow the convention `<2-5 lowercase letters>_<2-4 digits>`
+    (e.g. acct_009, mgr_002, cont_042, inv_007). For each ID found in
+    ``report.message``, at least one path in ``report.grounding_refs`` must
+    contain that ID as a case-insensitive substring. If no IDs are present,
+    skip validation. Fail-open on any structural issue with the report.
+    """
+    message = getattr(report, "message", "") or ""
+    refs = getattr(report, "grounding_refs", None) or []
+    found_ids: list[str] = []
+    seen: set[str] = set()
+    for m in _VAULT_ID_RE.findall(message):
+        key = m.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        found_ids.append(key)
+    if not found_ids:
+        return True, ""
+    refs_lower = [str(r).lower() for r in refs]
+    missing = [vid for vid in found_ids if not any(vid in r for r in refs_lower)]
+    if not missing:
+        return True, ""
+    ids_str = ", ".join(missing)
+    return False, (
+        f"Missing grounding_ref for ID(s): {ids_str}. "
+        "Add the source file path(s) to grounding_refs."
+    )
+
+
 _EVAL_PROGRAM_PATH = Path(__file__).parent.parent / "data" / "evaluator_program.json"
 
 
@@ -373,6 +412,13 @@ def evaluate_completion(
             (researcher gate) can treat the result as inconclusive instead of
             silently accepting. Default False preserves normal-mode fail-open.
     """
+    # FIX-377: deterministic pre-check — vault IDs in message must be covered
+    # by grounding_refs. Catches t23/t40-class failures where the agent named
+    # an entity (acct_009, mgr_002) but did not attach the source file path.
+    _gr_ok, _gr_issue = validate_grounding_refs(report)
+    if not _gr_ok:
+        return EvalVerdict(approved=False, issues=[_gr_issue], correction_hint=_gr_issue)
+
     max_tok = _EFFICIENCY_MAX_TOKENS.get(efficiency, 512)
 
     # Build evidence strings (efficiency-gated, mirrors original logic)
