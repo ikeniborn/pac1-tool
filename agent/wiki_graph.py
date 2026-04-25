@@ -84,7 +84,28 @@ def load_graph() -> Graph:
         return Graph()
 
 
+def _gc_orphan_edges(g: Graph) -> int:
+    """FIX-387: drop edges whose endpoints no longer exist in g.nodes.
+
+    Orphans accumulate after _archive_nodes() / degrade_confidence() / the
+    purge script — merge_updates dedups but never sweeps. Returns the count
+    removed (for logging by callers that care).
+    """
+    keep: list = []
+    dropped = 0
+    for e in g.edges:
+        f, t = e.get("from"), e.get("to")
+        if f in g.nodes and t in g.nodes:
+            keep.append(e)
+        else:
+            dropped += 1
+    if dropped:
+        g.edges = keep
+    return dropped
+
+
 def save_graph(g: Graph) -> None:
+    _gc_orphan_edges(g)
     _WIKI_DIR.mkdir(parents=True, exist_ok=True)
     tmp = _GRAPH_PATH.with_suffix(".json.tmp")
     payload = {"nodes": g.nodes, "edges": g.edges}
