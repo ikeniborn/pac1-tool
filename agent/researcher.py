@@ -85,6 +85,192 @@ _FLIP_HYP_SIM_THRESHOLD = float(
 )
 _REFUSAL_LAST_CHANCE = os.environ.get("RESEARCHER_REFUSAL_LAST_CHANCE", "1") == "1"
 
+# FIX-376f: dynamic refusal budget — instead of a fixed cap, scale retries
+# with cycles_remaining so refusals can never pre-empt the full max_cycles
+# allotment. Last-chance injection additionally pulls top-K bullets from
+# _load_negative_warnings to ground the alternative-interpretation suggestion.
+_REFUSAL_DYNAMIC = os.environ.get("RESEARCHER_REFUSAL_DYNAMIC", "0") == "1"
+_REFUSAL_MIN_CYCLES_LEFT = int(os.environ.get("RESEARCHER_REFUSAL_MIN_CYCLES_LEFT", "2"))
+
+# FIX-376g: graph quarantine — drop low-confidence nodes and nodes that were
+# poisoned in this trial from retrieve_relevant before they leak back into
+# the next-cycle addendum and propagate the antipattern cascade.
+_GRAPH_QUARANTINE = os.environ.get("RESEARCHER_GRAPH_QUARANTINE", "0") == "1"
+_GRAPH_MIN_CONF = float(os.environ.get("RESEARCHER_GRAPH_MIN_CONF", "0.35"))
+
+# FIX-376h: full-trace drift via LCS — extends the prefix-only check from FIX-372.
+# Useful when the agent matches the opening of a successful pattern but diverges
+# at step 10+. Prefix-check stays as a fast-path shortcut.
+_DRIFT_FULL_TRACE = os.environ.get("RESEARCHER_DRIFT_FULL_TRACE", "0") == "1"
+_DRIFT_LCS_MIN = float(os.environ.get("RESEARCHER_DRIFT_LCS_MIN", "0.4"))
+
+
+def _lcs_ratio(a: list[str], b: list[str]) -> tuple[float, int]:
+    """Compute LCS-length ratio and the index of first divergence.
+
+    Returns (ratio, divergence_index). Ratio = LCS / max(len(a), len(b)),
+    bounded [0, 1]. Divergence_index = first i where a[i] != b[i] (or shorter
+    list end). Both empty → (1.0, 0). O(n·m) DP — n,m ≤ 30 so it's cheap.
+    """
+    if not a or not b:
+        return (0.0, 0)
+    n, m = len(a), len(b)
+    dp = [[0] * (m + 1) for _ in range(n + 1)]
+    for i in range(n):
+        for j in range(m):
+            if a[i] == b[j]:
+                dp[i + 1][j + 1] = dp[i][j] + 1
+            else:
+                dp[i + 1][j + 1] = max(dp[i][j + 1], dp[i + 1][j])
+    lcs = dp[n][m]
+    ratio = lcs / max(n, m)
+    div_idx = 0
+    while div_idx < n and div_idx < m and a[div_idx] == b[div_idx]:
+        div_idx += 1
+    return (ratio, div_idx)
+
+
+def _detect_drift_lcs(
+    step_facts: list, patterns: list[dict], lcs_min: float,
+) -> str:
+    """Full-trajectory drift hint via LCS. Returns '' when at least one pattern
+    keeps an LCS-ratio ≥ lcs_min against the current trajectory.
+    """
+    if not step_facts or not patterns:
+        return ""
+    current = [(getattr(f, "kind", "") or "?").lower() for f in step_facts]
+    if not any(current):
+        return ""
+    best_ratio = -1.0
+    best_pattern = None
+    best_div = 0
+    for p in patterns:
+        ref = [t.lower() for t in (p.get("trajectory_tools") or []) if t]
+        if not ref:
+            continue
+        ratio, div_idx = _lcs_ratio(current, ref)
+        if ratio > best_ratio:
+            best_ratio = ratio
+            best_pattern = p
+            best_div = div_idx
+    if best_pattern is None or best_ratio >= lcs_min:
+        return ""
+    ref_tools = " → ".join((best_pattern.get("trajectory_tools") or [])[:8]) or "?"
+    return (
+        f"DRIFT(full-trace, lcs={best_ratio:.2f}<{lcs_min:.2f}): your trajectory "
+        f"diverges from verified pattern (task {best_pattern.get('task_id')}) at "
+        f"step {best_div + 1}; reference opens with `{ref_tools}`."
+    )
+
+# FIX-375b/C: hard guard against agent looping on consecutive OUTCOME_OK with
+# same final_answer. After N consecutive OK with identical final answer (after
+# trimming/lowercasing), short-circuit with pending_refusal. This is the last
+# resort when evaluator gate + flip-hint + reflector outcome-history all fail
+# to break the loop (observed t43: 15× OUTCOME_OK same answer, all rejected).
+_OK_LOOP_LIMIT = int(os.environ.get("RESEARCHER_OK_LOOP_LIMIT", "5"))
+
+# FIX-376a: evaluator fail-closed — on LLM/parse error inside the gate, return
+# inconclusive instead of silent approve. Researcher continues to next cycle
+# without injecting a misleading EVAL_REJECTED hint and without short-circuit.
+_EVAL_FAIL_CLOSED = os.environ.get("RESEARCHER_EVAL_FAIL_CLOSED", "0") == "1"
+
+# FIX-376d: reflector diversification. Pass last N raw hypotheses to reflector
+# so it cannot lazily repeat the same idea, and tighten the monotonicity
+# detector (mean pairwise Jaccard, lower threshold). Default OFF.
+_REFLECTOR_DIVERSIFY = os.environ.get("RESEARCHER_REFLECTOR_DIVERSIFY", "0") == "1"
+_REFLECTOR_PRIOR_WINDOW = int(os.environ.get("RESEARCHER_REFLECTOR_PRIOR_WINDOW", "3"))
+_REFLECTOR_DIVERSIFY_SIM_THRESHOLD = 0.45
+
+# FIX-376b: hint forcing — when consecutive cycles inject the same hint type
+# (FLIP/REJECTED/DRIFT/REFUSAL_RETRY) and the agent ignores it, escalate from
+# passive system-addendum to a mandatory user-message reminder.
+_HINT_FORCING = os.environ.get("RESEARCHER_HINT_FORCING", "0") == "1"
+_HINT_MAX_INJECTIONS = int(os.environ.get("RESEARCHER_HINT_MAX_INJECTIONS", "2"))
+_HINT_TYPE_PATTERNS = (
+    ("OUTCOME_FLIP_HINT", "FLIP"),
+    ("EVAL_REJECTED", "REJECTED"),
+    ("DRIFT", "DRIFT"),
+    ("REFUSAL_RETRY", "REFUSAL_RETRY"),
+    ("MIDCYCLE_ABORTED", "MIDCYCLE"),
+)
+
+
+# FIX-376e: adaptive per-cycle step budget + global step cap (escape ladder).
+# Cycles 1-2 keep RESEARCHER_STEPS_PER_CYCLE; from cycle 3 onward, if the prior
+# outcome was stuck and the agent burned ≥80% of its budget, expand by 1.5×
+# (capped at RESEARCHER_STEPS_MAX). RESEARCHER_TOTAL_STEP_BUDGET caps the sum
+# across all cycles — when hit, the outer loop accepts best-known and exits.
+_STEPS_ADAPTIVE = os.environ.get("RESEARCHER_STEPS_ADAPTIVE", "0") == "1"
+_STEPS_MAX = int(os.environ.get("RESEARCHER_STEPS_MAX", "30"))
+_TOTAL_STEP_BUDGET = int(os.environ.get("RESEARCHER_TOTAL_STEP_BUDGET", "180"))
+# RESEARCHER_SOFT_STALL is read inside agent/loop.py at runtime — keeping a
+# reference here for documentation completeness only.
+
+# FIX-376c: mid-cycle breakout — checkpoint inner-loop every N steps and abort
+# early when the agent is clearly looping on the same (tool, path) or has
+# stopped producing new step_fact kinds. Frees step budget for the next cycle.
+_MIDCYCLE_BREAKOUT = os.environ.get("RESEARCHER_MIDCYCLE_BREAKOUT", "0") == "1"
+_MIDCYCLE_CHECK_EVERY = int(os.environ.get("RESEARCHER_MIDCYCLE_CHECK_EVERY", "5"))
+_MIDCYCLE_REPEAT_THRESHOLD = int(os.environ.get("RESEARCHER_MIDCYCLE_REPEAT_THRESHOLD", "3"))
+
+
+def _midcycle_breakout(step_facts: list, _cycle: int) -> str:
+    """Decide whether to abort the inner cycle early.
+
+    Returns 'continue' (default), 'abort_cycle' (caller breaks the loop), or
+    'force_report' (reserved — currently treated identically to abort_cycle).
+    Triggers:
+      - same (tool, path) ≥ _MIDCYCLE_REPEAT_THRESHOLD times in the recent window
+      - no new step_fact.kind seen in the last _MIDCYCLE_CHECK_EVERY steps
+    """
+    if not step_facts:
+        return "continue"
+    window_size = max(_MIDCYCLE_CHECK_EVERY, _MIDCYCLE_REPEAT_THRESHOLD)
+    window = step_facts[-window_size:]
+    # Trigger 1: tight (tool, path) repeat
+    pair_counts: dict[tuple[str, str], int] = {}
+    for f in window:
+        key = (str(getattr(f, "kind", "")), str(getattr(f, "path", "")))
+        pair_counts[key] = pair_counts.get(key, 0) + 1
+        if pair_counts[key] >= _MIDCYCLE_REPEAT_THRESHOLD:
+            return "abort_cycle"
+    # Trigger 2: no new kinds in the trailing slice
+    if len(step_facts) >= _MIDCYCLE_CHECK_EVERY * 2:
+        recent_kinds = {str(getattr(f, "kind", "")) for f in step_facts[-_MIDCYCLE_CHECK_EVERY:]}
+        prior_kinds = {str(getattr(f, "kind", "")) for f in step_facts[-_MIDCYCLE_CHECK_EVERY * 2:-_MIDCYCLE_CHECK_EVERY]}
+        if recent_kinds and recent_kinds.issubset(prior_kinds):
+            return "abort_cycle"
+    return "continue"
+
+
+def _compute_step_budget(
+    cycle: int,
+    base_budget: int,
+    prior_outcome: str,
+    prior_steps_used: int,
+    prior_budget: int,
+) -> int:
+    """Return budget for this cycle. Default OFF → always returns base_budget."""
+    if not _STEPS_ADAPTIVE or cycle <= 2:
+        return base_budget
+    if prior_outcome == "stuck" and prior_budget > 0 and prior_steps_used >= int(0.8 * prior_budget):
+        return min(_STEPS_MAX, max(base_budget, int(prior_steps_used * 1.5)))
+    return base_budget
+
+
+def _classify_hint_type(hypothesis: str) -> str:
+    """Return short tag of the dominant hint type in a hypothesis_for_next, or ''.
+
+    First-match wins on the canonical patterns above so type is stable across cycles.
+    """
+    if not hypothesis:
+        return ""
+    text = hypothesis
+    for marker, tag in _HINT_TYPE_PATTERNS:
+        if marker in text:
+            return tag
+    return ""
+
 _LOG_DIR = Path(__file__).parent.parent / "logs" / "researcher"
 _NEGATIVES_DIR = Path(__file__).parent.parent / "data" / "wiki" / "archive" / "research_negatives"
 _PAGES_DIR = Path(__file__).parent.parent / "data" / "wiki" / "pages"
@@ -107,10 +293,29 @@ def _is_monotonic_hypothesis(history: list[str], k: int, threshold: float) -> bo
     """True if the last k+1 entries are pairwise similar above threshold.
 
     Used to detect reflector getting stuck in one interpretation.
+
+    FIX-376d: under RESEARCHER_REFLECTOR_DIVERSIFY=1 the check switches from
+    "all pairs ≥ threshold" to "mean pairwise Jaccard ≥ stricter threshold"
+    AND treats k=2 identical hypotheses (Jaccard=1.0 between consecutive)
+    as monotonic unconditionally — covers the t43-style reflector lock-in
+    where the same hypothesis surfaces verbatim across cycles.
     """
     if len(history) < k + 1:
         return False
     recent = history[-(k + 1):]
+    if _REFLECTOR_DIVERSIFY:
+        # Unconditional trip: any two consecutive identical (Jaccard=1.0).
+        for i in range(len(recent) - 1):
+            if _jaccard(recent[i], recent[i + 1]) >= 0.999:
+                return True
+        sims: list[float] = []
+        for i in range(len(recent)):
+            for j in range(i + 1, len(recent)):
+                sims.append(_jaccard(recent[i], recent[j]))
+        if not sims:
+            return False
+        mean_sim = sum(sims) / len(sims)
+        return mean_sim >= _REFLECTOR_DIVERSIFY_SIM_THRESHOLD
     for i in range(len(recent)):
         for j in range(i + 1, len(recent)):
             if _jaccard(recent[i], recent[j]) < threshold:
@@ -433,8 +638,13 @@ def _evaluator_gate(
             cfg=cfg,
             skepticism=_EVAL_SKEPTICISM,
             efficiency=_EVAL_EFFICIENCY,
+            fail_closed=_EVAL_FAIL_CLOSED,  # FIX-376a
         )
     except Exception as exc:
+        # FIX-376a: even outer-level exceptions respect fail_closed semantics.
+        if _EVAL_FAIL_CLOSED:
+            print(f"[researcher] evaluator gate failed ({exc}) — inconclusive")
+            return (False, ["evaluator_error"], "EVAL_ERROR")
         print(f"[researcher] evaluator gate failed ({exc}) — fail-open")
         return (True, [], "")
 
@@ -525,6 +735,9 @@ def run_researcher(
     cycle_reflections: list[Reflection] = []
     touched_node_ids: list[str] = []
     last_step_facts: list = []
+    # FIX-376g: track node IDs poisoned during THIS trial so the next cycle's
+    # retrieve_relevant skips them. Populated when reflection.outcome ∈ {stuck, error}.
+    _degraded_this_session: set[str] = set()
 
     # FIX-371: offline-only short-circuit. Before any inner-loop execution,
     # check if pages/<type>.md holds a Successful pattern whose goal_shape
@@ -551,10 +764,69 @@ def run_researcher(
     # FIX-375: state for diversification detector + flip-hint logic.
     _hypothesis_history: list[str] = []
     _eval_reject_reasons: list[str] = []
+    # FIX-375b: cross-cycle state for evaluator-primary gate + hard guard.
+    _outcome_history: list[str] = []
+    _consecutive_ok_count = 0
+    _last_ok_answer = ""
+    # FIX-376b: hint forcing state — track type and consecutive count of the
+    # last hint that was injected via reflection.hypothesis_for_next.
+    _last_hint_type = ""
+    _consecutive_hint_count = 0
+    # FIX-376e: adaptive budget bookkeeping + global cap (escape ladder).
+    _total_steps_used = 0
+    _prior_outcome = ""
+    _prior_steps_used = 0
+    _prior_budget = steps_per_cycle
+    stats["researcher_step_budget_per_cycle"] = []
 
     for cycle in range(1, max_cycles + 1):
         stats["researcher_cycles_used"] = cycle
-        print(f"\n[researcher] ===== cycle {cycle}/{max_cycles} =====")
+
+        # FIX-376e: compute this cycle's step budget (default = static), then
+        # consult the global escape ladder. If the projected total would exceed
+        # the cap, accept best-known and break out — runaway protection when
+        # adaptive budgets stack up.
+        _this_budget = _compute_step_budget(
+            cycle, steps_per_cycle, _prior_outcome, _prior_steps_used, _prior_budget,
+        )
+        if _STEPS_ADAPTIVE and _total_steps_used + _this_budget > _TOTAL_STEP_BUDGET:
+            _remaining = max(0, _TOTAL_STEP_BUDGET - _total_steps_used)
+            if _remaining < max(3, steps_per_cycle // 3):
+                stats["researcher_global_step_cap_hit"] = True
+                stats["researcher_total_steps_used"] = _total_steps_used
+                # Salvage best-known: previous cycle's reflection.final_answer
+                # if any; otherwise let the post-loop archive path handle it.
+                if cycle_reflections:
+                    _last = cycle_reflections[-1]
+                    stats["researcher_best_known_answer"] = _last.final_answer
+                    stats["researcher_best_known_outcome"] = _last.outcome
+                print(
+                    f"[researcher] global step cap reached "
+                    f"({_total_steps_used}/{_TOTAL_STEP_BUDGET}) — accepting best-known"
+                )
+                break
+            # Trim to fit remaining quota rather than skip the cycle entirely.
+            _this_budget = _remaining
+        stats["researcher_step_budget_per_cycle"].append(_this_budget)
+        print(
+            f"\n[researcher] ===== cycle {cycle}/{max_cycles} (budget={_this_budget}) ====="
+        )
+
+        # FIX-376b: update hint-type tracker based on the previous cycle's final
+        # hypothesis (after all suffix mutations). Same type for ≥2 consecutive
+        # cycles → next inject becomes mandatory user-message via _HINT_FORCING.
+        if _HINT_FORCING and cycle_reflections:
+            _prev_type = _classify_hint_type(
+                cycle_reflections[-1].hypothesis_for_next or ""
+            )
+            if _prev_type and _prev_type == _last_hint_type:
+                _consecutive_hint_count += 1
+            elif _prev_type:
+                _last_hint_type = _prev_type
+                _consecutive_hint_count = 1
+            else:
+                _last_hint_type = ""
+                _consecutive_hint_count = 0
 
         # Fresh prephase each cycle — vault state may have shifted via writes.
         vm = PcmRuntimeClientSync(harness_url)
@@ -577,10 +849,22 @@ def run_researcher(
                     _existing_edges.add(key)
 
         wiki_patterns = load_wiki_patterns(task_type)
-        graph_section = (
-            wiki_graph.retrieve_relevant(graph, task_type, task_text, top_k=_GRAPH_TOP_K)
-            if _GRAPH_ENABLED else ""
-        )
+        # FIX-376g: pass quarantine knobs only when opted in; defaults preserve
+        # normal-mode behaviour for any callers reaching this code path.
+        if _GRAPH_ENABLED:
+            if _GRAPH_QUARANTINE:
+                graph_section = wiki_graph.retrieve_relevant(
+                    graph, task_type, task_text, top_k=_GRAPH_TOP_K,
+                    min_retrieve_confidence=_GRAPH_MIN_CONF,
+                    degraded_this_session=_degraded_this_session,
+                    quarantine_weak_antipatterns=True,
+                )
+            else:
+                graph_section = wiki_graph.retrieve_relevant(
+                    graph, task_type, task_text, top_k=_GRAPH_TOP_K,
+                )
+        else:
+            graph_section = ""
         # FIX-370: pre-flight negatives awareness — surface past failures.
         negatives_section = _load_negative_warnings(
             task_type, task_text, _NEGATIVES_TOP_K,
@@ -594,14 +878,56 @@ def run_researcher(
         pre.log[0]["content"] = final_prompt
         pre.preserve_prefix[0]["content"] = final_prompt
 
+        # FIX-376b: if the previous cycle's hypothesis injected the same hint
+        # type for the second time in a row (and we're under the cap), promote
+        # it to a mandatory user-message visible above the noise of the system
+        # addendum. The previous-cycle hypothesis is already embedded in the
+        # addendum's "Current hypothesis:" line; this duplicates the critical
+        # bit as a fresh user turn so the agent cannot silently drop it.
+        if (
+            _HINT_FORCING
+            and cycle_reflections
+            and _last_hint_type
+            and _consecutive_hint_count >= 2
+            and _consecutive_hint_count <= _HINT_MAX_INJECTIONS + 1
+        ):
+            _force_msg = (
+                f"[MANDATORY HINT — DO NOT IGNORE] The previous cycle flagged "
+                f"`{_last_hint_type}` and you ignored it. This cycle you MUST "
+                f"either act on this hint or explicitly justify why it does "
+                f"not apply: {(cycle_reflections[-1].hypothesis_for_next or '').strip()}"
+            )
+            pre.log.append({"role": "user", "content": _force_msg})
+            pre.preserve_prefix.append({"role": "user", "content": _force_msg})
+            stats["researcher_hint_forcing_injected"] = (
+                stats.get("researcher_hint_forcing_injected", 0) + 1
+            )
+            print(
+                f"[researcher] hint forcing — injected mandatory user-message "
+                f"for type={_last_hint_type} (consec={_consecutive_hint_count})"
+            )
+
+        # FIX-376c: pass mid-cycle breakout callback. Closure captures cycle.
+        _breakout_cb = (
+            (lambda sf, _c=cycle: _midcycle_breakout(sf, _c))
+            if _MIDCYCLE_BREAKOUT else None
+        )
         cycle_stats = run_loop(
             vm, model, task_text, pre, cfg,
             task_type=task_type,
             evaluator_model="",       # disabled in researcher mode regardless
             evaluator_cfg=None,
             researcher_mode=True,
-            max_steps=steps_per_cycle,
+            max_steps=_this_budget,  # FIX-376e: adaptive budget (default: steps_per_cycle)
+            researcher_breakout_check=_breakout_cb,
         )
+        # FIX-376c: track breakout aborts; if aborted, prepend MIDCYCLE_ABORTED
+        # marker to next-cycle hypothesis after reflector returns.
+        _midcycle_aborted = bool(cycle_stats.get("midcycle_aborted"))
+        if _midcycle_aborted:
+            stats["researcher_midcycle_aborts"] = (
+                stats.get("researcher_midcycle_aborts", 0) + 1
+            )
         stats = _merge_stats(stats, cycle_stats)
 
         agent_outcome = cycle_stats.get("outcome", "") or ""
@@ -609,6 +935,28 @@ def run_researcher(
         done_ops = cycle_stats.get("done_ops", []) or []
         last_step_facts = step_facts
 
+        # FIX-376e: track cumulative step usage for the global cap (escape ladder)
+        # and feed the next cycle's adaptive budget calculation.
+        _cycle_steps = int(cycle_stats.get("step_count", 0) or 0)
+        _total_steps_used += _cycle_steps
+        stats["researcher_total_steps_used"] = _total_steps_used
+        _prior_steps_used = _cycle_steps
+        _prior_budget = _this_budget
+        # Count soft-stall advisories from this cycle (if loop.py emitted any).
+        _soft_advisories = sum(
+            1 for f in step_facts if getattr(f, "kind", "") == "stall_advisory"
+        )
+        if _soft_advisories:
+            stats["researcher_soft_stall_hints"] = (
+                stats.get("researcher_soft_stall_hints", 0) + _soft_advisories
+            )
+
+        # FIX-376d: feed prior raw hypotheses to reflector so it can avoid
+        # repeating the same idea verbatim. Disabled → empty list, no behaviour change.
+        _prior_hyps_for_reflector = (
+            _hypothesis_history[-_REFLECTOR_PRIOR_WINDOW:]
+            if _REFLECTOR_DIVERSIFY else []
+        )
         reflection = reflect(
             task_text=task_text,
             task_type=task_type,
@@ -618,8 +966,44 @@ def run_researcher(
             agent_outcome=agent_outcome,
             model=model,
             cfg=cfg,
+            # FIX-375b/B: cross-cycle memory so reflector can detect outcome looping.
+            outcome_history=list(_outcome_history),
+            prior_hypotheses=_prior_hyps_for_reflector,
         )
+        # FIX-376d: reflector signalled stuck_converged → bump counter.
+        if _REFLECTOR_DIVERSIFY and (reflection.hypothesis_for_next or "").strip().lower() == "stuck_converged":
+            stats["researcher_stuck_converged_signaled"] = (
+                stats.get("researcher_stuck_converged_signaled", 0) + 1
+            )
+        # FIX-375b: track outcome history + consecutive-OK counter AFTER reflect.
+        _outcome_history.append(agent_outcome or "")
+        if agent_outcome == "OUTCOME_OK":
+            _ans = (cycle_stats.get("report") and getattr(
+                cycle_stats["report"], "message", ""
+            ) or "").strip().lower()
+            if _ans and _ans == _last_ok_answer:
+                _consecutive_ok_count += 1
+            else:
+                _consecutive_ok_count = 1
+                _last_ok_answer = _ans
+        else:
+            _consecutive_ok_count = 0
+            _last_ok_answer = ""
         cycle_reflections.append(reflection)
+        # FIX-376c: surface mid-cycle abort marker to next cycle's hypothesis
+        # so hint-forcing / classifiers can see it. Distinct token avoids
+        # collision with other markers (FLIP/REJECTED/DRIFT/REFUSAL_RETRY).
+        if _midcycle_aborted:
+            _existing_h = (reflection.hypothesis_for_next or "").strip()
+            _midcycle_msg = (
+                "MIDCYCLE_ABORTED: previous cycle aborted early due to "
+                "tight tool/path repeats — try a fundamentally different path"
+            )
+            reflection.hypothesis_for_next = (
+                f"{_existing_h} | {_midcycle_msg}" if _existing_h else _midcycle_msg
+            )
+        # FIX-376e: feed reflector outcome into next-cycle budget calc.
+        _prior_outcome = reflection.outcome or ""
         # FIX-375: capture RAW reflector hypothesis before any hint mutations
         # (drift/refusal_retry/eval_rejected/flip). Detector measures reflector
         # monotonicity, not our own injected suffixes.
@@ -640,6 +1024,13 @@ def run_researcher(
         # the next cycle's system prompt without any extra plumbing.
         if _DRIFT_HINTS and not reflection.is_solved and page_patterns and step_facts:
             drift = _detect_drift(step_facts, page_patterns, _DRIFT_PREFIX_LEN)
+            # FIX-376h: full-trace LCS fallback when prefix-check returns nothing.
+            if not drift and _DRIFT_FULL_TRACE:
+                drift = _detect_drift_lcs(step_facts, page_patterns, _DRIFT_LCS_MIN)
+                if drift:
+                    stats["researcher_drift_lcs_hints"] = (
+                        stats.get("researcher_drift_lcs_hints", 0) + 1
+                    )
             if drift:
                 existing = (reflection.hypothesis_for_next or "").strip()
                 reflection.hypothesis_for_next = (
@@ -671,6 +1062,12 @@ def run_researcher(
         if _GRAPH_ENABLED:
             touched = wiki_graph.merge_updates(graph, reflection.graph_deltas)
             touched_node_ids.extend(touched)
+            # FIX-376g: cycle that reflector marked stuck/error → put its
+            # touched nodes into session quarantine so the next cycle's
+            # retrieve_relevant skips them.
+            if _GRAPH_QUARANTINE and reflection.outcome in ("stuck", "error"):
+                _degraded_this_session.update(touched)
+                stats["researcher_graph_quarantined_nodes"] = len(_degraded_this_session)
 
         # FIX-374: terminal refusals in researcher mode retry up to
         # RESEARCHER_REFUSAL_MAX_RETRIES times (default 3). Beyond that, the
@@ -678,7 +1075,18 @@ def run_researcher(
         # pointless. Evaluator is not consulted: observed false-approve on t11.
         if agent_outcome in _TERMINAL_REFUSALS and cycle < max_cycles:
             _retries = stats.get("researcher_refusal_retries", 0)
-            if _retries < _REFUSAL_MAX_RETRIES:
+            # FIX-376f: dynamic cap — scale with cycles_remaining so refusals
+            # can never burn the full max_cycles budget by themselves. When
+            # disabled, fall back to the static FIX-374 limit.
+            if _REFUSAL_DYNAMIC:
+                _cycles_remaining = max_cycles - cycle
+                _refusal_cap = max(
+                    _REFUSAL_MIN_CYCLES_LEFT,
+                    _cycles_remaining - 1,
+                )
+            else:
+                _refusal_cap = _REFUSAL_MAX_RETRIES
+            if _retries < _refusal_cap:
                 stats["researcher_refusal_retries"] = _retries + 1
                 _reason = (
                     (reflection.what_failed[0] if reflection.what_failed else "")
@@ -691,7 +1099,7 @@ def run_researcher(
                 )
                 print(
                     f"[researcher] terminal refusal {agent_outcome} on cycle {cycle} "
-                    f"— retrying ({_retries + 1}/{_REFUSAL_MAX_RETRIES})"
+                    f"— retrying ({_retries + 1}/{_refusal_cap})"
                 )
                 continue
             # FIX-375: refusal last-chance — one extra cycle with flip hint
@@ -710,12 +1118,30 @@ def run_researcher(
                     (reflection.what_failed[0] if reflection.what_failed else "")
                     or "refused with same reasoning"
                 )[:200]
+                # FIX-376f: ground the flip hint in observed past failures.
+                _alt_section = ""
+                if _REFUSAL_DYNAMIC:
+                    _negatives = _load_negative_warnings(
+                        task_type, task_text, top_k=2,
+                    )
+                    if _negatives:
+                        # Strip header line, keep bullets; cap to 400 chars to
+                        # avoid drowning the flip in noise.
+                        _bullets = "\n".join(
+                            ln for ln in _negatives.splitlines()
+                            if ln.startswith("  - ") or ln.startswith("- ")
+                        )[:400]
+                        if _bullets:
+                            _alt_section = (
+                                f" Alternative interpretations seen on similar "
+                                f"tasks:\n{_bullets}"
+                            )
                 _flip = (
-                    f"OUTCOME_FLIP_HINT: You've refused {_REFUSAL_MAX_RETRIES} times "
+                    f"OUTCOME_FLIP_HINT: You've refused {_retries} times "
                     f"citing '{_last_reason}'. If there's ANY plausible interpretation "
                     f"where the task IS answerable (different tool semantics, different "
                     f"target folder, different definition of the verb), attempt it now. "
-                    f"This is your last cycle before final accept."
+                    f"This is your last cycle before final accept.{_alt_section}"
                 )
                 _existing = (reflection.hypothesis_for_next or "").strip()
                 reflection.hypothesis_for_next = (
@@ -728,16 +1154,52 @@ def run_researcher(
                 continue
             print(
                 f"[researcher] terminal refusal {agent_outcome} on cycle {cycle} "
-                f"— retry limit {_REFUSAL_MAX_RETRIES} reached, accepting refusal"
+                f"— retry limit {_refusal_cap} reached, accepting refusal"
             )
+
+        # FIX-375b/C: hard guard against runaway OUTCOME_OK loop. If the agent
+        # has produced ≥_OK_LOOP_LIMIT consecutive OUTCOME_OK with the same
+        # final_answer, evaluator/flip have already had their chance. Force-flip
+        # to refusal: emit pending_refusal with OUTCOME_NONE_CLARIFICATION, the
+        # benchmark rewards correct refusals (FIX-366) and on t43-class tasks
+        # (real refusal expected) this hits the right answer.
+        if (
+            agent_outcome == "OUTCOME_OK"
+            and _consecutive_ok_count >= _OK_LOOP_LIMIT
+            and cycle < max_cycles
+        ):
+            stats["researcher_ok_loop_break"] = True
+            stats["researcher_early_stop"] = "OUTCOME_NONE_CLARIFICATION"
+            trajectory = _build_structured_trajectory(step_facts)
+            stats["researcher_pending_refusal"] = {
+                "task_type": task_type,
+                "task_id": task_id,
+                "outcome": "OUTCOME_NONE_CLARIFICATION",
+                "goal_shape": reflection.goal_shape,
+                "refusal_reason": (
+                    f"hard-guard: agent produced OUTCOME_OK with same answer "
+                    f"{_consecutive_ok_count} times in a row — task likely unanswerable"
+                ),
+                "trajectory": trajectory,
+            }
+            if _GRAPH_ENABLED:
+                wiki_graph.save_graph(graph)
+            print(
+                f"[researcher] OK-loop hard-guard tripped on cycle {cycle} "
+                f"(consec={_consecutive_ok_count}) — flipping to refusal"
+            )
+            return stats
 
         # FIX-374: evaluator gate on self-OUTCOME_OK — decide whether to trust
         # the cycle outcome before short-circuiting. On reject + cycles remaining,
         # inject verdict as a hint for the next cycle and continue.
+        # FIX-375b/A: drop reflection.is_solved from gate trigger. Observed t43:
+        # agent self-reports OUTCOME_OK 15 cycles in a row, but reflector keeps
+        # outcome="stuck" → evaluator was never invoked, OK-flip detector dormant.
+        # Now: agent says OK → evaluator decides; reflector verdict is context.
         _gate_relevant = (
             _EVAL_GATED
             and cycle < max_cycles
-            and reflection.is_solved
             and agent_outcome == "OUTCOME_OK"
         )
         if _gate_relevant:
@@ -753,6 +1215,17 @@ def run_researcher(
                 stats=stats,
             )
             stats["researcher_eval_calls"] = stats.get("researcher_eval_calls", 0) + 1
+            # FIX-376a: inconclusive (evaluator error under fail-closed) — skip to
+            # next cycle without injecting a misleading rejection hint.
+            if _EVAL_FAIL_CLOSED and _hint == "EVAL_ERROR":
+                stats["researcher_eval_inconclusive"] = (
+                    stats.get("researcher_eval_inconclusive", 0) + 1
+                )
+                print(
+                    f"[researcher] evaluator inconclusive on cycle {cycle} "
+                    f"— skipping short-circuit, continuing to next cycle"
+                )
+                continue
             if not _approved:
                 stats["researcher_eval_rejections"] = stats.get("researcher_eval_rejections", 0) + 1
                 _reason = "; ".join(_issues[:3]) or _hint or "evaluator rejected outcome"
@@ -797,6 +1270,10 @@ def run_researcher(
                     f"[researcher] evaluator approved cycle {cycle} "
                     f"(OUTCOME_OK) — proceeding to short-circuit"
                 )
+                # FIX-375b/A: evaluator approved, even if reflector says stuck —
+                # treat OK as solved for short-circuit purposes (is_solved is a
+                # property derived from reflection.outcome, so mutate outcome).
+                reflection.outcome = "solved"
 
         # FIX-363a: score-gated promotion — defer write to pages until main.py
         # has the benchmark score. Researcher only prepares the payload.

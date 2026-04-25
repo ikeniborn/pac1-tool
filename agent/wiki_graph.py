@@ -260,11 +260,21 @@ def retrieve_relevant(
     task_type: str,
     task_text: str = "",
     top_k: int = 5,
+    min_retrieve_confidence: float = 0.0,
+    degraded_this_session: "set[str] | None" = None,
+    quarantine_weak_antipatterns: bool = False,
 ) -> str:
     """Render the top-K most relevant nodes as a Markdown section for addendum injection.
 
     Scoring: tag overlap + text-token overlap + confidence × log(uses).
     Nothing to show → returns ''.
+
+    FIX-376g: optional quarantine filters (researcher-only opt-in; defaults
+    are permissive so normal-mode behaviour is unchanged):
+      - min_retrieve_confidence: drop nodes whose confidence is below this
+      - degraded_this_session: drop node IDs that were degrade_confidence'd
+        during the current trial (avoid re-injecting just-poisoned nodes)
+      - quarantine_weak_antipatterns: drop antipatterns with uses<2 AND conf<0.5
     """
     import math
 
@@ -273,13 +283,26 @@ def retrieve_relevant(
 
     task_tokens = set(_normalize(task_text).split()) if task_text else set()
     candidates: list[tuple[float, str, dict]] = []
+    _quarantined: set[str] = set(degraded_this_session or ())
 
     for nid, node in g.nodes.items():
+        if nid in _quarantined:
+            continue
+        conf = float(node.get("confidence", _DEFAULT_CONFIDENCE))
+        if conf < min_retrieve_confidence:
+            continue
+        ntype = node.get("type", "node")
+        if (
+            quarantine_weak_antipatterns
+            and ntype == "antipattern"
+            and int(node.get("uses", 1)) < 2
+            and conf < 0.5
+        ):
+            continue
         tags = set(node.get("tags", []))
         tag_score = 2.0 if (task_type in tags or "all_types" in tags) else 0.0
         text_tokens = set(_normalize(node.get("text", "")).split())
         overlap = len(task_tokens & text_tokens) * 0.5
-        conf = float(node.get("confidence", _DEFAULT_CONFIDENCE))
         uses = max(1, int(node.get("uses", 1)))
         base = conf * (1.0 + math.log(uses))
         score = tag_score + overlap + base

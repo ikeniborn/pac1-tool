@@ -357,6 +357,7 @@ def evaluate_completion(
     efficiency: str = "mid",
     account_evidence: str = "",
     inbox_evidence: str = "",
+    fail_closed: bool = False,
 ) -> EvalVerdict:
     """Call evaluator LLM via DSPy ChainOfThought and return verdict.
 
@@ -367,6 +368,10 @@ def evaluate_completion(
         digest_str: pre-built by caller via build_digest() — avoids circular import.
         skepticism: "low"|"mid"|"high" — controls review strictness.
         efficiency: "low"|"mid"|"high" — controls context depth and token budget.
+        fail_closed: FIX-376a — when True, on LLM/parse error return
+            EvalVerdict(approved=False, correction_hint="EVAL_ERROR") so callers
+            (researcher gate) can treat the result as inconclusive instead of
+            silently accepting. Default False preserves normal-mode fail-open.
     """
     max_tok = _EFFICIENCY_MAX_TOKENS.get(efficiency, 512)
 
@@ -422,8 +427,10 @@ def evaluate_completion(
         elif approved_str_clean in ("no", "false", "0"):
             approved = False
         else:
-            # Unrecognisable or empty response — fail-open
-            print(f"{CLI_YELLOW}[evaluator] Unrecognisable approved_str={approved_str_clean!r} — auto-approve{CLI_CLR}")
+            # Unrecognisable or empty response — fail-open (or fail-closed under FIX-376a).
+            print(f"{CLI_YELLOW}[evaluator] Unrecognisable approved_str={approved_str_clean!r} — {'inconclusive' if fail_closed else 'auto-approve'}{CLI_CLR}")
+            if fail_closed:
+                return EvalVerdict(approved=False, issues=["evaluator_error"], correction_hint="EVAL_ERROR")
             return EvalVerdict(approved=True)
 
         raw_issues = (result.issues_str or "").strip()
@@ -499,5 +506,9 @@ def evaluate_completion(
         return EvalVerdict(approved=approved, issues=issues, correction_hint=correction)
 
     except Exception as e:
-        print(f"{CLI_YELLOW}[evaluator] Error ({e}) — auto-approve{CLI_CLR}")
+        # FIX-376a: fail-closed path — return inconclusive marker so researcher
+        # gate can skip this cycle without injecting a false EVAL_REJECTED hint.
+        print(f"{CLI_YELLOW}[evaluator] Error ({e}) — {'inconclusive' if fail_closed else 'auto-approve'}{CLI_CLR}")
+        if fail_closed:
+            return EvalVerdict(approved=False, issues=["evaluator_error"], correction_hint="EVAL_ERROR")
         return EvalVerdict(approved=True)

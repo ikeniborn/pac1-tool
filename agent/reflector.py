@@ -111,14 +111,49 @@ def reflect(
     model: str,
     cfg: dict,
     max_tokens: int = 1500,
+    outcome_history: list[str] | None = None,
+    prior_hypotheses: list[str] | None = None,
 ) -> Reflection:
     """Single LLM call that returns a Reflection. Fail-open: returns a stuck
-    reflection with empty deltas if parsing fails."""
+    reflection with empty deltas if parsing fails.
+
+    FIX-375b/B: outcome_history (last N agent outcomes across cycles) gives the
+    reflector cross-cycle memory. Without it, the reflector judges each cycle
+    in isolation and can't detect the agent looping on the same wrong answer
+    (observed t43: 15 cycles of OUTCOME_OK with same final_answer, reflector
+    each cycle proposed only how-to-do-it-better, never "this may be unanswerable").
+    """
     trace = _format_trace(step_facts, done_ops, agent_outcome)
+    history_block = ""
+    if outcome_history:
+        recent = outcome_history[-5:]
+        history_block = (
+            f"\nPREVIOUS_OUTCOMES (last {len(recent)} cycles, oldest first): "
+            f"{', '.join(recent)}\n"
+            f"If this list shows the agent repeating the same outcome with no "
+            f"progress, consider whether the task is truly answerable as stated "
+            f"or if the cycle is stuck. Reflect this in `hypothesis_for_next`.\n"
+        )
+    # FIX-376d: surface prior hypotheses so the reflector cannot lazily repeat
+    # the same one. Token "stuck_converged" is a structured escape valve picked
+    # up by the outer loop's monotonicity detector.
+    prior_block = ""
+    if prior_hypotheses:
+        recent_h = [h for h in prior_hypotheses[-3:] if h]
+        if recent_h:
+            bullets = "\n".join(f"  - {h}" for h in recent_h)
+            prior_block = (
+                f"\nPRIOR_HYPOTHESES (already proposed, do not repeat verbatim):\n"
+                f"{bullets}\n"
+                f"Produce a MATERIALLY DIFFERENT hypothesis or, if the task truly "
+                f"appears unsolvable / converged, output the literal token "
+                f"\"stuck_converged\" as `hypothesis_for_next`.\n"
+            )
     user_msg = (
         f"TASK: {task_text}\n"
         f"TASK_TYPE: {task_type}\n"
-        f"CYCLE: {cycle}\n\n"
+        f"CYCLE: {cycle}\n"
+        f"{history_block}{prior_block}\n"
         f"TRAJECTORY:\n{trace}\n\n"
         f"Output JSON matching this schema (fill every field; empty arrays allowed):\n"
         f"{_REFLECTOR_SCHEMA_HINT}\n\n"

@@ -183,6 +183,9 @@ class _LoopState:
     researcher_mode: bool = False
     # FIX-374: last ReportTaskCompletion — exposed to researcher outer-loop evaluator gate.
     last_report: "ReportTaskCompletion | None" = None
+    # FIX-376c: mid-cycle breakout flag — set when researcher_breakout_check
+    # asks the inner loop to abort early. Surfaced to outer loop via _st_to_result.
+    midcycle_aborted: bool = False
     # FIX-251: pre-write JSON snapshot for unicode fidelity check
     _pre_write_snapshot: dict | None = None
     # FIX-259: format-gate fired flag — hard-enforces CLARIFICATION outcome + evaluator bypass
@@ -553,7 +556,7 @@ def _call_llm(log: list, model: str, max_tokens: int, cfg: dict) -> tuple[NextSt
 # Stall detection — extracted to agent/stall.py
 # ---------------------------------------------------------------------------
 
-from .stall import _handle_stall_retry as _handle_stall_retry_base
+from .stall import _handle_stall_retry as _handle_stall_retry_base, _check_stall
 
 
 def _handle_stall_retry(
@@ -838,6 +841,8 @@ def _st_to_result(st: _LoopState) -> dict:
         "stall_hints": [f.summary for f in st.step_facts if f.kind == "stall"],
         # FIX-374: last ReportTaskCompletion for researcher evaluator gate
         "report": st.last_report,
+        # FIX-376c: surface mid-cycle abort to outer researcher loop
+        "midcycle_aborted": st.midcycle_aborted,
     }
 
 
@@ -1956,6 +1961,9 @@ def _run_step(
 
     # FIX-362: researcher mode — skip stall hints; repetitive probing is legitimate
     # exploration when the outer orchestrator drives the experiment.
+    # FIX-376e: opt-in soft-stall — produce advisory hint as a step_fact so the
+    # reflector sees the signal, but do NOT trigger an LLM retry. The outer
+    # researcher loop decides whether to inject mid-cycle breakout / hint forcing.
     _si = _so = _se = _sev_c = _sev_ms = _scc = _scr = 0
     _stall_fired = False
     if not st.researcher_mode:
@@ -1964,6 +1972,14 @@ def _run_step(
             st.action_fingerprints, st.steps_since_write, st.error_counts, st.step_facts,
             st.stall_hint_active,
         )
+    elif os.environ.get("RESEARCHER_SOFT_STALL", "0") == "1":
+        _soft_hint = _check_stall(
+            st.action_fingerprints, st.steps_since_write, st.error_counts, st.step_facts,
+        )
+        if _soft_hint and not st.stall_hint_active:
+            from .log_compaction import _StepFact as _SF
+            st.step_facts.append(_SF(kind="stall_advisory", path="", summary=_soft_hint[:160]))
+            st.stall_hint_active = True
     if _stall_fired:
         _st_accum(st, _se, _si, _so, _sev_c, _sev_ms, _scc, _scr)
         action_name = job.function.__class__.__name__
@@ -2284,7 +2300,8 @@ def _run_step(
 def run_loop(vm: PcmRuntimeClientSync, model: str, _task_text: str,
              pre: PrephaseResult, cfg: dict, task_type: str = "default",
              evaluator_model: str = "", evaluator_cfg: "dict | None" = None,
-             researcher_mode: bool = False, max_steps: int | None = None) -> dict:
+             researcher_mode: bool = False, max_steps: int | None = None,
+             researcher_breakout_check=None) -> dict:
     """Run main agent loop. Returns token usage stats dict.
 
     FIX-362: researcher_mode=True disables evaluator, stall hints, and timeout —
@@ -2323,6 +2340,21 @@ def run_loop(vm: PcmRuntimeClientSync, model: str, _task_text: str,
     for i in range(loop_cap):
         if _run_step(i, vm, model, cfg, task_type, max_tokens, task_start, st):
             break
+        # FIX-376c: mid-cycle breakout checkpoint — researcher-only opt-in.
+        # The outer orchestrator can abort an obviously-stuck inner cycle to
+        # free step budget for the next reflector cycle.
+        if (
+            researcher_breakout_check is not None
+            and (i + 1) % max(1, int(os.environ.get("RESEARCHER_MIDCYCLE_CHECK_EVERY", "5"))) == 0
+        ):
+            try:
+                _decision = researcher_breakout_check(st.step_facts)
+            except Exception:
+                _decision = "continue"
+            if _decision in ("abort_cycle", "force_report"):
+                st.midcycle_aborted = True
+                print(f"{CLI_YELLOW}[midcycle-breakout] {_decision} at step {i + 1}{CLI_CLR}")
+                break
 
     result = _st_to_result(st)
     _tracer.emit("task_end", st.step_count, {

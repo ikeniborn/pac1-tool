@@ -336,6 +336,91 @@ def test_refusal_last_chance_disabled(monkeypatch):
     assert stats["researcher_cycles_used"] == 4
 
 
+def test_ok_loop_hard_guard(monkeypatch):
+    """FIX-375b/C: 5 consecutive OUTCOME_OK with same answer triggers hard-guard
+    short-circuit to pending_refusal (without waiting for evaluator)."""
+    same_msg = "the closest article is X"
+    patches = _setup_patches(
+        cycle_stats_seq=[
+            _fake_cycle_stats(
+                "OUTCOME_OK",
+                report=_fake_report("OUTCOME_OK", message=same_msg),
+            )
+            for _ in range(10)
+        ],
+        reflections_seq=[_fake_reflection("stuck") for _ in range(10)],
+    )
+    # Eval gate disabled — guard must fire on its own.
+    stats = _call_run_researcher(
+        monkeypatch, patches,
+        env={
+            "RESEARCHER_MAX_CYCLES": "10",
+            "RESEARCHER_EVAL_GATED": "0",
+            "RESEARCHER_OK_LOOP_LIMIT": "5",
+            "WIKI_GRAPH_ENABLED": "0",
+        },
+    )
+    assert stats.get("researcher_ok_loop_break") is True
+    assert stats["researcher_early_stop"] == "OUTCOME_NONE_CLARIFICATION"
+    assert "researcher_pending_refusal" in stats
+    # 5 consecutive OK → guard fires on cycle 5
+    assert stats["researcher_cycles_used"] == 5
+
+
+def test_ok_loop_guard_resets_on_different_answer(monkeypatch):
+    """Hard-guard counter resets when final_answer changes — agent finding new
+    interpretation should not be cut off prematurely."""
+    answers = ["answer A", "answer A", "answer B", "answer C", "answer C", "answer D"]
+    patches = _setup_patches(
+        cycle_stats_seq=[
+            _fake_cycle_stats(
+                "OUTCOME_OK",
+                report=_fake_report("OUTCOME_OK", message=ans),
+            )
+            for ans in answers
+        ],
+        reflections_seq=[_fake_reflection("stuck") for _ in range(6)],
+    )
+    stats = _call_run_researcher(
+        monkeypatch, patches,
+        env={
+            "RESEARCHER_MAX_CYCLES": "6",
+            "RESEARCHER_EVAL_GATED": "0",
+            "RESEARCHER_OK_LOOP_LIMIT": "3",
+            "WIKI_GRAPH_ENABLED": "0",
+        },
+    )
+    # Counter never reaches 3-in-a-row → no hard-guard
+    assert stats.get("researcher_ok_loop_break") is None
+
+
+def test_evaluator_approved_with_stuck_reflector(monkeypatch):
+    """FIX-375b/A: evaluator gate fires on OUTCOME_OK even when reflector
+    says outcome='stuck'. Approved → short-circuit with pending_promotion."""
+    patches = _setup_patches(
+        cycle_stats_seq=[
+            _fake_cycle_stats("OUTCOME_OK", report=_fake_report("OUTCOME_OK")),
+        ],
+        reflections_seq=[_fake_reflection("stuck")],  # reflector NOT solved
+    )
+    with patch("agent.evaluator.evaluate_completion") as eval_mock:
+        eval_mock.return_value = types.SimpleNamespace(
+            approved=True, issues=[], correction_hint="",
+        )
+        stats = _call_run_researcher(
+            monkeypatch, patches,
+            env={
+                "RESEARCHER_MAX_CYCLES": "5",
+                "RESEARCHER_EVAL_GATED": "1",
+                "WIKI_GRAPH_ENABLED": "0",
+            },
+        )
+    # Evaluator was invoked even though reflector said stuck.
+    assert stats["evaluator_calls"] >= 1
+    assert "researcher_pending_promotion" in stats
+    assert stats["researcher_solved"] is True
+
+
 def test_refusal_no_evaluator_call(monkeypatch):
     """Terminal refusal must NOT invoke evaluator — retry is unconditional."""
     patches = _setup_patches(

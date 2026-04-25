@@ -10038,6 +10038,486 @@
       "confidence": 0.55,
       "uses": 1,
       "last_seen": "2026-04-24"
+    },
+    "n_d966857765": {
+      "type": "insight",
+      "tags": [
+        "email",
+        "outbox",
+        "sequencing"
+      ],
+      "text": "The outbox uses a numeric sequence ID (from seq.json) likely as part of a file-based queuing mechanism.",
+      "confidence": 0.72,
+      "uses": 1,
+      "last_seen": "2026-04-25"
+    },
+    "n_9c0ab4b248": {
+      "type": "insight",
+      "tags": [
+        "email",
+        "outbox",
+        "tooling"
+      ],
+      "text": "No send utility or API wrapper was found in the filesystem, suggesting messages may need to be written as raw files.",
+      "confidence": 0.65,
+      "uses": 1,
+      "last_seen": "2026-04-25"
+    },
+    "r_0153bedf7c": {
+      "type": "rule",
+      "tags": [
+        "email",
+        "outbox",
+        "precondition"
+      ],
+      "text": "Before attempting to send an email, always verify the outbox write format by inspecting existing message files in /outbox/ if they exist.",
+      "confidence": 0.6,
+      "uses": 1,
+      "last_seen": "2026-04-25"
+    },
+    "a_05531f3ac7": {
+      "type": "antipattern",
+      "tags": [
+        "assumption",
+        "email",
+        "tooling"
+      ],
+      "text": "Do not assume an email-sending API exists without first confirming available tooling via search or directory listing.",
+      "confidence": 0.6,
+      "uses": 1,
+      "last_seen": "2026-04-25"
+    },
+    "n_3e23c7c225": {
+      "type": "insight",
+      "tags": [
+        "discovery",
+        "email",
+        "outbox"
+      ],
+      "text": "A sequence ID exists at /outbox/seq.json but no corresponding write schema or tool for creating outbox entries was found in this pass.",
+      "confidence": 0.8,
+      "uses": 1,
+      "last_seen": "2026-04-25"
+    },
+    "n_9a41eb276f": {
+      "type": "insight",
+      "tags": [
+        "error-handling",
+        "tooling"
+      ],
+      "text": "reporttaskcompletion requires specific valid arguments; calling it without correct parameters raises INVALID_ARGUMENT and does not record completion.",
+      "confidence": 0.9,
+      "uses": 1,
+      "last_seen": "2026-04-25"
+    },
+    "r_c9cb76ec45": {
+      "type": "rule",
+      "tags": [
+        "email",
+        "sequencing",
+        "tooling"
+      ],
+      "text": "Do not call reporttaskcompletion until the core action (email write/dispatch) has been confirmed successful.",
+      "confidence": 0.6,
+      "uses": 1,
+      "last_seen": "2026-04-25"
+    },
+    "a_b4165a81ea": {
+      "type": "antipattern",
+      "tags": [
+        "sequencing",
+        "tooling"
+      ],
+      "text": "Calling reporttaskcompletion as a substitute for actually performing the task action — it must come after, not instead of, the work.",
+      "confidence": 0.6,
+      "uses": 1,
+      "last_seen": "2026-04-25"
+    },
+    "a_741b90e069": {
+      "type": "antipattern",
+      "tags": [
+        "discovery",
+        "email",
+        "outbox"
+      ],
+      "text": "Assuming a sequence ID from /outbox/seq.json is sufficient to proceed without finding the corresponding write/dispatch mechanism.",
+      "confidence": 0.6,
+      "uses": 1,
+      "last_seen": "2026-04-25"
+    },
+    "n_6e3e3e01c1": {
+      "type": "insight",
+      "tags": [
+        "email",
+        "filesystem",
+        "outbox"
+      ],
+      "text": "An outbox sequence file exists at /outbox/seq.json, suggesting emails should be written as numbered files under /outbox/",
+      "confidence": 0.75,
+      "uses": 1,
+      "last_seen": "2026-04-25"
+    },
+    "n_74b9a5e3ef": {
+      "type": "insight",
+      "tags": [
+        "api",
+        "completion",
+        "validation"
+      ],
+      "text": "reportTaskCompletion rejects calls when the task artifact has not actually been written — it validates state, not just intent",
+      "confidence": 0.85,
+      "uses": 1,
+      "last_seen": "2026-04-25"
+    },
+    "r_ded17bfa52": {
+      "type": "rule",
+      "tags": [
+        "completion",
+        "email",
+        "ordering"
+      ],
+      "text": "Do NOT call reportTaskCompletion until the actual task artifact (e.g., the email file) has been successfully written to disk",
+      "confidence": 0.6,
+      "uses": 1,
+      "last_seen": "2026-04-25"
+    },
+    "a_9512126090": {
+      "type": "antipattern",
+      "tags": [
+        "discovery",
+        "email",
+        "search"
+      ],
+      "text": "Running empty or near-empty searches to discover tools — use targeted searches for known filenames or schemas (e.g., search for '*.json' under /outbox or look for an email schema file)",
+      "confidence": 0.6,
+      "uses": 1,
+      "last_seen": "2026-04-25"
+    },
+    "a_a9ea3564b8": {
+      "type": "antipattern",
+      "tags": [
+        "completion",
+        "email",
+        "ordering"
+      ],
+      "text": "Reporting task completion before the output artifact exists — always write first, report second",
+      "confidence": 0.6,
+      "uses": 1,
+      "last_seen": "2026-04-25"
+    },
+    "n_3230d7f000": {
+      "type": "insight",
+      "tags": [
+        "contacts",
+        "email",
+        "filesystem"
+      ],
+      "text": "The /contacts directory exists but holds only a README — recipient lookup via that path is not viable",
+      "confidence": 0.95,
+      "uses": 1,
+      "last_seen": "2026-04-25"
+    },
+    "n_f929822884": {
+      "type": "insight",
+      "tags": [
+        "api",
+        "completion",
+        "tool-error"
+      ],
+      "text": "reporttaskcompletion consistently fails with INVALID_ARGUMENT, suggesting its call signature or preconditions are not being met",
+      "confidence": 0.9,
+      "uses": 1,
+      "last_seen": "2026-04-25"
+    },
+    "n_47ed9d2a09": {
+      "type": "insight",
+      "tags": [
+        "discovery",
+        "email",
+        "tooling"
+      ],
+      "text": "No email-send primitive has been located in four cycles, suggesting the tool may be undiscovered rather than absent",
+      "confidence": 0.75,
+      "uses": 1,
+      "last_seen": "2026-04-25"
+    },
+    "r_75095ef2f5": {
+      "type": "rule",
+      "tags": [
+        "completion",
+        "email",
+        "ordering"
+      ],
+      "text": "Do not call reporttaskcompletion until the primary task action (email send) has been successfully executed and verified",
+      "confidence": 0.6,
+      "uses": 1,
+      "last_seen": "2026-04-25"
+    },
+    "r_c44ea537cf": {
+      "type": "rule",
+      "tags": [
+        "discovery",
+        "email",
+        "tooling"
+      ],
+      "text": "Before attempting to send, enumerate all available tools explicitly; do not assume a send mechanism exists at a guessed path",
+      "confidence": 0.6,
+      "uses": 1,
+      "last_seen": "2026-04-25"
+    },
+    "a_474bb29768": {
+      "type": "antipattern",
+      "tags": [
+        "antipattern",
+        "completion",
+        "loop"
+      ],
+      "text": "Repeatedly calling reporttaskcompletion with the same invalid arguments across cycles — this wastes cycles and produces no progress",
+      "confidence": 0.6,
+      "uses": 1,
+      "last_seen": "2026-04-25"
+    },
+    "a_6b3c83f13a": {
+      "type": "antipattern",
+      "tags": [
+        "antipattern",
+        "email",
+        "ordering"
+      ],
+      "text": "Treating a sequence ID read as a prerequisite step before confirming a send tool even exists",
+      "confidence": 0.6,
+      "uses": 1,
+      "last_seen": "2026-04-25"
+    },
+    "n_5edadb62b3": {
+      "type": "insight",
+      "tags": [
+        "contacts",
+        "email",
+        "filesystem"
+      ],
+      "text": "The contacts directory exists but is empty except for a README — contact lookup will always fail; the agent must use the address provided directly in the task.",
+      "confidence": 0.92,
+      "uses": 1,
+      "last_seen": "2026-04-25"
+    },
+    "n_0dd8c17a17": {
+      "type": "insight",
+      "tags": [
+        "ordering",
+        "outbox",
+        "tool-error"
+      ],
+      "text": "reporttaskcompletion fails with INVALID_ARGUMENT when called without first writing the outbox file, suggesting a prerequisite ordering constraint.",
+      "confidence": 0.75,
+      "uses": 1,
+      "last_seen": "2026-04-25"
+    },
+    "n_80ce8dd998": {
+      "type": "insight",
+      "tags": [
+        "filesystem",
+        "outbox"
+      ],
+      "text": "The outbox sequence file is readable and provides a valid next ID, so the write path is likely available.",
+      "confidence": 0.85,
+      "uses": 1,
+      "last_seen": "2026-04-25"
+    },
+    "r_6afaec50d1": {
+      "type": "rule",
+      "tags": [
+        "contacts",
+        "email",
+        "unblocking"
+      ],
+      "text": "Do not block on contact-lookup when the recipient address is fully specified in the task prompt; use it directly.",
+      "confidence": 0.6,
+      "uses": 1,
+      "last_seen": "2026-04-25"
+    },
+    "r_7809a109d3": {
+      "type": "rule",
+      "tags": [
+        "ordering",
+        "outbox",
+        "tool-error"
+      ],
+      "text": "Write the outbox message file before calling reporttaskcompletion.",
+      "confidence": 0.6,
+      "uses": 1,
+      "last_seen": "2026-04-25"
+    },
+    "a_16e81f8da4": {
+      "type": "antipattern",
+      "tags": [
+        "contacts",
+        "stuck-loop"
+      ],
+      "text": "Repeating contact-lookup attempts when the contacts directory is confirmed empty — this wastes cycles and will never succeed.",
+      "confidence": 0.6,
+      "uses": 1,
+      "last_seen": "2026-04-25"
+    },
+    "a_1c3e0ecb78": {
+      "type": "antipattern",
+      "tags": [
+        "ordering",
+        "tool-error"
+      ],
+      "text": "Calling reporttaskcompletion before the outbox file has been written — causes INVALID_ARGUMENT and reports false completion.",
+      "confidence": 0.6,
+      "uses": 1,
+      "last_seen": "2026-04-25"
+    },
+    "n_798bb35249": {
+      "type": "insight",
+      "tags": [
+        "ambiguity",
+        "inbox",
+        "task-specification"
+      ],
+      "text": "The task 'Review The Inbox' is ambiguous without specifying which inbox (email, ticket system, file directory, etc.) and how to access it",
+      "confidence": 0.95,
+      "uses": 1,
+      "last_seen": "2026-04-25"
+    },
+    "r_823a4119bc": {
+      "type": "rule",
+      "tags": [
+        "clarification",
+        "inbox",
+        "precondition"
+      ],
+      "text": "Never attempt to act on inbox/queue review tasks without first confirming the inbox type, location, and access method",
+      "confidence": 0.6,
+      "uses": 1,
+      "last_seen": "2026-04-25"
+    },
+    "a_e353327e1f": {
+      "type": "antipattern",
+      "tags": [
+        "ambiguity",
+        "assumption",
+        "inbox"
+      ],
+      "text": "Do not assume a default inbox (e.g., email) without explicit confirmation from the user",
+      "confidence": 0.6,
+      "uses": 1,
+      "last_seen": "2026-04-25"
+    },
+    "n_c951c86f0a": {
+      "type": "insight",
+      "tags": [
+        "clarification",
+        "inbox",
+        "task-ambiguity"
+      ],
+      "text": "Tasks referencing an 'inbox' without specifying a concrete source (file path, tool, system) will stall indefinitely because the agent has no anchor to start from",
+      "confidence": 0.9,
+      "uses": 1,
+      "last_seen": "2026-04-25"
+    },
+    "n_c940722cb0": {
+      "type": "insight",
+      "tags": [
+        "agent-behavior",
+        "stuck-loop"
+      ],
+      "text": "OUTCOME_NONE_CLARIFICATION repeated across cycles with no DONE_OPS indicates the agent is not attempting any exploratory tool calls before asking for clarification",
+      "confidence": 0.85,
+      "uses": 1,
+      "last_seen": "2026-04-25"
+    },
+    "r_6561b516e8": {
+      "type": "rule",
+      "tags": [
+        "ambiguity-resolution",
+        "inbox"
+      ],
+      "text": "When 'inbox' is mentioned without a path or system, attempt to locate a plausible inbox (e.g., ~/inbox, a tasks file, a mail tool) before asking for clarification",
+      "confidence": 0.6,
+      "uses": 1,
+      "last_seen": "2026-04-25"
+    },
+    "a_d3532b68e7": {
+      "type": "antipattern",
+      "tags": [
+        "premature-clarification",
+        "stuck-loop"
+      ],
+      "text": "Do not immediately return OUTCOME_NONE_CLARIFICATION for vague tasks without first attempting any exploratory tool calls to resolve the ambiguity",
+      "confidence": 0.6,
+      "uses": 1,
+      "last_seen": "2026-04-25"
+    },
+    "n_d4e50d0456": {
+      "type": "insight",
+      "tags": [
+        "completion",
+        "error-handling",
+        "tool-api"
+      ],
+      "text": "reporttaskcompletion requires specific arguments that were either missing or malformed; the correct call signature must be verified before use.",
+      "confidence": 0.85,
+      "uses": 1,
+      "last_seen": "2026-04-25"
+    },
+    "n_28064743c9": {
+      "type": "insight",
+      "tags": [
+        "idempotency",
+        "sequencing",
+        "state-management"
+      ],
+      "text": "The sequence ID source file (seq.json) should be updated/incremented after reading to avoid duplicate IDs on subsequent runs.",
+      "confidence": 0.9,
+      "uses": 1,
+      "last_seen": "2026-04-25"
+    },
+    "r_ade0edaa8b": {
+      "type": "rule",
+      "tags": [
+        "sequencing",
+        "state-management"
+      ],
+      "text": "After consuming a sequence ID, always write the incremented value back to seq.json before completing the task.",
+      "confidence": 0.6,
+      "uses": 1,
+      "last_seen": "2026-04-25"
+    },
+    "r_38ea884b0b": {
+      "type": "rule",
+      "tags": [
+        "completion",
+        "tool-api"
+      ],
+      "text": "Never call reporttaskcompletion without verifying its required argument schema first.",
+      "confidence": 0.6,
+      "uses": 1,
+      "last_seen": "2026-04-25"
+    },
+    "a_1157510fa0": {
+      "type": "antipattern",
+      "tags": [
+        "completion",
+        "error-handling"
+      ],
+      "text": "Do not assume reporttaskcompletion succeeds without checking its return value; a silent failure means the task loop will re-run unnecessarily.",
+      "confidence": 0.6,
+      "uses": 1,
+      "last_seen": "2026-04-25"
+    },
+    "a_41f1143fe0": {
+      "type": "antipattern",
+      "tags": [
+        "concurrency",
+        "sequencing"
+      ],
+      "text": "Do not read a shared sequence counter without atomically updating it afterward — stale counters cause ID collisions.",
+      "confidence": 0.6,
+      "uses": 1,
+      "last_seen": "2026-04-25"
     }
   },
   "edges": [
