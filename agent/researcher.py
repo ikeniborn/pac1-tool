@@ -1089,6 +1089,16 @@ def run_researcher(
                 _degraded_this_session.update(touched)
                 stats["researcher_graph_quarantined_nodes"] = len(_degraded_this_session)
 
+        # FIX-377: reset refusal retry budget on any non-refusal outcome (most
+        # importantly OUTCOME_OK). Counter must depend STRICTLY on agent_outcome,
+        # not on reflection branches — observed t11 produced 9 refusal cycles
+        # despite RESEARCHER_REFUSAL_MAX_RETRIES=3 because the cap check was
+        # bypassed by reflection-dependent branches. Reset happens BEFORE the
+        # terminal-refusal block so an OK→refusal chain restarts cleanly.
+        if agent_outcome == "OUTCOME_OK":
+            stats["researcher_refusal_retries"] = 0
+            stats["researcher_refusal_last_chance_used"] = False
+
         # FIX-377 (refusal branch): outcome-only loop guard preempts FIX-374
         # refusal-retry when the agent has produced N consecutive identical
         # refusals regardless of message text. Catches t11-class where each
@@ -1128,7 +1138,6 @@ def run_researcher(
         # agent has clearly converged on refusal — wasting remaining cycles is
         # pointless. Evaluator is not consulted: observed false-approve on t11.
         if agent_outcome in _TERMINAL_REFUSALS and cycle < max_cycles:
-            _retries = stats.get("researcher_refusal_retries", 0)
             # FIX-376f: dynamic cap — scale with cycles_remaining so refusals
             # can never burn the full max_cycles budget by themselves. When
             # disabled, fall back to the static FIX-374 limit.
@@ -1140,6 +1149,10 @@ def run_researcher(
                 )
             else:
                 _refusal_cap = _REFUSAL_MAX_RETRIES
+            # FIX-377: cap check moved to top of refusal block so reflection-
+            # dependent logic below cannot bypass it. Counter increments
+            # STRICTLY here, gated only on agent_outcome ∈ _TERMINAL_REFUSALS.
+            _retries = stats.get("researcher_refusal_retries", 0)
             if _retries < _refusal_cap:
                 stats["researcher_refusal_retries"] = _retries + 1
                 _reason = (
