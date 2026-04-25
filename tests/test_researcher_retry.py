@@ -316,6 +316,10 @@ def test_refusal_last_chance_adds_one_cycle(monkeypatch):
             "RESEARCHER_REFUSAL_LAST_CHANCE": "1",
             "RESEARCHER_FLIP_HINT_ENABLED": "1",
             "RESEARCHER_EVAL_GATED": "0",
+            # FIX-377: outcome-loop guard trips at 4 consecutive identical
+            # refusals by default; raise the limit so this test isolates
+            # FIX-375 last-chance behaviour.
+            "RESEARCHER_OUTCOME_LOOP_LIMIT": "100",
             "WIKI_GRAPH_ENABLED": "0",
         },
     )
@@ -373,6 +377,9 @@ def test_ok_loop_hard_guard(monkeypatch):
             "RESEARCHER_MAX_CYCLES": "10",
             "RESEARCHER_EVAL_GATED": "0",
             "RESEARCHER_OK_LOOP_LIMIT": "5",
+            # FIX-377: keep outcome-loop guard above OK_LOOP trip cycle so
+            # this test isolates FIX-375b/C identical-answer guard.
+            "RESEARCHER_OUTCOME_LOOP_LIMIT": "100",
             "WIKI_GRAPH_ENABLED": "0",
         },
     )
