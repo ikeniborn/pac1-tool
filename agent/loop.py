@@ -6,6 +6,7 @@ import threading
 import time
 from collections import Counter, deque
 from dataclasses import dataclass, field
+from typing import Any
 
 from google.protobuf.json_format import MessageToDict
 from connectrpc.errors import ConnectError
@@ -79,6 +80,22 @@ _INJECTION_RE = re.compile(
 )
 
 # FIX-203/206/214/215: security constants/functions imported from agent/security.py
+
+
+def _format_contract_block(contract: "Any") -> str:
+    """Format a Contract into a ## AGREED CONTRACT system-prompt section."""
+    lines = ["## AGREED CONTRACT"]
+    lines.append("Plan steps:")
+    for i, step in enumerate(contract.plan_steps, 1):
+        lines.append(f"  {i}. {step}")
+    lines.append("Success criteria:")
+    for c in contract.success_criteria:
+        lines.append(f"  - {c}")
+    if contract.required_evidence:
+        lines.append("Required evidence in grounding_refs:")
+        for e in contract.required_evidence:
+            lines.append(f"  - {e}")
+    return "\n".join(lines)
 
 
 # FIX-188: route cache — key: sha256(task_text[:800]), value: (route, reason, injection_signals)
@@ -208,6 +225,7 @@ class _LoopState:
     total_eval_ms: int = 0
     step_count: int = 0
     llm_call_count: int = 0
+    contract: "Any" = None  # FIX-390
 
 
 # _extract_fact, build_digest, _compact_log — imported from agent/log_compaction.py above
@@ -578,6 +596,7 @@ def _handle_stall_retry(
     error_counts: Counter,
     step_facts: "list[_StepFact]",
     stall_active: bool,
+    contract_plan_steps: "list[str] | None" = None,
 ) -> "tuple":
     """Wrapper: injects _call_llm (defined in this module) into stall.py's handler."""
     return _handle_stall_retry_base(
@@ -585,6 +604,7 @@ def _handle_stall_retry(
         fingerprints, steps_since_write, error_counts, step_facts,
         stall_active,
         call_llm_fn=_call_llm,  # injected — avoids circular import in stall.py
+        contract_plan_steps=contract_plan_steps,
     )
 
 
@@ -2004,6 +2024,7 @@ def _run_step(
             job, st.log, model, max_tokens, cfg,
             st.action_fingerprints, st.steps_since_write, st.error_counts, st.step_facts,
             st.stall_hint_active,
+            contract_plan_steps=st.contract.plan_steps if st.contract else None,
         )
     elif os.environ.get("RESEARCHER_SOFT_STALL", "0") == "1":
         _soft_hint = _check_stall(
@@ -2165,6 +2186,7 @@ def _run_step(
             skepticism=_EVAL_SKEPTICISM, efficiency=_EVAL_EFFICIENCY,
             account_evidence=_acct_evidence,  # FIX-243
             inbox_evidence=_inbox_evidence,  # FIX-258
+            contract=st.contract,
         )
         _eval_ms = int((time.time() - _eval_start) * 1000)
         st.evaluator_call_count += 1
@@ -2343,7 +2365,8 @@ def run_loop(vm: PcmRuntimeClientSync, model: str, _task_text: str,
              pre: PrephaseResult, cfg: dict, task_type: str = "default",
              evaluator_model: str = "", evaluator_cfg: "dict | None" = None,
              researcher_mode: bool = False, max_steps: int | None = None,
-             researcher_breakout_check=None) -> dict:
+             researcher_breakout_check=None,
+             contract: "Any" = None) -> dict:
     """Run main agent loop. Returns token usage stats dict.
 
     FIX-362: researcher_mode=True disables evaluator, stall hints, and timeout —
@@ -2359,6 +2382,14 @@ def run_loop(vm: PcmRuntimeClientSync, model: str, _task_text: str,
     st.evaluator_model = evaluator_model or ""
     st.evaluator_cfg = evaluator_cfg or {}
     st.researcher_mode = bool(researcher_mode)
+    # FIX-390: inject agreed contract into system prompt
+    if contract is not None:
+        _contract_block = _format_contract_block(contract)
+        if pre.log:
+            pre.log[0]["content"] = pre.log[0]["content"] + "\n\n" + _contract_block
+            if pre.preserve_prefix:
+                pre.preserve_prefix[0]["content"] = pre.log[0]["content"]
+    st.contract = contract
     task_start = time.time()
     max_tokens = cfg.get("max_completion_tokens", 16384)
     loop_cap = max_steps if (max_steps and max_steps > 0) else 30

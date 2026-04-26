@@ -104,3 +104,23 @@ def test_stall_without_contract_plan_steps_unchanged():
     )
     assert hint is not None
     assert "3 times in a row" in hint
+
+
+def test_contract_injected_into_system_prompt():
+    """_format_contract_block builds the correct ## AGREED CONTRACT section."""
+    from agent.contract_models import Contract
+    from agent.loop import _format_contract_block
+
+    contract = Contract(
+        plan_steps=["list /outbox", "write /outbox/1.json"],
+        success_criteria=["file written"],
+        required_evidence=["/outbox/1.json"],
+        failure_conditions=["no write"],
+        is_default=False,
+        rounds_taken=1,
+    )
+    block = _format_contract_block(contract)
+    assert "## AGREED CONTRACT" in block
+    assert "list /outbox" in block
+    assert "file written" in block
+    assert "/outbox/1.json" in block
