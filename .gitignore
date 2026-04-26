@@ -3,4 +3,4 @@ __pycache__
 **/.claude/plans
 **/.env
 **/logs
-.cache/
+.cache/.worktrees/
