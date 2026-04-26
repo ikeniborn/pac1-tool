@@ -308,6 +308,7 @@ def call_llm_raw(
     max_retries: int = 3,  # classifier passes 0 → 1 attempt, no retries
     plain_text: bool = False,  # FIX-181: skip response_format (for code generation, not JSON)
     token_out: dict | None = None,  # if provided, populated with {"input": N, "output": N}
+    logprobs: bool = False,  # GEPA ConfidenceAdapter: request logprobs (OpenRouter/Ollama only)
 ) -> str | None:
     """Lightweight LLM call with 3-tier routing and transient-error retry.
     Returns raw text (think blocks stripped), or None if all tiers fail.
@@ -401,6 +402,9 @@ def call_llm_raw(
                     create_kwargs["response_format"] = rf
                 if _seed is not None:
                     create_kwargs["seed"] = _seed  # FIX-197
+                if logprobs:
+                    create_kwargs["logprobs"] = True
+                    create_kwargs["top_logprobs"] = 1
                 resp = openrouter_client.chat.completions.create(**create_kwargs)
                 _content = resp.choices[0].message.content or ""
                 if _LOG_LEVEL == "DEBUG":
@@ -437,6 +441,8 @@ def call_llm_raw(
     _opts = cfg.get("ollama_options")
     if _opts is not None:  # None=not configured; {}=valid (though empty) — use `is not None`
         _ollama_extra["options"] = _opts
+    if logprobs:
+        _ollama_extra.setdefault("options", {})["logprobs"] = 1
     for attempt in range(max_retries + 1):
         try:
             # Do not pass max_tokens to Ollama — output is short (~8 tokens); the model stops

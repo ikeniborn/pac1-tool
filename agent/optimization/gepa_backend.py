@@ -16,8 +16,43 @@ except ImportError:  # pragma: no cover
     _GEPA = None
 
 
+def _model_supports_logprobs(model_id: str | None) -> bool:
+    """Return True if models.json says this model's provider can return logprobs."""
+    if not model_id:
+        return False
+    try:
+        from pathlib import Path as _P
+        import json as _json
+        models_path = _P(__file__).parent.parent.parent / "models.json"
+        raw = _json.loads(models_path.read_text())
+        cfg = raw.get(model_id, {})
+        provider = cfg.get("provider", "")
+        if isinstance(provider, str) and provider in raw.get("_profiles", {}):
+            provider = raw["_profiles"][provider].get("provider", "")
+        return provider in {"openrouter", "ollama"}
+    except Exception:
+        return False
+
+
 class GepaBackend:
     name = "gepa"
+
+    def _maybe_confidence_adapter(self, program, fallback, task_lm):
+        """Return ConfidenceAdapter only when target is classifier AND model supports logprobs."""
+        # Detect classifier by signature class name to avoid coupling to the import.
+        sig = getattr(program, "signature", None)
+        sig_name = getattr(sig, "__name__", "") or type(sig).__name__
+        if "ClassifyTask" not in sig_name:
+            return fallback
+        model_id = getattr(task_lm, "model", None) or getattr(task_lm, "_model", None)
+        if not _model_supports_logprobs(model_id):
+            return fallback
+        try:
+            from dspy import ConfidenceAdapter  # type: ignore
+            return ConfidenceAdapter()
+        except Exception as exc:
+            print(f"[optimize] ConfidenceAdapter unavailable: {exc} — using fallback adapter")
+            return fallback
 
     def compile(
         self,
@@ -38,7 +73,8 @@ class GepaBackend:
             )
 
         budget_kwargs = resolve_budget()
-        dspy.configure(lm=task_lm, adapter=adapter)
+        eff_adapter = self._maybe_confidence_adapter(program, adapter, task_lm)
+        dspy.configure(lm=task_lm, adapter=eff_adapter)
 
         def _gepa_metric(gold, pred, trace=None, pred_name=None, pred_trace=None):
             # GEPA passes 5 args; our metrics use the 3-arg form.

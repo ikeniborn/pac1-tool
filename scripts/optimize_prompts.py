@@ -122,8 +122,9 @@ def _emit_error(target: str, exc: BaseException, extra: dict | None = None) -> N
 class _LoggingDispatchLM(DispatchLM):
     """DispatchLM subclass that logs every forward() call to OptimizeLogger."""
 
-    def __init__(self, model: str, cfg: dict, max_tokens: int, target: str, json_mode: bool = True) -> None:
-        super().__init__(model, cfg, max_tokens, json_mode=json_mode)
+    def __init__(self, model: str, cfg: dict, max_tokens: int, target: str, json_mode: bool = True,
+                 logprobs: bool = False) -> None:
+        super().__init__(model, cfg, max_tokens, json_mode=json_mode, logprobs=logprobs)
         self._target = target
         self._call_num = 0
         self._call_num_lock = threading.Lock()
@@ -406,12 +407,13 @@ def _run_target(
 
     _ollama_only = _ant_client is None and _or_client is None
     adapter = dspy.ChatAdapter() if _ollama_only else dspy.JSONAdapter()
+    backend = select_backend(log_label)
+    needs_logprobs = backend.name == "gepa" and log_label.startswith("classifier")
     task_lm = _LoggingDispatchLM(model, cfg, max_tokens=task_max_tokens, target=log_label,
-                                 json_mode=not _ollama_only)
+                                 json_mode=not _ollama_only, logprobs=needs_logprobs)
     prompt_lm = _LoggingDispatchLM(model, cfg, max_tokens=_COPRO_PROMPT_MAX_TOKENS,
                                    target=f"{log_label}/meta", json_mode=not _ollama_only)
 
-    backend = select_backend(log_label)
     print(f"[optimize] {log_label}: backend={backend.name}")
 
     t0 = time.monotonic()

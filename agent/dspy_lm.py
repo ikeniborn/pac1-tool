@@ -97,7 +97,8 @@ class DispatchLM(dspy.BaseLM):
     each forward call for the caller to retrieve.
     """
 
-    def __init__(self, model: str, cfg: dict, max_tokens: int = 512, json_mode: bool = True) -> None:
+    def __init__(self, model: str, cfg: dict, max_tokens: int = 512, json_mode: bool = True,
+                 logprobs: bool = False) -> None:
         super().__init__(
             model=model,
             cache=False,        # disable DSPy cache — agent handles retries itself
@@ -106,6 +107,7 @@ class DispatchLM(dspy.BaseLM):
         self._dispatch_cfg = cfg
         self._last_tokens: dict = {"input": 0, "output": 0}
         self._json_mode = json_mode
+        self._logprobs = logprobs
 
     def forward(
         self,
@@ -144,6 +146,7 @@ class DispatchLM(dspy.BaseLM):
             think=False,
             token_out=tok,
             plain_text=not self._json_mode,
+            logprobs=self._logprobs,
         )
         raw = _coerce_to_json(raw or "", user_msg)
         self._last_tokens = tok
