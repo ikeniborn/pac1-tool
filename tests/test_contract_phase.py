@@ -70,14 +70,20 @@ def test_consensus_on_round_2(mock_llm):
 
 @patch("agent.contract_phase.call_llm_raw")
 def test_fallback_on_max_rounds(mock_llm):
-    """Never agree → falls back to default contract after max_rounds."""
-    mock_llm.return_value = _make_executor_json(agreed=False)
+    """Never agree → falls back to default contract after max_rounds exhausted."""
+    mock_llm.side_effect = [
+        _make_executor_json(agreed=False),
+        _make_evaluator_json(agreed=False, objections=["not satisfied"]),
+        _make_executor_json(agreed=False),
+        _make_evaluator_json(agreed=False, objections=["still not satisfied"]),
+    ]
     from agent.contract_phase import negotiate_contract
     contract, _, _ = negotiate_contract(
         task_text="task", task_type="default", agents_md="", wiki_context="",
         graph_context="", model="m", cfg={}, max_rounds=2,
     )
     assert contract.is_default is True
+    assert mock_llm.call_count == 4  # both rounds fully executed
 
 
 @patch("agent.contract_phase.call_llm_raw")
@@ -107,13 +113,17 @@ def test_fallback_on_invalid_json(mock_llm):
 @patch("agent.contract_phase.call_llm_raw")
 def test_token_counting(mock_llm):
     """in_tok and out_tok are populated from LLM calls."""
+    call_count = 0
+
     def side_effect(system, user_msg, model, cfg, max_tokens=800, token_out=None, **kwargs):
+        nonlocal call_count
         if token_out is not None:
             token_out["input"] = 100
             token_out["output"] = 50
-        if "executor" in system.lower():
+        call_count += 1
+        if call_count % 2 == 1:  # odd = executor
             return _make_executor_json(agreed=True)
-        return _make_evaluator_json(agreed=True)
+        return _make_evaluator_json(agreed=True)  # even = evaluator
 
     mock_llm.side_effect = side_effect
     from agent.contract_phase import negotiate_contract
@@ -121,5 +131,7 @@ def test_token_counting(mock_llm):
         task_text="task", task_type="default", agents_md="", wiki_context="",
         graph_context="", model="m", cfg={}, max_rounds=3,
     )
+    assert contract.is_default is False
+    assert contract.rounds_taken == 1
     assert in_tok > 0
     assert out_tok > 0
