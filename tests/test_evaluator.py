@@ -432,3 +432,81 @@ def test_fix330_does_not_suppress_when_only_one_mutation(mock_llm):
     # FIX-327 may partially suppress "injection" hint keeps correction flowing
     # but approved should remain False in FIX-330 scope
     assert verdict.approved is False
+
+
+def test_evaluate_rejects_when_contract_evidence_missing():
+    """Contract required_evidence not in grounding_refs → rejected without LLM call."""
+    import types
+    from agent.contract_models import Contract
+    from agent.evaluator import evaluate_completion
+
+    contract = Contract(
+        plan_steps=["write /outbox/1.json"],
+        success_criteria=["email written"],
+        required_evidence=["/outbox/1.json"],
+        failure_conditions=["no file written"],
+        is_default=False,
+        rounds_taken=1,
+    )
+    report = types.SimpleNamespace(
+        outcome="OUTCOME_OK",
+        message="Email sent",
+        completed_steps_laconic=[],
+        done_operations=[],
+        grounding_refs=[],  # missing /outbox/1.json
+    )
+    verdict = evaluate_completion(
+        task_text="Send email",
+        task_type="email",
+        report=report,
+        done_ops=["WRITTEN: /outbox/1.json"],
+        digest_str="",
+        model="test",
+        cfg={},
+        contract=contract,
+    )
+    assert verdict.approved is False
+    assert any("/outbox/1.json" in issue for issue in verdict.issues)
+
+
+def test_evaluate_skips_contract_gate_when_is_default():
+    """Default contract (is_default=True) does not trigger the evidence hard-gate."""
+    import json
+    import types
+    from unittest.mock import patch
+    from agent.contract_models import Contract
+    from agent.evaluator import evaluate_completion
+
+    contract = Contract(
+        plan_steps=["write /outbox/1.json"],
+        success_criteria=["email written"],
+        required_evidence=["/outbox/1.json"],  # evidence listed but is_default=True
+        failure_conditions=["no file written"],
+        is_default=True,
+        rounds_taken=0,
+    )
+    report = types.SimpleNamespace(
+        outcome="OUTCOME_OK",
+        message="Email sent",
+        completed_steps_laconic=[],
+        done_operations=[],
+        grounding_refs=[],  # empty — would fail if gate ran
+    )
+    approved_response = json.dumps({
+        "reasoning": "Looks good.",
+        "approved_str": "yes",
+        "issues_str": "",
+        "correction_hint": "",
+    })
+    with patch("agent.dspy_lm.call_llm_raw", return_value=approved_response):
+        verdict = evaluate_completion(
+            task_text="Send email",
+            task_type="email",
+            report=report,
+            done_ops=[],
+            digest_str="",
+            model="test",
+            cfg={},
+            contract=contract,
+        )
+    assert verdict.approved is True

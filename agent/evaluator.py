@@ -18,6 +18,7 @@ from pathlib import Path
 import dspy
 from pydantic import BaseModel, Field
 
+from .contract_models import Contract
 from .dispatch import CLI_CLR, CLI_YELLOW
 from .dspy_lm import DispatchLM
 
@@ -397,6 +398,7 @@ def evaluate_completion(
     account_evidence: str = "",
     inbox_evidence: str = "",
     fail_closed: bool = False,
+    contract: "Contract | None" = None,
 ) -> EvalVerdict:
     """Call evaluator LLM via DSPy ChainOfThought and return verdict.
 
@@ -418,6 +420,18 @@ def evaluate_completion(
     _gr_ok, _gr_issue = validate_grounding_refs(report)
     if not _gr_ok:
         return EvalVerdict(approved=False, issues=[_gr_issue], correction_hint=_gr_issue)
+
+    # Contract hard-gate: required_evidence must appear in grounding_refs
+    if contract is not None and not contract.is_default and contract.required_evidence:
+        refs = [str(r) for r in (getattr(report, "grounding_refs", None) or [])]
+        refs_str = "\n".join(refs).lower()
+        missing = [e for e in contract.required_evidence if e.lower() not in refs_str]
+        if missing:
+            _issue = (
+                f"Contract required_evidence missing from grounding_refs: {missing}. "
+                "Add the missing paths to grounding_refs before reporting completion."
+            )
+            return EvalVerdict(approved=False, issues=[_issue], correction_hint=_issue)
 
     max_tok = _EFFICIENCY_MAX_TOKENS.get(efficiency, 512)
 
