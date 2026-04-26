@@ -22,6 +22,12 @@ try:
     _PROMPT_BUILDER_MAX_TOKENS = int(os.getenv("PROMPT_BUILDER_MAX_TOKENS", "500"))
 except ValueError:
     _PROMPT_BUILDER_MAX_TOKENS = 500
+# FIX-390: contract negotiation phase
+_CONTRACT_ENABLED = os.getenv("CONTRACT_ENABLED", "0") == "1"
+try:
+    _CONTRACT_MAX_ROUNDS = int(os.getenv("CONTRACT_MAX_ROUNDS", "3"))
+except ValueError:
+    _CONTRACT_MAX_ROUNDS = 3
 
 
 def _inject_addendum(base_prompt: str, addendum: str) -> str:
@@ -127,6 +133,7 @@ def run_agent(router: ModelRouter, harness_url: str, task_text: str, task_id: st
     # injection was redundant: FIX-346/FIX-350 enforce force-read-before-write
     # against the live vault for /accounts/ and /contacts/, so wiki-cached
     # entity data was both unnecessary and a staleness risk.
+    _wiki_patterns = ""
     if _WIKI_ENABLED:
         _wiki_patterns = load_wiki_patterns(task_type)
         if _wiki_patterns:
@@ -160,13 +167,39 @@ def run_agent(router: ModelRouter, harness_url: str, task_text: str, task_id: st
     evaluator_model = router.evaluator or model
     evaluator_cfg = router._adapt_config(router.configs.get(evaluator_model, {}), "evaluator")
 
+    contract = None
+    contract_in_tok = contract_out_tok = 0
+    if _CONTRACT_ENABLED:
+        from .contract_phase import negotiate_contract
+        _contract_model = os.getenv("CONTRACT_MODEL") or model
+        _contract_cfg = cfg  # reuse same model config
+        try:
+            contract, contract_in_tok, contract_out_tok = negotiate_contract(
+                task_text=task_text,
+                task_type=task_type,
+                agents_md=getattr(pre, "agents_md_content", "") or "",
+                wiki_context=_wiki_patterns,
+                graph_context="",
+                model=_contract_model,
+                cfg=_contract_cfg,
+                max_rounds=_CONTRACT_MAX_ROUNDS,
+            )
+        except Exception as _ce:
+            print(f"[contract] negotiation failed ({_ce}) — proceeding without contract")
+            contract = None
+
     stats = run_loop(vm, model, task_text, pre, cfg, task_type=task_type,
-                     evaluator_model=evaluator_model, evaluator_cfg=evaluator_cfg)
+                     evaluator_model=evaluator_model, evaluator_cfg=evaluator_cfg,
+                     contract=contract)
     stats["model_used"] = model
     stats["task_type"] = task_type
     stats["builder_used"] = bool(addendum)
     stats["builder_in_tok"] = builder_in_tok
     stats["builder_out_tok"] = builder_out_tok
     stats["builder_addendum"] = addendum
+    stats["contract_rounds_taken"] = getattr(contract, "rounds_taken", 0) if contract else 0
+    stats["contract_is_default"] = getattr(contract, "is_default", True) if contract else True
+    stats["contract_in_tok"] = contract_in_tok
+    stats["contract_out_tok"] = contract_out_tok
     # FIX-358: wiki fragment write deferred to main.py (score-gated)
     return stats
