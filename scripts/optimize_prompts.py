@@ -57,7 +57,15 @@ import dspy
 from dspy.teleprompt import COPRO
 
 from agent.optimization.logger import OptimizeLogger
+from agent.optimization.metrics import builder_metric, evaluator_metric, classifier_metric
 from agent.dspy_lm import DispatchLM
+
+
+def _scalar(metric):
+    """Adapt a Prediction-returning metric into a scalar metric for COPRO."""
+    def _wrapped(ex, pr, trace=None):
+        return metric(ex, pr, trace).score
+    return _wrapped
 from agent.dspy_examples import get_trainset, get_eval_trainset, get_classifier_trainset
 from agent.dispatch import anthropic_client as _ant_client, openrouter_client as _or_client
 from agent.prompt_builder import PromptAddendum
@@ -211,64 +219,6 @@ def _get_optimizer_model() -> tuple[str, dict]:
         raise RuntimeError("No model configured. Set MODEL_DEFAULT or MODEL_OPTIMIZER in .env")
     cfg = all_cfgs.get(model, {})
     return model, cfg
-
-
-# ---------------------------------------------------------------------------
-# Metrics (with logging wrappers)
-# ---------------------------------------------------------------------------
-
-def _builder_metric(example: dspy.Example, prediction, _trace=None) -> float:
-    """Score an addendum prediction: 1.0 if source example score >= 0.8, else 0.0.
-
-    During COPRO optimisation, examples with score < 0.8 already signal
-    poor quality — the metric propagates that signal to the optimizer.
-    """
-    source_score: float = getattr(example, "score", 1.0)
-    if source_score < 0.8:
-        result = 0.0
-    else:
-        addendum: str = getattr(prediction, "addendum", "") or ""
-        bullet_count = sum(1 for line in addendum.splitlines() if line.strip().startswith("-"))
-        result = 0.5 if bullet_count < 2 else 1.0
-
-    _emit("metric_eval", {
-        "target": "builder",
-        "task_type": getattr(example, "task_type", ""),
-        "source_score": source_score,
-        "metric_result": result,
-    })
-    return result
-
-
-def _evaluator_metric(example: dspy.Example, prediction, _trace=None) -> float:
-    """Score evaluator prediction against expected approved_str label."""
-    expected: str = getattr(example, "approved_str", "yes")
-    predicted: str = (getattr(prediction, "approved_str", "") or "").strip().lower()
-    result = 1.0 if predicted == expected.lower() else 0.0
-
-    _emit("metric_eval", {
-        "target": "evaluator",
-        "task_type": getattr(example, "task_type", ""),
-        "expected": expected,
-        "predicted": predicted,
-        "metric_result": result,
-    })
-    return result
-
-
-def _classifier_metric(example: dspy.Example, prediction, _trace=None) -> float:
-    """Score classifier prediction: 1.0 if exact match with ground-truth task_type."""
-    expected: str = getattr(example, "task_type", "default")
-    predicted: str = (getattr(prediction, "task_type", "") or "").strip().lower()
-    result = 1.0 if predicted == expected else 0.0
-
-    _emit("metric_eval", {
-        "target": "classifier",
-        "expected": expected,
-        "predicted": predicted,
-        "metric_result": result,
-    })
-    return result
 
 
 # ---------------------------------------------------------------------------
@@ -482,7 +432,7 @@ def _run_copro_builder(
     program = dspy.Predict(PromptAddendum)
     teleprompter = COPRO(
         prompt_model=prompt_lm,
-        metric=_builder_metric,
+        metric=_scalar(builder_metric),
         breadth=_COPRO_BREADTH,
         depth=_COPRO_DEPTH,
         init_temperature=_COPRO_TEMPERATURE,
@@ -597,7 +547,7 @@ def _run_copro_evaluator(
     program = dspy.ChainOfThought(EvaluateCompletion)
     teleprompter = COPRO(
         prompt_model=prompt_lm,
-        metric=_evaluator_metric,
+        metric=_scalar(evaluator_metric),
         breadth=_COPRO_BREADTH,
         depth=_COPRO_DEPTH,
         init_temperature=_COPRO_TEMPERATURE,
@@ -711,7 +661,7 @@ def _run_copro_classifier(
     program = dspy.ChainOfThought(ClassifyTask)
     teleprompter = COPRO(
         prompt_model=prompt_lm,
-        metric=_classifier_metric,
+        metric=_scalar(classifier_metric),
         breadth=_COPRO_BREADTH,
         depth=_COPRO_DEPTH,
         init_temperature=_COPRO_TEMPERATURE,
