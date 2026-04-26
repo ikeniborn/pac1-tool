@@ -54,18 +54,11 @@ if str(_BASE) not in sys.path:
     sys.path.insert(0, str(_BASE))
 
 import dspy
-from dspy.teleprompt import COPRO
 
 from agent.optimization.logger import OptimizeLogger
 from agent.optimization.metrics import builder_metric, evaluator_metric, classifier_metric
+from agent.optimization.copro_backend import CoproBackend
 from agent.dspy_lm import DispatchLM
-
-
-def _scalar(metric):
-    """Adapt a Prediction-returning metric into a scalar metric for COPRO."""
-    def _wrapped(ex, pr, trace=None):
-        return metric(ex, pr, trace).score
-    return _wrapped
 from agent.dspy_examples import get_trainset, get_eval_trainset, get_classifier_trainset
 from agent.dispatch import anthropic_client as _ant_client, openrouter_client as _or_client
 from agent.prompt_builder import PromptAddendum
@@ -99,15 +92,6 @@ def _int_env(name: str, default: int) -> int:
     except ValueError:
         return default
 
-def _float_env(name: str, default: float) -> float:
-    try:
-        return float(os.environ.get(name, default))
-    except ValueError:
-        return default
-
-_COPRO_BREADTH     = _int_env("COPRO_BREADTH", 4)
-_COPRO_DEPTH       = _int_env("COPRO_DEPTH", 2)
-_COPRO_TEMPERATURE = _float_env("COPRO_TEMPERATURE", 0.9)
 _COPRO_THREADS     = _int_env("COPRO_THREADS", 1)
 _COPRO_MIN_PER_TYPE = _int_env("COPRO_MIN_PER_TYPE", 3)
 _COPRO_PROMPT_MAX_TOKENS = _int_env("COPRO_PROMPT_MAX_TOKENS", 2000)
@@ -402,51 +386,40 @@ def _evaluator_trainset(task_type: str | None = None, max_per_type: int | None =
 # Optimisation runners
 # ---------------------------------------------------------------------------
 
-def _run_copro_builder(
-    model: str,
-    cfg: dict,
+def _run_target(
+    program_factory,
     trainset: list,
+    metric,
     save_path: Path,
     log_label: str,
+    *,
+    model: str,
+    cfg: dict,
+    task_max_tokens: int,
 ) -> None:
-    """Run one COPRO pass on trainset and save to save_path."""
+    """Universal runner: pick backend, compile, save."""
     _emit("run_start", {
         "target": log_label,
         "model": model,
         "trainset_size": len(trainset),
-        "copro": {
-            "breadth": _COPRO_BREADTH,
-            "depth": _COPRO_DEPTH,
-            "temperature": _COPRO_TEMPERATURE,
-            "threads": _COPRO_THREADS,
-        },
     })
 
     _ollama_only = _ant_client is None and _or_client is None
-    _adapter = dspy.ChatAdapter() if _ollama_only else dspy.JSONAdapter()
-    lm = _LoggingDispatchLM(model, cfg, max_tokens=400, target=log_label, json_mode=not _ollama_only)
-    prompt_lm = _LoggingDispatchLM(
-        model, cfg, max_tokens=_COPRO_PROMPT_MAX_TOKENS,
-        target=f"{log_label}/meta", json_mode=not _ollama_only,
-    )
-    dspy.configure(lm=lm, adapter=_adapter)
+    adapter = dspy.ChatAdapter() if _ollama_only else dspy.JSONAdapter()
+    task_lm = _LoggingDispatchLM(model, cfg, max_tokens=task_max_tokens, target=log_label,
+                                 json_mode=not _ollama_only)
+    prompt_lm = _LoggingDispatchLM(model, cfg, max_tokens=_COPRO_PROMPT_MAX_TOKENS,
+                                   target=f"{log_label}/meta", json_mode=not _ollama_only)
 
-    program = dspy.Predict(PromptAddendum)
-    teleprompter = COPRO(
-        prompt_model=prompt_lm,
-        metric=_scalar(builder_metric),
-        breadth=_COPRO_BREADTH,
-        depth=_COPRO_DEPTH,
-        init_temperature=_COPRO_TEMPERATURE,
-    )
+    backend = CoproBackend()  # Task 8 will replace this with _select_backend(target)
 
     t0 = time.monotonic()
     status = "ok"
     try:
-        compiled = teleprompter.compile(
-            program,
-            trainset=trainset,
-            eval_kwargs={"num_threads": _COPRO_THREADS, "display_progress": True, "display_table": 0},
+        backend.compile(
+            program_factory(),
+            trainset, metric, save_path, log_label,
+            task_lm=task_lm, prompt_lm=prompt_lm, adapter=adapter, threads=_COPRO_THREADS,
         )
     except KeyboardInterrupt:
         status = "interrupted"
@@ -454,9 +427,8 @@ def _run_copro_builder(
     except Exception as exc:
         status = f"error: {exc}"
         _emit_error(log_label, exc, {
-            "model": model,
-            "trainset_size": len(trainset),
-            "lm_call_num": lm._call_num,
+            "model": model, "trainset_size": len(trainset),
+            "lm_call_num": task_lm._call_num,
             "prompt_lm_call_num": prompt_lm._call_num,
         })
         raise
@@ -464,13 +436,11 @@ def _run_copro_builder(
         _emit("run_end", {
             "target": log_label,
             "duration_s": round(time.monotonic() - t0, 2),
-            "total_lm_calls": lm._call_num,
+            "total_lm_calls": task_lm._call_num,
             "status": status,
         })
 
-    save_path.parent.mkdir(exist_ok=True)
-    compiled.save(str(save_path))
-    print(f"[optimize] Builder program saved → {save_path}")
+    print(f"[optimize] {log_label} program saved → {save_path}")
 
 
 def optimize_builder(model: str, cfg: dict, min_score: float = 0.8, max_per_type: int | None = None) -> None:
@@ -488,7 +458,12 @@ def optimize_builder(model: str, cfg: dict, min_score: float = 0.8, max_per_type
     print(f"[optimize] Builder trainset: {len(all_trainset)} examples total, model: {model}")
 
     # Global pass — fallback for task types without enough data
-    _run_copro_builder(model, cfg, all_trainset, _BUILDER_PROGRAM_PATH, "builder/global")
+    _run_target(
+        lambda: dspy.Predict(PromptAddendum),
+        all_trainset, builder_metric,
+        _BUILDER_PROGRAM_PATH, "builder/global",
+        model=model, cfg=cfg, task_max_tokens=400,
+    )
 
     # Per-type passes
     type_counts = _builder_task_types(min_score=min_score, max_per_type=max_per_type)
@@ -504,7 +479,12 @@ def optimize_builder(model: str, cfg: dict, min_score: float = 0.8, max_per_type
         print(f"[optimize] Per-type: {tt!r} — {n} examples")
         type_trainset = _builder_trainset(min_score=min_score, task_type=tt, max_per_type=max_per_type)
         try:
-            _run_copro_builder(model, cfg, type_trainset, _type_program_path(tt), f"builder/{tt}")
+            _run_target(
+                lambda: dspy.Predict(PromptAddendum),
+                type_trainset, builder_metric,
+                _type_program_path(tt), f"builder/{tt}",
+                model=model, cfg=cfg, task_max_tokens=400,
+            )
         except KeyboardInterrupt:
             raise
         except Exception as exc:
@@ -515,77 +495,6 @@ def optimize_builder(model: str, cfg: dict, min_score: float = 0.8, max_per_type
     if failed:
         print(f"[optimize] Per-type failures: {len(failed)} — "
               + ", ".join(f"{tt} ({msg.split(':', 1)[0]})" for tt, msg in failed))
-
-
-def _run_copro_evaluator(
-    model: str,
-    cfg: dict,
-    trainset: list,
-    save_path: Path,
-    log_label: str,
-) -> None:
-    """Run one COPRO pass on trainset and save to save_path."""
-    _emit("run_start", {
-        "target": log_label,
-        "model": model,
-        "trainset_size": len(trainset),
-        "copro": {
-            "breadth": _COPRO_BREADTH,
-            "depth": _COPRO_DEPTH,
-            "temperature": _COPRO_TEMPERATURE,
-            "threads": _COPRO_THREADS,
-        },
-    })
-
-    _ollama_only = _ant_client is None and _or_client is None
-    _adapter = dspy.ChatAdapter() if _ollama_only else dspy.JSONAdapter()
-    lm = _LoggingDispatchLM(model, cfg, max_tokens=600, target=log_label, json_mode=not _ollama_only)
-    prompt_lm = _LoggingDispatchLM(
-        model, cfg, max_tokens=_COPRO_PROMPT_MAX_TOKENS,
-        target=f"{log_label}/meta", json_mode=not _ollama_only,
-    )
-    dspy.configure(lm=lm, adapter=_adapter)
-
-    program = dspy.ChainOfThought(EvaluateCompletion)
-    teleprompter = COPRO(
-        prompt_model=prompt_lm,
-        metric=_scalar(evaluator_metric),
-        breadth=_COPRO_BREADTH,
-        depth=_COPRO_DEPTH,
-        init_temperature=_COPRO_TEMPERATURE,
-    )
-
-    t0 = time.monotonic()
-    status = "ok"
-    try:
-        compiled = teleprompter.compile(
-            program,
-            trainset=trainset,
-            eval_kwargs={"num_threads": _COPRO_THREADS, "display_progress": True, "display_table": 0},
-        )
-    except KeyboardInterrupt:
-        status = "interrupted"
-        raise
-    except Exception as exc:
-        status = f"error: {exc}"
-        _emit_error(log_label, exc, {
-            "model": model,
-            "trainset_size": len(trainset),
-            "lm_call_num": lm._call_num,
-            "prompt_lm_call_num": prompt_lm._call_num,
-        })
-        raise
-    finally:
-        _emit("run_end", {
-            "target": log_label,
-            "duration_s": round(time.monotonic() - t0, 2),
-            "total_lm_calls": lm._call_num,
-            "status": status,
-        })
-
-    save_path.parent.mkdir(exist_ok=True)
-    compiled.save(str(save_path))
-    print(f"[optimize] Evaluator program saved → {save_path}")
 
 
 def optimize_evaluator(model: str, cfg: dict, max_per_type: int | None = None) -> None:
@@ -602,7 +511,12 @@ def optimize_evaluator(model: str, cfg: dict, max_per_type: int | None = None) -
     if not global_trainset:
         print("[optimize] No evaluator training examples found. Run main.py first.")
         sys.exit(1)
-    _run_copro_evaluator(model, cfg, global_trainset, _EVAL_PROGRAM_PATH, "evaluator/global")
+    _run_target(
+        lambda: dspy.ChainOfThought(EvaluateCompletion),
+        global_trainset, evaluator_metric,
+        _EVAL_PROGRAM_PATH, "evaluator/global",
+        model=model, cfg=cfg, task_max_tokens=600,
+    )
 
     # Per-type passes — no window (per-type counts are already small)
     type_counts = _evaluator_task_types(max_per_type=max_per_type)
@@ -618,7 +532,12 @@ def optimize_evaluator(model: str, cfg: dict, max_per_type: int | None = None) -
         print(f"[optimize] Per-type evaluator: {tt!r} — {n} examples")
         type_trainset = _evaluator_trainset(task_type=tt)
         try:
-            _run_copro_evaluator(model, cfg, type_trainset, _eval_type_program_path(tt), f"evaluator/{tt}")
+            _run_target(
+                lambda: dspy.ChainOfThought(EvaluateCompletion),
+                type_trainset, evaluator_metric,
+                _eval_type_program_path(tt), f"evaluator/{tt}",
+                model=model, cfg=cfg, task_max_tokens=600,
+            )
         except KeyboardInterrupt:
             raise
         except Exception as exc:
@@ -631,77 +550,6 @@ def optimize_evaluator(model: str, cfg: dict, max_per_type: int | None = None) -
               + ", ".join(f"{tt} ({msg.split(':', 1)[0]})" for tt, msg in failed))
 
 
-def _run_copro_classifier(
-    model: str,
-    cfg: dict,
-    trainset: list,
-    save_path: Path,
-    log_label: str,
-) -> None:
-    """Run one COPRO pass on classifier trainset and save to save_path."""
-    _emit("run_start", {
-        "target": log_label,
-        "model": model,
-        "trainset_size": len(trainset),
-        "copro": {
-            "breadth": _COPRO_BREADTH,
-            "depth": _COPRO_DEPTH,
-            "temperature": _COPRO_TEMPERATURE,
-            "threads": _COPRO_THREADS,
-        },
-    })
-
-    _ollama_only = _ant_client is None and _or_client is None
-    _adapter = dspy.ChatAdapter() if _ollama_only else dspy.JSONAdapter()
-    lm = _LoggingDispatchLM(model, cfg, max_tokens=64, target=log_label, json_mode=not _ollama_only)
-    prompt_lm = _LoggingDispatchLM(
-        model, cfg, max_tokens=_COPRO_PROMPT_MAX_TOKENS,
-        target=f"{log_label}/meta", json_mode=not _ollama_only,
-    )
-    dspy.configure(lm=lm, adapter=_adapter)
-
-    program = dspy.ChainOfThought(ClassifyTask)
-    teleprompter = COPRO(
-        prompt_model=prompt_lm,
-        metric=_scalar(classifier_metric),
-        breadth=_COPRO_BREADTH,
-        depth=_COPRO_DEPTH,
-        init_temperature=_COPRO_TEMPERATURE,
-    )
-
-    t0 = time.monotonic()
-    status = "ok"
-    try:
-        compiled = teleprompter.compile(
-            program,
-            trainset=trainset,
-            eval_kwargs={"num_threads": _COPRO_THREADS, "display_progress": True, "display_table": 0},
-        )
-    except KeyboardInterrupt:
-        status = "interrupted"
-        raise
-    except Exception as exc:
-        status = f"error: {exc}"
-        _emit_error(log_label, exc, {
-            "model": model,
-            "trainset_size": len(trainset),
-            "lm_call_num": lm._call_num,
-            "prompt_lm_call_num": prompt_lm._call_num,
-        })
-        raise
-    finally:
-        _emit("run_end", {
-            "target": log_label,
-            "duration_s": round(time.monotonic() - t0, 2),
-            "total_lm_calls": lm._call_num,
-            "status": status,
-        })
-
-    save_path.parent.mkdir(exist_ok=True)
-    compiled.save(str(save_path))
-    print(f"[optimize] Classifier program saved → {save_path}")
-
-
 def optimize_classifier(model: str, cfg: dict, min_score: float = 0.8, max_per_type: int | None = None) -> None:
     """Run COPRO on ClassifyTask: single global pass (per-type not applicable for classifiers)."""
     trainset = _classifier_trainset(min_score=min_score, max_per_type=max_per_type)
@@ -710,7 +558,12 @@ def optimize_classifier(model: str, cfg: dict, min_score: float = 0.8, max_per_t
         sys.exit(1)
 
     print(f"[optimize] Classifier trainset: {len(trainset)} examples, model: {model}")
-    _run_copro_classifier(model, cfg, trainset, _CLASSIFIER_PROGRAM_PATH, "classifier/global")
+    _run_target(
+        lambda: dspy.ChainOfThought(ClassifyTask),
+        trainset, classifier_metric,
+        _CLASSIFIER_PROGRAM_PATH, "classifier/global",
+        model=model, cfg=cfg, task_max_tokens=64,
+    )
 
 
 # ---------------------------------------------------------------------------
