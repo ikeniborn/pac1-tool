@@ -16,7 +16,8 @@ def test_executor_proposal_defaults():
 
 
 def test_executor_proposal_requires_plan_steps():
-    with pytest.raises(Exception):
+    from pydantic import ValidationError
+    with pytest.raises(ValidationError):
         ExecutorProposal()  # type: ignore — missing required fields
 
 

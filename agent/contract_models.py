@@ -16,7 +16,7 @@ class EvaluatorResponse(BaseModel):
     failure_conditions: list[str]
     required_evidence: list[str]
     objections: list[str]
-    counter_proposal: str | None
+    counter_proposal: str | None = None
     agreed: bool
 
 
