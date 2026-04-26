@@ -3,9 +3,9 @@
 Builder examples: (task_text, task_type, addendum, score) → data/dspy_examples.jsonl
 Evaluator examples: (evaluator inputs, score) → data/dspy_eval_examples.jsonl
 
-When ≥ THRESHOLD real examples accumulate, prints a hint to run optimize_prompts.py.
+When ≥ THRESHOLD real examples accumulate, prints a hint to run scripts/optimize_prompts.py.
 Synthetic cold-start examples live in data/dspy_synthetic.jsonl and are used
-by optimize_prompts.py when fewer than THRESHOLD real examples are available.
+by scripts/optimize_prompts.py when fewer than THRESHOLD real examples are available.
 """
 from __future__ import annotations
 
@@ -29,6 +29,9 @@ def record_example(
     task_type: str,
     addendum: str,
     score: float,
+    graph_context: str = "",
+    stall_detected: bool = False,
+    write_scope_violations: bool = False,
 ) -> None:
     """Append one (task, addendum, score) tuple to the JSONL example log.
 
@@ -38,14 +41,20 @@ def record_example(
     pressures the meta-LLM during COPRO to paraphrase task values and drop
     trailing punctuation. Vault semantics belong in Signature instructions.
 
+    stall_detected / write_scope_violations are read by the GEPA feedback
+    builder to produce targeted addendum-improvement hints.
+
     Prints a hint to run the optimizer when the count first reaches THRESHOLD.
     """
     _DATA.mkdir(parents=True, exist_ok=True)
     entry = {
         "task_text": task_text,
         "task_type": task_type,
+        "graph_context": graph_context,
         "addendum": addendum,
         "score": score,
+        "stall_detected": stall_detected,
+        "write_scope_violations": write_scope_violations,
     }
     with _EXAMPLES_PATH.open("a", encoding="utf-8") as fh:
         fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
@@ -54,7 +63,7 @@ def record_example(
     if count == _THRESHOLD:
         print(
             f"[dspy] {_THRESHOLD} real builder examples collected "
-            "→ run: uv run python optimize_prompts.py --target builder"
+            "→ run: uv run python scripts/optimize_prompts.py --target builder"
         )
 
 
@@ -71,6 +80,8 @@ def record_eval_example(
     completed_steps: str,
     skepticism_level: str,
     score: float,
+    reference_patterns: str = "(none)",
+    graph_insights: str = "(none)",
 ) -> None:
     """Append one evaluator call with ground-truth score to dspy_eval_examples.jsonl.
 
@@ -89,6 +100,8 @@ def record_eval_example(
         "done_ops": done_ops,
         "completed_steps": completed_steps,
         "skepticism_level": skepticism_level,
+        "reference_patterns": reference_patterns,
+        "graph_insights": graph_insights,
         "expected_approved_str": "yes" if score == 1.0 else "no",
         "score": score,
     }
@@ -99,7 +112,7 @@ def record_eval_example(
     if count == _EVAL_THRESHOLD:
         print(
             f"[dspy] {_EVAL_THRESHOLD} real evaluator examples collected "
-            "→ run: uv run python optimize_prompts.py --target evaluator"
+            "→ run: uv run python scripts/optimize_prompts.py --target evaluator"
         )
 
 

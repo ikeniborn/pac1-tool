@@ -303,6 +303,9 @@ def _run_single_task(trial_id: str, task_filter: list, router: ModelRouter) -> t
                     task_type=token_stats.get("task_type", "default"),
                     addendum=token_stats["builder_addendum"],
                     score=_score_f,
+                    graph_context=token_stats.get("graph_context", ""),
+                    stall_detected=bool(token_stats.get("stall_hints")),
+                    write_scope_violations=bool(token_stats.get("write_scope_blocks")),
                 )
             _eval_call = token_stats.get("eval_last_call")
             if _eval_call and token_stats.get("evaluator_calls", 0) > 0:
@@ -354,6 +357,43 @@ def _run_single_task(trial_id: str, task_filter: list, router: ModelRouter) -> t
                     print(f"[researcher] refusal promotion failed: {_pr_exc}")
             elif _pending_ref:
                 print(f"[researcher] refusal promotion skipped: score={_score_f} (<1.0)")
+            # FIX-389: normal-mode confidence feedback — reinforce on success,
+            # degrade on failure, but only on the nodes that were actually
+            # injected into this trial's prompt. Skip if researcher already
+            # handled the trial (its own bookkeeping covers the same ids).
+            _gf_enabled = os.getenv("WIKI_GRAPH_FEEDBACK", "1") == "1"
+            _injected = token_stats.get("graph_injected_node_ids", []) or []
+            if _gf_enabled and _injected and not _pending and not _pending_ref:
+                try:
+                    from agent import wiki_graph as _wg2
+                    _g2 = _wg2.load_graph()
+                    _changed = False
+                    if _score_f >= 1.0:
+                        _wg2.bump_uses(_g2, _injected)
+                        _step_facts = token_stats.get("step_facts") or []
+                        if _step_facts:
+                            _traj_hash = _wg2.hash_trajectory(_step_facts)
+                            _traj = [
+                                {"tool": getattr(f, "kind", "?"), "path": getattr(f, "path", "")}
+                                for f in _step_facts
+                            ]
+                            _wg2.add_pattern_node(
+                                _g2,
+                                token_stats.get("task_type", "default"),
+                                task_id, _traj_hash, _traj, _injected,
+                            )
+                        _changed = True
+                        print(f"[wiki-graph] reinforced {len(_injected)} nodes (score=1.0)")
+                    elif _score_f <= 0.0:
+                        _epsilon = float(os.getenv("WIKI_GRAPH_CONFIDENCE_EPSILON", "0.05"))
+                        _archived = _wg2.degrade_confidence(_g2, _injected, _epsilon)
+                        _changed = True
+                        print(f"[wiki-graph] degraded {len(_injected)} nodes "
+                              f"(score=0, archived {len(_archived)})")
+                    if _changed:
+                        _wg2.save_graph(_g2)
+                except Exception as _gf_exc:
+                    print(f"[wiki-graph] feedback failed: {_gf_exc}")
         style = CLI_GREEN if score == 1 else CLI_RED
         in_t   = token_stats.get("input_tokens", 0)
         out_t  = token_stats.get("output_tokens", 0)

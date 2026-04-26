@@ -250,6 +250,8 @@ def _builder_trainset(
                 graph_context=ex.get("graph_context", ""),
                 addendum=ex.get("addendum", ""),
                 score=ex.get("score", 1.0),
+                stall_detected=ex.get("stall_detected", False),
+                write_scope_violations=ex.get("write_scope_violations", False),
             ).with_inputs("task_type", "task_text", "graph_context")
         )
     return examples
