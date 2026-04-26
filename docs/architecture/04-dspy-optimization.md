@@ -20,7 +20,7 @@ flowchart TB
     Record -->|evaluator| EvalEx[data/dspy_eval_examples.jsonl]
     Record -->|errors| ErrEx[data/dspy_errors.jsonl]
 
-    BuilderEx -->|≥30| Optimize[optimize_prompts.py]
+    BuilderEx -->|≥30| Optimize[scripts/optimize_prompts.py]
     EvalEx -->|≥20| Optimize
 
     Optimize --> Copro[COPRO<br/>breadth×depth<br/>prompt refinement]
@@ -98,11 +98,11 @@ sequenceDiagram
 | `AGENTS.MD content` | То же самое, приводит к drift при paraphrase |
 | `done_operations` полностью | Хранится только компактный summary |
 
-## optimize_prompts.py: цикл оптимизации
+## scripts/optimize_prompts.py: цикл оптимизации
 
 ```mermaid
 flowchart TB
-    Start["uv run python<br/>optimize_prompts.py<br/>--target builder/evaluator"] --> LoadEx[загрузить примеры<br/>из dspy_*.jsonl]
+    Start["uv run python<br/>scripts/optimize_prompts.py<br/>--target builder/evaluator"] --> LoadEx[загрузить примеры<br/>из dspy_*.jsonl]
 
     LoadEx --> Split[train/eval split<br/>default 80/20]
     Split --> TrainSet[trainset: dspy.Example]
@@ -177,7 +177,7 @@ flowchart LR
 ## Конфигурация COPRO
 
 ```bash
-# optimize_prompts.py читает env
+# scripts/optimize_prompts.py читает env
 COPRO_BREADTH=4        # параллельных кандидатов на итерации
 COPRO_DEPTH=2          # итераций refinement
 DSPY_COLLECT=1         # включить сбор примеров в runtime
@@ -186,6 +186,22 @@ DSPY_COLLECT=1         # включить сбор примеров в runtime
 ### Метрика
 
 `COPRO` минимизирует `1 - mean(score)` по devset. Метрика — score от harness, нормализованный в [0, 1].
+
+## Two-backend architecture (since 2026-04)
+
+`agent/optimization/` is a small package with two interchangeable optimizer backends behind a common `OptimizerProtocol`:
+
+- `CoproBackend` — wraps `dspy.teleprompt.COPRO`; baseline.
+- `GepaBackend` — wraps `dspy.teleprompt.GEPA`; reads `dspy.Prediction.feedback` from metrics, persists Pareto frontier, optionally uses `ConfidenceAdapter` for `classifier` when the task LM provider supports logprobs (OpenRouter open-weight, Ollama).
+
+`scripts/optimize_prompts.py` resolves backend per target via `OPTIMIZER_<TARGET>` env vars (see CLAUDE.md). Metrics in `agent/optimization/metrics.py` always return `dspy.Prediction(score, feedback)`; CoproBackend extracts `.score` via a wrapper, GepaBackend uses both fields.
+
+Feedback construction is deterministic and rule-based (`agent/optimization/feedback.py`) — no extra LLM calls. Sources:
+- `score`, `addendum`, `stall_detected`, `write_scope_violations` (builder)
+- `proposed_outcome`, `done_ops`, `task_text` (evaluator)
+- `task_text`, `vault_hint` (classifier)
+
+For details and motivations see `docs/superpowers/specs/2026-04-26-gepa-integration-design.md`.
 
 ## DispatchLM: мост между DSPy и 4-tier
 
@@ -242,7 +258,7 @@ flowchart TB
 
 | Файл | Назначение |
 |---|---|
-| `optimize_prompts.py` | CLI для COPRO: `--target builder\|evaluator` |
+| `scripts/optimize_prompts.py` | CLI для COPRO: `--target builder\|evaluator` |
 | `agent/dspy_lm.py` | `DispatchLM` — `dspy.BaseLM` adapter |
 | `agent/dspy_examples.py` | `record_example`, `record_eval_example`, загрузчики |
 | `agent/prompt_builder.py` | `PromptAddendum` signature + `build_dynamic_addendum` |
@@ -261,8 +277,8 @@ flowchart TB
 make run
 
 # Когда накопится ≥30 builder / ≥20 evaluator примеров
-uv run python optimize_prompts.py --target builder
-uv run python optimize_prompts.py --target evaluator
+uv run python scripts/optimize_prompts.py --target builder
+uv run python scripts/optimize_prompts.py --target evaluator
 
 # Скомпилированные программы подгружаются автоматически
 # при следующем run — без изменения кода

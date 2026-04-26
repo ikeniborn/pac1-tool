@@ -14,8 +14,8 @@ make run                         # Run all benchmark tasks
 make task TASKS='t01,t02'        # Run specific tasks
 uv run python -m pytest tests/   # Run full test suite
 uv run pytest tests/test_security_gates.py  # Run single test file
-uv run python optimize_prompts.py --target builder   # Optimize prompt builder
-uv run python optimize_prompts.py --target evaluator # Optimize evaluator
+uv run python scripts/optimize_prompts.py --target builder   # Optimize prompt builder
+uv run python scripts/optimize_prompts.py --target evaluator # Optimize evaluator
 
 # Debug: replay trace
 uv run python -m agent.tracer logs/<trace_file>.jsonl
@@ -80,10 +80,20 @@ OK-loop hardening (FIX-375b) — три связанных изменения о
 Knowledge graph (`agent/wiki_graph.py`, `data/wiki/graph.json`):
 - Узлы: `insight`, `rule`, `pattern`, `antipattern` с `{tags, confidence, uses, last_seen}`
 - Рёбра: `requires`, `conflicts_with`, `generalizes`, `precedes`
-- Retrieval при построении addendum: `retrieve_relevant(graph, task_type, task_text, top_k)` — scoring = tag_overlap + text-token overlap + confidence × log(uses)
+- Retrieval: `retrieve_relevant(graph, task_type, task_text, top_k)` — scoring = tag_overlap + text-token overlap + confidence × log(uses). Вариант `retrieve_relevant_with_ids()` дополнительно возвращает list of injected node ids для post-trial reinforcement.
 - Инспекция: `uv run python scripts/print_graph.py [--all] [--tag email] [--edges]`
 
-Env-переменные: `RESEARCHER_MODE`, `RESEARCHER_MAX_CYCLES`, `RESEARCHER_STEPS_PER_CYCLE`, `MODEL_RESEARCHER`, `RESEARCHER_LOG_ENABLED`, `RESEARCHER_NEGATIVES_ENABLED`/`RESEARCHER_NEGATIVES_TOP_K` (FIX-370), `RESEARCHER_SHORT_CIRCUIT`/`RESEARCHER_SHORT_CIRCUIT_THRESHOLD` (FIX-371, offline-only), `RESEARCHER_DRIFT_HINTS`/`RESEARCHER_DRIFT_PREFIX_LEN` (FIX-372), `RESEARCHER_EVAL_GATED`/`RESEARCHER_EVAL_SKEPTICISM`/`RESEARCHER_EVAL_EFFICIENCY` (FIX-374), `RESEARCHER_FLIP_HINT_ENABLED`/`RESEARCHER_FLIP_REASON_SIMILARITY_THRESHOLD`/`RESEARCHER_FLIP_HYP_MONOTONIC_K`/`RESEARCHER_FLIP_HYP_SIMILARITY_THRESHOLD`/`RESEARCHER_REFUSAL_LAST_CHANCE` (FIX-375), `RESEARCHER_OK_LOOP_LIMIT` (FIX-375b), `RESEARCHER_EVAL_FAIL_CLOSED`/`RESEARCHER_HINT_FORCING`/`RESEARCHER_HINT_MAX_INJECTIONS`/`RESEARCHER_MIDCYCLE_BREAKOUT`/`RESEARCHER_MIDCYCLE_CHECK_EVERY`/`RESEARCHER_MIDCYCLE_REPEAT_THRESHOLD`/`RESEARCHER_REFLECTOR_DIVERSIFY`/`RESEARCHER_REFLECTOR_PRIOR_WINDOW`/`RESEARCHER_STEPS_ADAPTIVE`/`RESEARCHER_STEPS_MAX`/`RESEARCHER_TOTAL_STEP_BUDGET`/`RESEARCHER_SOFT_STALL`/`RESEARCHER_REFUSAL_DYNAMIC`/`RESEARCHER_REFUSAL_MIN_CYCLES_LEFT`/`RESEARCHER_GRAPH_QUARANTINE`/`RESEARCHER_GRAPH_MIN_CONF`/`RESEARCHER_DRIFT_FULL_TRACE`/`RESEARCHER_DRIFT_LCS_MIN` (FIX-376, все default OFF; FIX-376e — global escape ladder через `RESEARCHER_TOTAL_STEP_BUDGET=180` cumulative cap), `WIKI_GRAPH_ENABLED`, `WIKI_GRAPH_TOP_K`, `WIKI_GRAPH_CONFIDENCE_EPSILON`, `WIKI_GRAPH_MIN_CONFIDENCE`, `WIKI_PAGE_MAX_PATTERNS` (все в `.env.example`).
+Граф наполняется по двум путям (FIX-389):
+- **Researcher mode** (`RESEARCHER_MODE=1`) — reflector извлекает `graph_deltas` из каждой трассы цикла; `merge_updates` + `save_graph` после каждого цикла.
+- **Normal mode** (`RESEARCHER_MODE=0`) — гибрид:
+  - LLM-extractor в `run_wiki_lint`: `_llm_synthesize` возвращает `(markdown, deltas)`. Promt просит модель приложить fenced ```json {graph_deltas: ...}``` после страницы. Аггрегируем deltas по всем категориям → один `merge_updates`/`save_graph` в конце lint. Парсинг fail-open: невалидный JSON → пишем только markdown. Гейт: `WIKI_GRAPH_AUTOBUILD=1`.
+  - Cheap pattern-extractor + confidence feedback в `main.py` после `end_trial()`: `score=1.0` → `bump_uses` на узлы из prompt'а + `add_pattern_node` от `step_facts`; `score=0.0` → `degrade_confidence(epsilon)`. Гейт: `WIKI_GRAPH_FEEDBACK=1`. Не активен на researcher trial'ах.
+- Граф читается в **system prompt** агента (`agent/__init__.py`, до `_inject_addendum`), в **DSPy addendum** (`prompt_builder.py:graph_context` InputField) и в **evaluator** (`evaluator.py:_load_graph_insights`). Все три гейчены `WIKI_GRAPH_ENABLED=1`.
+- `stats["graph_injected_node_ids"]` фиксирует, какие узлы агент видел в этом trial'е — feedback в `main.py` целит ровно по ним.
+
+После расширения `PromptAddendum` Signature полем `graph_context` (FIX-389) ранее скомпилированные DSPy-программы в `data/prompt_builder_*_program.json` могут падать на отсутствующее поле в few-shot demos. `predictor.load()` обёрнут в try/except (fail-open в default-промпт), но для качества рекомендуется перекомпилировать: `uv run python scripts/optimize_prompts.py --target builder`.
+
+Env-переменные: `RESEARCHER_MODE`, `RESEARCHER_MAX_CYCLES`, `RESEARCHER_STEPS_PER_CYCLE`, `MODEL_RESEARCHER`, `RESEARCHER_LOG_ENABLED`, `RESEARCHER_NEGATIVES_ENABLED`/`RESEARCHER_NEGATIVES_TOP_K` (FIX-370), `RESEARCHER_SHORT_CIRCUIT`/`RESEARCHER_SHORT_CIRCUIT_THRESHOLD` (FIX-371, offline-only), `RESEARCHER_DRIFT_HINTS`/`RESEARCHER_DRIFT_PREFIX_LEN` (FIX-372), `RESEARCHER_EVAL_GATED`/`RESEARCHER_EVAL_SKEPTICISM`/`RESEARCHER_EVAL_EFFICIENCY` (FIX-374), `RESEARCHER_FLIP_HINT_ENABLED`/`RESEARCHER_FLIP_REASON_SIMILARITY_THRESHOLD`/`RESEARCHER_FLIP_HYP_MONOTONIC_K`/`RESEARCHER_FLIP_HYP_SIMILARITY_THRESHOLD`/`RESEARCHER_REFUSAL_LAST_CHANCE` (FIX-375), `RESEARCHER_OK_LOOP_LIMIT` (FIX-375b), `RESEARCHER_EVAL_FAIL_CLOSED`/`RESEARCHER_HINT_FORCING`/`RESEARCHER_HINT_MAX_INJECTIONS`/`RESEARCHER_MIDCYCLE_BREAKOUT`/`RESEARCHER_MIDCYCLE_CHECK_EVERY`/`RESEARCHER_MIDCYCLE_REPEAT_THRESHOLD`/`RESEARCHER_REFLECTOR_DIVERSIFY`/`RESEARCHER_REFLECTOR_PRIOR_WINDOW`/`RESEARCHER_STEPS_ADAPTIVE`/`RESEARCHER_STEPS_MAX`/`RESEARCHER_TOTAL_STEP_BUDGET`/`RESEARCHER_SOFT_STALL`/`RESEARCHER_REFUSAL_DYNAMIC`/`RESEARCHER_REFUSAL_MIN_CYCLES_LEFT`/`RESEARCHER_GRAPH_QUARANTINE`/`RESEARCHER_GRAPH_MIN_CONF`/`RESEARCHER_DRIFT_FULL_TRACE`/`RESEARCHER_DRIFT_LCS_MIN` (FIX-376, все default OFF; FIX-376e — global escape ladder через `RESEARCHER_TOTAL_STEP_BUDGET=180` cumulative cap), `WIKI_GRAPH_ENABLED`, `WIKI_GRAPH_TOP_K`, `WIKI_GRAPH_CONFIDENCE_EPSILON`, `WIKI_GRAPH_MIN_CONFIDENCE`, `WIKI_PAGE_MAX_PATTERNS`, `WIKI_GRAPH_AUTOBUILD`, `WIKI_GRAPH_FEEDBACK` (FIX-389; все в `.env.example`).
 
 CC-tier совместим: reflector и inner-loop используют `dispatch.call_llm_raw`, роутинг по `provider` в `models.json`.
 
@@ -99,7 +109,7 @@ Behavior branches that reference specific types (preject short-circuit in `agent
 1. Append entry to `data/task_types.json` with fields: `description`, `model_env`, `fallback_chain`, `wiki_folder`, `fast_path`, `needs_builder`, `status`.
 2. Optionally set `MODEL_<UPPER>` in `.env` (otherwise `fallback_chain` resolves).
 3. Optionally create `data/wiki/fragments/<wiki_folder>/`.
-4. If `status: "soft"` → run `uv run python optimize_prompts.py --target classifier` to recompile DSPy program with the new enum.
+4. If `status: "soft"` → run `uv run python scripts/optimize_prompts.py --target classifier` to recompile DSPy program with the new enum.
 5. If the type needs bespoke system-prompt guidance → add an entry to `_TASK_BLOCKS` in `agent/prompt.py`. Otherwise it inherits the `default` block (warn-once on startup).
 
 **Soft-label workflow (open-set):** when the LLM classifier proposes a type outside `VALID_TYPES`, it's logged to `data/task_type_candidates.jsonl` (zero extra LLM calls). Aggregate + promote via:
@@ -140,7 +150,7 @@ main.py → run_agent()
 
 **DSPy Prompt Optimization**: `prompt_builder.py` generates 3–6 bullet points of task-specific guidance; `evaluator.py` does quality review. Both are compiled via COPRO and stored in `data/`. They fail-open if compiled programs are missing.
 
-**Evaluator consumes researcher knowledge (FIX-367)**: `evaluate_completion()` injects two extra InputFields into `EvaluateCompletion`: `reference_patterns` (content of `data/wiki/pages/<task_type>.md` — Successful patterns + Verified refusals score-gated promoted by researcher) and `graph_insights` (top-K relevant nodes via `wiki_graph.retrieve_relevant`). Wiki/graph are ADVISORY — on conflict with hardcoded INBOX/ENTITY rules the hardcoded rules win. Env-gates: `EVALUATOR_WIKI_ENABLED`, `EVALUATOR_WIKI_MAX_CHARS`, `EVALUATOR_GRAPH_TOP_K` (graph additionally gated behind `WIKI_GRAPH_ENABLED`). After growing researcher corpus recompile per-type evaluator programs: `uv run python optimize_prompts.py --target evaluator`.
+**Evaluator consumes researcher knowledge (FIX-367)**: `evaluate_completion()` injects two extra InputFields into `EvaluateCompletion`: `reference_patterns` (content of `data/wiki/pages/<task_type>.md` — Successful patterns + Verified refusals score-gated promoted by researcher) and `graph_insights` (top-K relevant nodes via `wiki_graph.retrieve_relevant`). Wiki/graph are ADVISORY — on conflict with hardcoded INBOX/ENTITY rules the hardcoded rules win. Env-gates: `EVALUATOR_WIKI_ENABLED`, `EVALUATOR_WIKI_MAX_CHARS`, `EVALUATOR_GRAPH_TOP_K` (graph additionally gated behind `WIKI_GRAPH_ENABLED`). After growing researcher corpus recompile per-type evaluator programs: `uv run python scripts/optimize_prompts.py --target evaluator`.
 
 **Stall Detection** (`stall.py`): Detects same-tool loops (3×), repeated path errors (2×), exploration stalls (6+ steps without write/delete). Adaptive hints escalate at 12+ steps.
 
@@ -157,16 +167,39 @@ Every non-trivial behavioral fix is tagged with a sequential `FIX-N` comment in 
 
 ## Optimization Workflow
 
-1. Collect real examples — auto-saved to `data/dspy_examples.jsonl`:
+PAC1-tool supports two DSPy optimizer backends — **COPRO** (legacy) and **GEPA** (Genetic-Pareto Reflective Prompt Evolution). Selection is per-target via env:
+
+| Env | Default | Effect |
+|---|---|---|
+| `OPTIMIZER_DEFAULT` | `copro` | Fallback for all targets |
+| `OPTIMIZER_BUILDER` | (inherits) | Override for `prompt_builder` |
+| `OPTIMIZER_EVALUATOR` | (inherits) | Override for `evaluator` |
+| `OPTIMIZER_CLASSIFIER` | (inherits) | Override for `classifier` |
+| `GEPA_AUTO` | `light` | `light|medium|heavy` budget preset |
+| `GEPA_BUDGET_OVERRIDE` | (unset) | Fine-grained: `max_full_evals=N` or `max_metric_calls=N` |
+
+1. Collect real examples — auto-saved to `data/dspy_examples.jsonl` (with `stall_detected`/`write_scope_violations` for richer GEPA feedback):
    ```bash
    uv run python main.py
    ```
-2. Run optimizer:
+
+2. Run optimizer (per-target backend selection):
    ```bash
-   uv run python optimize_prompts.py --target builder
+   # Default: all targets via COPRO
+   uv run python scripts/optimize_prompts.py --target builder
+
+   # Mix-and-match: GEPA for builder, COPRO for evaluator
+   OPTIMIZER_BUILDER=gepa uv run python scripts/optimize_prompts.py --target all
    ```
-3. Compiled programs saved to `data/prompt_builder_program.json` and `data/evaluator_program.json`.
+
+3. Compiled programs saved to `data/{builder,evaluator,classifier}_program.json` (and per-task_type variants). GEPA additionally saves Pareto frontier to `data/<target>_program_pareto/{0..N}.json` + `index.json` (advisory; agent loads only the main program).
+
 4. Programs are loaded at agent startup automatically.
+
+**Migration tips:**
+- A/B comparison: run twice with different `OPTIMIZER_*` settings, compare benchmark scores.
+- Roll back: unset `OPTIMIZER_*=gepa`; the existing COPRO-compiled JSON keeps working.
+- Logs at `data/optimize_runs.jsonl` differentiate `target=builder/global` (task LM), `/meta` (COPRO prompt LM), `/reflection` (GEPA reflection LM).
 
 ## Protocol / Harness
 
