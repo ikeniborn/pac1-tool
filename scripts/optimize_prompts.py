@@ -57,7 +57,7 @@ import dspy
 
 from agent.optimization.logger import OptimizeLogger
 from agent.optimization.metrics import builder_metric, evaluator_metric, classifier_metric
-from agent.optimization.copro_backend import CoproBackend
+from agent.optimization import select_backend
 from agent.dspy_lm import DispatchLM
 from agent.dspy_examples import get_trainset, get_eval_trainset, get_classifier_trainset
 from agent.dispatch import anthropic_client as _ant_client, openrouter_client as _or_client
@@ -411,7 +411,8 @@ def _run_target(
     prompt_lm = _LoggingDispatchLM(model, cfg, max_tokens=_COPRO_PROMPT_MAX_TOKENS,
                                    target=f"{log_label}/meta", json_mode=not _ollama_only)
 
-    backend = CoproBackend()  # Task 8 will replace this with _select_backend(target)
+    backend = select_backend(log_label)
+    print(f"[optimize] {log_label}: backend={backend.name}")
 
     t0 = time.monotonic()
     status = "ok"
