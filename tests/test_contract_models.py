@@ -72,3 +72,35 @@ def test_contract_from_negotiation():
     )
     assert c.rounds_taken == 1
     assert "/outbox/1.json" in c.required_evidence
+
+
+def test_stall_hint_includes_contract_plan_steps():
+    """When contract_plan_steps provided, stall hint mentions the agreed plan."""
+    from collections import Counter, deque
+    from agent.stall import _check_stall
+
+    fingerprints = deque(["list:/", "list:/", "list:/"])
+    hint = _check_stall(
+        fingerprints=fingerprints,
+        steps_since_write=0,
+        error_counts=Counter(),
+        contract_plan_steps=["list /", "read /contacts/c01.json", "write /out/1.json"],
+    )
+    assert hint is not None
+    assert "agreed plan" in hint.lower() or "contract" in hint.lower()
+
+
+def test_stall_without_contract_plan_steps_unchanged():
+    """Without contract_plan_steps, stall hint is unchanged from current behaviour."""
+    from collections import Counter, deque
+    from agent.stall import _check_stall
+
+    fingerprints = deque(["list:/", "list:/", "list:/"])
+    hint = _check_stall(
+        fingerprints=fingerprints,
+        steps_since_write=0,
+        error_counts=Counter(),
+        contract_plan_steps=None,
+    )
+    assert hint is not None
+    assert "3 times in a row" in hint
