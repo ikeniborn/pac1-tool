@@ -1,6 +1,7 @@
 """GEPA backend — Genetic-Pareto Reflective Prompt Evolution."""
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any, Callable
 
@@ -14,6 +15,56 @@ try:
     from dspy.teleprompt import GEPA as _GEPA
 except ImportError:  # pragma: no cover
     _GEPA = None
+
+
+def _parse_float_env(name: str, default: float) -> float:
+    try:
+        return float(os.environ.get(name, default))
+    except (ValueError, TypeError):
+        return default
+
+
+def _parse_int_env(name: str, default: int) -> int:
+    try:
+        return int(os.environ.get(name, default))
+    except (ValueError, TypeError):
+        return default
+
+
+def _split_trainset(
+    trainset: list,
+    val_fraction: float,
+    min_for_split: int,
+) -> tuple[list, list | None, str, dict]:
+    """Split trainset deterministically: last val_fraction → val, rest → train.
+
+    Returns (train, val, log_msg, payload).
+    val is None when split is skipped (trainset too small or invalid fraction).
+    """
+    n = len(trainset)
+    if n >= min_for_split and 0 < val_fraction < 1:
+        cut = max(1, int(n * (1 - val_fraction)))
+        train, val = trainset[:cut], trainset[cut:]
+        msg = (
+            f"trainset={len(train)}, valset={len(val)}"
+            f" (last {int(val_fraction * 100)}%)"
+        )
+        payload: dict = {
+            "trainset_size": len(train),
+            "valset_size": len(val),
+            "fraction": val_fraction,
+        }
+    else:
+        train, val = trainset, None
+        reason = "below_min" if n < min_for_split else "fraction_invalid"
+        msg = f"split skipped ({reason}, n={n}); trainset-as-valset"
+        payload = {
+            "trainset_size": n,
+            "valset_size": 0,
+            "skipped_reason": reason,
+            "fraction": val_fraction,
+        }
+    return train, val, msg, payload
 
 
 def _model_supports_logprobs(model_id: str | None) -> bool:
