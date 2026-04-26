@@ -510,3 +510,46 @@ def test_evaluate_skips_contract_gate_when_is_default():
             contract=contract,
         )
     assert verdict.approved is True
+
+
+def test_evaluate_passes_when_contract_evidence_present():
+    """Contract required_evidence present in grounding_refs → gate passes, LLM decides."""
+    import json
+    import types
+    from unittest.mock import patch
+    from agent.contract_models import Contract
+    from agent.evaluator import evaluate_completion
+
+    contract = Contract(
+        plan_steps=["write /outbox/1.json"],
+        success_criteria=["email written"],
+        required_evidence=["/outbox/1.json"],
+        failure_conditions=["no file written"],
+        is_default=False,
+        rounds_taken=1,
+    )
+    report = types.SimpleNamespace(
+        outcome="OUTCOME_OK",
+        message="Email sent",
+        completed_steps_laconic=[],
+        done_operations=[],
+        grounding_refs=["/outbox/1.json"],  # evidence present
+    )
+    approved_response = json.dumps({
+        "reasoning": "Contract satisfied.",
+        "approved_str": "yes",
+        "issues_str": "",
+        "correction_hint": "",
+    })
+    with patch("agent.dspy_lm.call_llm_raw", return_value=approved_response):
+        verdict = evaluate_completion(
+            task_text="Send email",
+            task_type="email",
+            report=report,
+            done_ops=["WRITTEN: /outbox/1.json"],
+            digest_str="",
+            model="test",
+            cfg={},
+            contract=contract,
+        )
+    assert verdict.approved is True
