@@ -40,8 +40,12 @@ class GepaBackend:
         budget_kwargs = resolve_budget()
         dspy.configure(lm=task_lm, adapter=adapter)
 
+        def _gepa_metric(gold, pred, trace=None, pred_name=None, pred_trace=None):
+            # GEPA passes 5 args; our metrics use the 3-arg form.
+            return metric(gold, pred, trace)
+
         teleprompter = _GEPA(
-            metric=metric,
+            metric=_gepa_metric,
             reflection_lm=prompt_lm,
             num_threads=threads,
             track_stats=True,
@@ -52,8 +56,45 @@ class GepaBackend:
         save_path.parent.mkdir(parents=True, exist_ok=True)
         compiled.save(str(save_path))
 
+        pareto = self._extract_pareto(compiled, teleprompter)
+        index = self._save_pareto(pareto, save_path)
+
         return CompileResult(
             compiled=compiled,
-            pareto_programs=None,  # filled in Task 9
-            stats={"budget": budget_kwargs},
+            pareto_programs=pareto or None,
+            stats={"budget": budget_kwargs, "pareto_count": len(pareto), "pareto_index": index},
         )
+
+    def _extract_pareto(self, compiled, teleprompter) -> list:
+        """Return list of dspy.Module instances on the Pareto frontier.
+
+        GEPA stores them on the teleprompter after compile (attribute name confirmed
+        in Task 9 step 1). Falls back to [] if attribute is missing.
+        """
+        for attr in ("pareto_programs", "pareto_frontier", "frontier"):
+            progs = getattr(teleprompter, attr, None)
+            if progs:
+                return list(progs)
+        return []
+
+    def _save_pareto(self, programs: list, save_path: Path) -> dict:
+        """Save Pareto programs to a sibling directory; return index dict."""
+        if not programs:
+            return {}
+        pareto_dir = save_path.parent / (save_path.stem + "_pareto")
+        pareto_dir.mkdir(parents=True, exist_ok=True)
+        index: dict = {}
+        for i, prog in enumerate(programs):
+            try:
+                p = pareto_dir / f"{i}.json"
+                prog.save(str(p))
+                score = getattr(prog, "_pareto_score", None)
+                index[str(i)] = {"path": str(p.relative_to(save_path.parent)),
+                                 "score": score}
+            except Exception as exc:  # fail-open: a single bad program shouldn't lose others
+                index[str(i)] = {"error": str(exc)}
+        (pareto_dir / "index.json").write_text(
+            __import__("json").dumps(index, indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        return index
