@@ -35,3 +35,7 @@ sys.modules["google.protobuf.json_format"].MessageToDict = lambda x: {}
 
 # Provide ConnectError stub
 sys.modules["connectrpc.errors"].ConnectError = type("ConnectError", (Exception,), {})
+
+
+def pytest_configure(config):
+    config.addinivalue_line("markers", "slow: slow integration smoke tests")
