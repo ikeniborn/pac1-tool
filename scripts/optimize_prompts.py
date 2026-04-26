@@ -422,7 +422,8 @@ def _run_target(
         backend.compile(
             program_factory(),
             trainset, metric, save_path, log_label,
-            task_lm=task_lm, prompt_lm=prompt_lm, adapter=adapter, threads=_COPRO_THREADS,
+            task_lm=task_lm, prompt_lm=prompt_lm, adapter=adapter,
+            threads=_COPRO_THREADS, emit=_emit,
         )
     except KeyboardInterrupt:
         status = "interrupted"
