@@ -307,7 +307,7 @@ def _run_single_task(trial_id: str, task_filter: list, router: ModelRouter) -> t
                     stall_detected=bool(token_stats.get("stall_hints")),
                     write_scope_violations=bool(token_stats.get("write_scope_blocks")),
                 )
-            if os.getenv("CONTRACT_COLLECT_DSPY", "1") == "1":
+            if os.getenv("CONTRACT_COLLECT_DSPY", "0") == "1":
                 _rounds = token_stats.get("contract_rounds_taken", 0)
                 _is_default = token_stats.get("contract_is_default", True)
                 if _rounds > 0 or not _is_default:
