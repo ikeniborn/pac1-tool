@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Protocol
+from typing import Any, Callable, Optional, Protocol
 
 
 class BackendError(RuntimeError):
@@ -33,4 +33,5 @@ class OptimizerProtocol(Protocol):
         prompt_lm: Any,
         adapter: Any,
         threads: int,
+        emit: Optional[Callable[[str, dict], None]] = None,
     ) -> CompileResult: ...

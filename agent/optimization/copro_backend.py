@@ -48,6 +48,7 @@ class CoproBackend:
         prompt_lm: Any,
         adapter: Any,
         threads: int,
+        emit: "Callable[[str, dict], None] | None" = None,
     ) -> CompileResult:
         dspy.configure(lm=task_lm, adapter=adapter)
         teleprompter = COPRO(

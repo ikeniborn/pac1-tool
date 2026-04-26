@@ -117,11 +117,22 @@ class GepaBackend:
         prompt_lm: Any,
         adapter: Any,
         threads: int,
+        emit: "Callable[[str, dict], None] | None" = None,
     ) -> CompileResult:
         if _GEPA is None:
             raise BackendError(
                 "GEPA not available. Install with: uv add 'dspy-ai[gepa]' or 'gepa'."
             )
+
+        val_fraction = _parse_float_env("GEPA_VAL_FRACTION", 0.2)
+        min_for_split = _parse_int_env("GEPA_MIN_TRAINSET_FOR_SPLIT", 20)
+        train, val, split_msg, split_payload = _split_trainset(
+            trainset, val_fraction, min_for_split
+        )
+        print(f"[optimize] gepa: {split_msg}")
+        if emit is not None:
+            split_payload = {"target": log_label, **split_payload}
+            emit("split", split_payload)
 
         budget_kwargs = resolve_budget()
         eff_adapter = self._maybe_confidence_adapter(program, adapter, task_lm)
@@ -138,7 +149,7 @@ class GepaBackend:
             track_stats=True,
             **budget_kwargs,
         )
-        compiled = teleprompter.compile(program, trainset=trainset)
+        compiled = teleprompter.compile(program, trainset=train, valset=val)
 
         save_path.parent.mkdir(parents=True, exist_ok=True)
         compiled.save(str(save_path))
