@@ -12,9 +12,9 @@ Optimization run logs are appended to:
   data/optimize_runs.jsonl          — one JSON event per line (run_start, lm_call, metric_eval, run_end)
 
 Usage:
-    uv run python optimize_prompts.py --target builder
-    uv run python optimize_prompts.py --target evaluator
-    uv run python optimize_prompts.py --target all
+    uv run python scripts/optimize_prompts.py --target builder
+    uv run python scripts/optimize_prompts.py --target evaluator
+    uv run python scripts/optimize_prompts.py --target all
 
 Environment requirements (same as main.py — loaded from .env / .secrets):
     MODEL_DEFAULT or MODEL_CLASSIFIER — used as optimizer LM
@@ -28,8 +28,6 @@ import os
 import sys
 import threading
 import time
-import traceback as _traceback
-from datetime import datetime, timezone
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
@@ -49,13 +47,16 @@ def _load_file(path: "str | Path") -> None:
         pass
 
 
-_BASE = Path(__file__).parent
+_BASE = Path(__file__).resolve().parent.parent
 _load_file(_BASE / ".env")
 _load_file(_BASE / ".secrets")
+if str(_BASE) not in sys.path:
+    sys.path.insert(0, str(_BASE))
 
 import dspy
 from dspy.teleprompt import COPRO
 
+from agent.optimization.logger import OptimizeLogger
 from agent.dspy_lm import DispatchLM
 from agent.dspy_examples import get_trainset, get_eval_trainset, get_classifier_trainset
 from agent.dispatch import anthropic_client as _ant_client, openrouter_client as _or_client
@@ -107,86 +108,6 @@ _COPRO_PROMPT_MAX_TOKENS = _int_env("COPRO_PROMPT_MAX_TOKENS", 2000)
 # ---------------------------------------------------------------------------
 # Optimization run logger
 # ---------------------------------------------------------------------------
-
-class OptimizeLogger:
-    """Append-only JSONL logger for optimization runs. Fail-open.
-
-    Writes two streams:
-      - `path`        — all events (run_start, lm_call, metric_eval, run_end)
-      - `error_path`  — structured errors only (one JSON per exception)
-    """
-
-    def __init__(self, path: Path, error_path: Path | None = None) -> None:
-        self._path = path
-        self._error_path = error_path
-        self._lock = threading.Lock()
-        path.parent.mkdir(parents=True, exist_ok=True)
-        try:
-            self._fh = path.open("a", encoding="utf-8", buffering=1)
-        except OSError:
-            self._fh = None
-        self._err_fh = None
-        if error_path is not None:
-            try:
-                self._err_fh = error_path.open("a", encoding="utf-8", buffering=1)
-            except OSError:
-                self._err_fh = None
-
-    def emit(self, event: str, data: dict) -> None:
-        if self._fh is None:
-            return
-        record = {
-            "event": event,
-            "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-            **data,
-        }
-        line = json.dumps(record, ensure_ascii=False) + "\n"
-        try:
-            with self._lock:
-                self._fh.write(line)
-        except Exception:
-            pass
-
-    def emit_error(self, target: str, exc: BaseException, extra: dict | None = None) -> None:
-        """Write a structured error record to the dedicated error log.
-
-        Captures type, message, and traceback — safe to call from except-blocks.
-        Also mirrors a compact `error` event into the main run log.
-        """
-        record = {
-            "event": "error",
-            "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "target": target,
-            "exc_type": type(exc).__name__,
-            "exc_message": str(exc)[:2000],
-            "traceback": _traceback.format_exc()[:8000],
-            **(extra or {}),
-        }
-        line = json.dumps(record, ensure_ascii=False) + "\n"
-        try:
-            with self._lock:
-                if self._err_fh is not None:
-                    self._err_fh.write(line)
-                if self._fh is not None:
-                    compact = {
-                        "event": "error",
-                        "timestamp": record["timestamp"],
-                        "target": target,
-                        "exc_type": record["exc_type"],
-                        "exc_message": record["exc_message"][:500],
-                    }
-                    self._fh.write(json.dumps(compact, ensure_ascii=False) + "\n")
-        except Exception:
-            pass
-
-    def close(self) -> None:
-        for fh in (self._fh, self._err_fh):
-            try:
-                if fh:
-                    fh.close()
-            except Exception:
-                pass
-
 
 # Module-level logger instance, initialised in main()
 _logger: OptimizeLogger | None = None
@@ -376,9 +297,10 @@ def _builder_trainset(
             dspy.Example(
                 task_type=tt,
                 task_text=ex.get("task_text", ""),
+                graph_context=ex.get("graph_context", ""),
                 addendum=ex.get("addendum", ""),
                 score=ex.get("score", 1.0),
-            ).with_inputs("task_type", "task_text")
+            ).with_inputs("task_type", "task_text", "graph_context")
         )
     return examples
 
@@ -441,11 +363,14 @@ def _evaluator_trainset(task_type: str | None = None, max_per_type: int | None =
                 done_ops=ex["done_ops"],
                 completed_steps=ex["completed_steps"],
                 skepticism_level=ex["skepticism_level"],
+                reference_patterns=ex.get("reference_patterns", "(none)"),
+                graph_insights=ex.get("graph_insights", "(none)"),
                 approved_str=ex["expected_approved_str"],
                 issues_str="",
                 correction_hint="",
             ).with_inputs("task_text", "task_type", "proposed_outcome", "agent_message",
-                          "done_ops", "completed_steps", "skepticism_level")
+                          "done_ops", "completed_steps", "skepticism_level",
+                          "reference_patterns", "graph_insights")
             for ex in real
         ]
 
@@ -462,11 +387,14 @@ def _evaluator_trainset(task_type: str | None = None, max_per_type: int | None =
             done_ops="- WRITTEN: /outbox/5.json",
             completed_steps="- wrote outbox/5.json",
             skepticism_level="mid",
+            reference_patterns="(none)",
+            graph_insights="(none)",
             approved_str="yes",
             issues_str="",
             correction_hint="",
         ).with_inputs("task_text", "task_type", "proposed_outcome", "agent_message",
-                      "done_ops", "completed_steps", "skepticism_level"),
+                      "done_ops", "completed_steps", "skepticism_level",
+                      "reference_patterns", "graph_insights"),
         dspy.Example(
             task_text="What is the email of Maria Schulz?",
             task_type="lookup",
@@ -475,11 +403,14 @@ def _evaluator_trainset(task_type: str | None = None, max_per_type: int | None =
             done_ops="(none)",
             completed_steps="- read contacts/cont_007.json",
             skepticism_level="mid",
+            reference_patterns="(none)",
+            graph_insights="(none)",
             approved_str="yes",
             issues_str="",
             correction_hint="",
         ).with_inputs("task_text", "task_type", "proposed_outcome", "agent_message",
-                      "done_ops", "completed_steps", "skepticism_level"),
+                      "done_ops", "completed_steps", "skepticism_level",
+                      "reference_patterns", "graph_insights"),
         dspy.Example(
             task_text="Delete all processed items from the archive folder",
             task_type="default",
@@ -488,11 +419,14 @@ def _evaluator_trainset(task_type: str | None = None, max_per_type: int | None =
             done_ops="(none)",
             completed_steps="- listed archive/",
             skepticism_level="mid",
+            reference_patterns="(none)",
+            graph_insights="(none)",
             approved_str="no",
             issues_str="OUTCOME_OK but task required file deletions and done_ops is empty",
             correction_hint="OUTCOME_NONE_CLARIFICATION",
         ).with_inputs("task_text", "task_type", "proposed_outcome", "agent_message",
-                      "done_ops", "completed_steps", "skepticism_level"),
+                      "done_ops", "completed_steps", "skepticism_level",
+                      "reference_patterns", "graph_insights"),
         dspy.Example(
             task_text="Pr...",
             task_type="inbox",
@@ -501,11 +435,14 @@ def _evaluator_trainset(task_type: str | None = None, max_per_type: int | None =
             done_ops="(none)",
             completed_steps="",
             skepticism_level="mid",
+            reference_patterns="(none)",
+            graph_insights="(none)",
             approved_str="no",
             issues_str="Task text is truncated/garbled — should be CLARIFICATION",
             correction_hint="OUTCOME_NONE_CLARIFICATION",
         ).with_inputs("task_text", "task_type", "proposed_outcome", "agent_message",
-                      "done_ops", "completed_steps", "skepticism_level"),
+                      "done_ops", "completed_steps", "skepticism_level",
+                      "reference_patterns", "graph_insights"),
     ]
 
 
