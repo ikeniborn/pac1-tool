@@ -57,8 +57,8 @@ When a capture relates to an existing distill thread, the full approved sequence
 - **Skipping the changelog** — writing the capture file alone is insufficient; the changelog append is a required step
 - **Wrong target path** — use the path given in the task literally; do not normalise or relocate
 - **Omitting distill writes** — if a matching distill thread exists, skipping the card and thread update results in a partial approval at best; evaluators check for both
-- **Security-blocked sources** — tasks targeting restricted domains (e.g. `medium.com`, `docs.anthropic.com`, `news.ycombinator.com`) are denied before any file ops; no partial state is left; the pattern signals a domain allowlist constraint; retry with an allowlisted source is safe
-- **Incomplete task specifications** — truncated or malformed task input (cut-off snippet text, unfinished task descriptions) triggers `OUTCOME_NONE_CLARIFICATION` before file operations begin; always validate task clarity before execution
+- **Security-blocked sources** — tasks targeting restricted domains (`medium.com`, `substack.com`, `docs.anthropic.com`, `news.ycombinator.com`) are denied before any file ops; no partial state is left; the pattern signals a domain allowlist constraint; retry with an allowlisted source is safe
+- **Incomplete or truncated task specifications** — cut-off snippet text, unfinished task descriptions, or malformed input triggers `OUTCOME_NONE_CLARIFICATION` before file operations begin; always validate task clarity before execution
 - **Query tasks out of scope** — tasks asking 'which capture from N days ago?' with relative date references trigger `OUTCOME_NONE_CLARIFICATION`; this workflow is for write operations only; reformulate with exact ISO dates or reframe as a write task
 
 ---

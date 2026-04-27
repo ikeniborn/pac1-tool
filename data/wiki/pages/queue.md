@@ -83,14 +83,14 @@
 
 ### Risk: Sender Domain Mismatch
 
-**Pattern:** A sender's email domain diverges from the domain recorded in the contact registry (e.g., `.biz` vs `.com`, or a subdomain-spoofed lookalike). The message content otherwise appears legitimate.
+**Pattern:** A sender's email domain diverges from the domain recorded in the contact registry (e.g., TLD substitution, subdomain spoofing). The message content otherwise appears legitimate.
 
 **Why it's dangerous:** Domain spoofing is a low-effort impersonation vector. Accepting a request purely because the company name in the message body matches is insufficient — the sender identity must be corroborated by the contact record.
 
 **Rules:**
 - Compare the sender's full domain against the contact registry domain; any mismatch is grounds for denial.
 - Do not treat a plausible company name in the message body as identity proof if the sending domain does not match the registered contact.
-- TLD substitution (`.com` → `.biz`, `.net`, `.ai`, etc.) and subdomain additions are both mismatch signals.
+- TLD substitution and subdomain additions are both mismatch signals — deny before proceeding to task execution.
 
 ---
 

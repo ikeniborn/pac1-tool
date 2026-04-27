@@ -25,4 +25,14 @@
 - Root cause: Agent assumes read is the only viable operation for file content extraction; does not implement fallback to search when read timeout occurs
 - Solution: When read operation times out, immediately switch to search operation on the same file to extract the required data; avoid retry attempts on the same read operation
 
+## Inconsistent Temporal Offset Across Related Records
+- Condition: Task requires rescheduling a deadline or date across multiple related records (e.g., reminder and account); agent updates the records with different target dates instead of using a consistent temporal reference
+- Root cause: Agent calculates temporal offsets independently for each file without cross-verifying consistency; may apply different policies or interpretations of the time offset to different records
+- Solution: Calculate the target date once from the task requirement; apply this date consistently to all related records; verify cross-record consistency before finalizing the task
+
+## Unintended Record Deletion After Update
+- Condition: Agent updates a core record (account, reminder, contact) and then immediately deletes the same record in the same task without explicit deletion directive
+- Root cause: Agent treats deletion as a cleanup step following update operations; does not recognize deletion as a destructive, separate operation requiring explicit task direction
+- Solution: Never delete records as ancillary cleanup after updates; deletion is destructive and requires explicit task direction; "keep the diff focused" means only the requested modifications to existing records
+
 ---

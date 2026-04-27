@@ -27,6 +27,20 @@
 
 ---
 
+#### Pattern: Account Attribute Lookup via Identifier with Descriptors
+**Applies to:** "What is the [field] of the [descriptor] account [account-identifier]?"
+
+1. `search` using account identifier combined with one or more descriptors (locale, industry, business type) → resolves to one primary account file, possibly with documentation pages mixed in
+2. Filter search results to account files (`accounts/acct_NNN.json`); `read` the matched account file
+3. Extract the requested field directly and return it
+4. **Verify:** outcome: OUTCOME_OK in 2 ops (search + read)
+
+> **Identifier + descriptor precision:** When a search combines an account identifier (brand name, account code) with qualifiers (locale, business type), the search is typically disambiguated immediately. Expect 1 search operation to yield the correct account file directly, unlike pure-descriptor searches which may require disambiguation reads.
+
+> **Mixed search result filtering:** Search operations may return both account files and documentation pages (README, guides, setup). Prioritize account file results when present. Documentation matches can be safely ignored for direct field extraction from account records.
+
+---
+
 #### Pattern: Primary Contact Email via Account Description
 **Applies to:** "What is the email of the primary contact for [descriptive account]?"
 
@@ -90,6 +104,12 @@
 - A person search does not exclusively return `cont_NNN.json` files. When searching by a person's name directly (not via an account), the result may be `mgr_NNN.json` if they are an account manager.
 - **Mitigation:** Accept whatever file the `search` returns; confirm `full_name` matches, then extract the requested field regardless of file prefix.
 
+#### Mixed Search Result Filtering (Account Files vs. Documentation)
+- When searching for an account by identifier or descriptors, the `search` operation may return both account files (`accounts/acct_NNN.json`) and documentation pages (README, guides, setup instructions).
+- **Observed frequency:** Common when identifier + descriptor searches are used; less common in pure-descriptor searches.
+- **Severity:** Low; documentation pages are rarely relevant for account field lookups but can clutter result interpretation.
+- **Mitigation:** When mixed results appear, immediately filter to account files. Confirm the account file's key fields (locale, industry, status) against all stated task descriptors. Documentation pages can be safely discarded.
+
 #### Stall Accumulation in Portfolio Enumeration
 - Reading multiple account files sequentially in a portfolio query triggers stall warnings after ~6 steps.
 - **Observed outcome:** Tasks with 4+ stall warnings can still achieve OUTCOME_OK if all planned reads complete before output.
@@ -118,6 +138,7 @@
 - **Single-hop lookups** (name → email): always resolvable in exactly 2 ops: `search` → `read`. Works for both `cont_NNN` and `mgr_NNN` targets. Expect name order inversion; design for retry on first-search failure.
 - **Two-hop lookups** (description → account → contact email): 3 ops minimum; skipping the intermediate account read risks returning the wrong contact.
 - **Three-hop lookups** (description → account → manager name → manager email): 4 ops minimum; the account file is a mandatory waypoint to extract the manager name before the second search.
+- **Identifier + descriptor account lookups**: 2 ops typical (search + read). Adding an account identifier to a search dramatically improves precision compared to pure-descriptor searches, which may require 2–3 ops for disambiguation.
 - **Portfolio queries**: Expect 4+ stall warnings during bulk account reads; these are standard and non-fatal for read-only enumeration. Design with confidence; complete all planned reads before returning results.
 - **Contact vs. manager disambiguation**: the task verb matters—"primary contact" → `cont_NNN.json`; "account manager" → resolve name from account file, then `mgr_NNN.json`.
 - **Field extraction discipline**: only return the exact field requested (e.g., email only, name only). No surrounding context.

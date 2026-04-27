@@ -74,6 +74,19 @@ FOR each file with date-prefix D in candidate directories:
 - Returned correct article.
 - **Key insight:** N=20 (exact boundary) resolves with single inversion pass; no special handling required.
 
+**Worked instance (N=20, non-zero residual, OUTCOME_OK):**
+- Listed `/01_capture/influential` → 5 files, `VAULT_DATE = BASE`
+- Candidate `BASE−17__slug.md` → `implied_today = BASE−17 + 20 = BASE+3` ✓ (within window [BASE, BASE+10])
+- Window filtering eliminated 4 other candidates from single list operation.
+- Returned correct article.
+- **Key insight:** Inversion succeeds with non-zero residual when `implied_today` remains within the window. Residual of +3 is valid and reliable.
+
+**Worked instance (N=11, OUTCOME_OK):**
+- Listed `/01_capture/influential` → 5 files, `VAULT_DATE = BASE`
+- Candidate `BASE−6__intercom-claude-code-platform.md` → `implied_today = BASE−6 + 11 = BASE+5` ✓ (within window, residual = 0)
+- Returned correct article.
+- **Key insight:** Small N (11 days) resolves cleanly with single inversion pass and perfect residual.
+
 **Worked instance (N=41, OUTCOME_OK):**
 - Listed `/01_capture/influential` → 5 files, `VAULT_DATE = BASE`
 - Candidate `BASE−41__slug.md` → `implied_today = BASE−41 + 41 = BASE` ✓ (within window, residual = 0 — best fit)
@@ -122,12 +135,12 @@ FOR each file with date-prefix D in candidate directories:
 
 ### Temporal — Relative Date Lookup
 
-- **Small N (≤ ~20 days):** Inversion reliably resolves to exactly one file in `/01_capture/influential` via window filtering. Single `list` op is sufficient. N=20 (exact boundary) confirmed to resolve cleanly.
+- **Small N (≤ ~20 days):** Inversion reliably resolves to exactly one file in `/01_capture/influential` via window filtering. Single `list` op is sufficient. Tested range: N ∈ {11, 14, 20} all resolve cleanly.
 - **Large N (> ~20 days):** Gap between `ESTIMATED_TODAY` and target date may predate the oldest vault file. After exhausting inversion, report closest candidates rather than silently failing. However, large N can still resolve cleanly (e.g. N=41, residual=0) if a matching file exists — always attempt full inversion before declaring no-match.
 - **Tiebreaking multiple plausible inversions:** If two files both satisfy the window, prefer the one with the smaller residual `|implied_today − VAULT_DATE − 5|`. A residual of 0 is a perfect fit.
+- **Residuals within window are acceptable:** Non-zero residuals (e.g., +3 days) yield valid matches when `implied_today ∈ [VAULT_DATE, VAULT_DATE+10]`. Window selectivity filters effectively even with offsets. Perfect residuals (0) signal ideal fits but are not required.
 - **Inbox vs. influential:** Captures in `/00_inbox` use the same date-prefix convention; include in candidate pool when influential yields no match.
 - **Never report `NONE_CLARIFICATION` on temporal tasks** without first running at least one `list`/`find`/`tree` — the vault always contains derivable signals.
-- **Residual = 0 is a strong signal:** When `implied_today − VAULT_DATE` equals the natural gap exactly, treat this as a high-confidence match requiring no further disambiguation.
-- **Window selectivity:** The filter `[VAULT_DATE, VAULT_DATE+10]` consistently narrows 5+ candidate files to 0–1 matches, demonstrating high selectivity. This robustness holds across the tested N range (14, 20, 41).
+- **Window selectivity:** The filter `[VAULT_DATE, VAULT_DATE+10]` consistently narrows 5+ candidate files to 0–1 matches, demonstrating high selectivity. This robustness holds across the tested N range (11, 14, 20, 41).
 
 ---

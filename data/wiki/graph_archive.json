@@ -21,5 +21,28 @@
     "confidence": 0.18,
     "uses": 20,
     "last_seen": "2026-04-26"
+  },
+  "n_a3c9b63c7e": {
+    "type": "insight",
+    "tags": [
+      "bulk-delete",
+      "default",
+      "intent-parsing"
+    ],
+    "text": "'Let's start over' scoped to cards/threads means bulk delete non-templates only — same as explicit bulk-delete phrasing.",
+    "confidence": 0.19,
+    "uses": 18,
+    "last_seen": "2026-04-27"
+  },
+  "a_21f7348880": {
+    "type": "antipattern",
+    "tags": [
+      "email",
+      "sequencing"
+    ],
+    "text": "Writing to /outbox/ before confirming both the recipient email (from contact file) and the next ID (from seq.json).",
+    "confidence": 0.16,
+    "uses": 24,
+    "last_seen": "2026-04-27"
   }
 }

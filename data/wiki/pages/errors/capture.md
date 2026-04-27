@@ -21,3 +21,17 @@
 - **Solution:** After task completion, diff STEP FACTS write paths against DONE OPS paths. Any path present in one list but absent from the other indicates a silent failure or a premature task-close and must be reconciled before the task is marked complete.
 
 ---
+
+## Complete Absence of Write Operations in DONE OPS
+
+- **Condition:** A task with explicit write/modify requirements (e.g., capture, distill, delete operations) reports `outcome: OUTCOME_OK` and `approved: true`, but DONE OPS is entirely empty—containing zero WRITTEN or DELETE entries.
+- **Root cause:** The agent terminates task execution after planning or reading context, treating these preliminary steps as sufficient completion without entering the write phase where actual mutations occur.
+- **Solution:** For any task type that specifies mutations (capture, distill, append, delete, update), enforce that DONE OPS contains at least one write or delete entry before accepting `OUTCOME_OK`. If DONE OPS is empty, immediately halt evaluation, retry only the write steps, and reverify against DONE OPS before task closure.
+
+---
+
+## Security-Denied External Source Access
+
+- **Condition:** A capture task targeting an external web source reports `outcome: OUTCOME_DENIED_SECURITY` with empty DONE OPS and STEP FACTS, and evaluator rejects the task.
+- **Root cause:** The source domain is not whitelisted in the agent's sandbox or fetch permissions, preventing the security layer from authorizing the external access request.
+- **Solution:** Verify domain accessibility and whitelist status before submitting external-source capture tasks. If the domain should be accessible, add it to the agent's fetch whitelist. If external access is restricted, provide users guidance on using only accessible sources.

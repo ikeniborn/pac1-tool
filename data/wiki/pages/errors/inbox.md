@@ -16,6 +16,12 @@
 - Root cause: Search invoked with blank or insufficiently scoped query, causing noise matches across unrelated files.
 - Solution: Always construct search queries from the specific fields available in the message (e.g., full name, account ID, email). Validate that at least one result field matches the expected contact before proceeding.
 
+## Sender Domain Verified But Person Not Found
+
+- Condition: Agent confirms the originating domain as trusted but cannot locate the specific sender person within that domain's contacts.
+- Root cause: Agent lacks defined policy for partial contact resolution (domain verified, person unknown). Treats person-lookup failure as blocking condition, defaulting to OUTCOME_NONE_CLARIFICATION.
+- Solution: Define policy for domain-verified-person-unknown: either proceed with domain-level trust and flag person as unverified in outbox, or write clarification request citing the domain match and requesting specific identifier (employee ID, email). Never block without writing structured outbox response.
+
 ## Outbox File Written Without Canonical Sequence Registration
 
 - Condition: Agent writes a response file (e.g., `84949.json`) directly to `/outbox/<file> but the sequence index (`seq.json`) is written independently and may diverge.
@@ -34,4 +40,14 @@
 - Root cause: Agent over-researches before acting; there is no internal limit on consecutive non-mutating steps, so lookup loops can continue indefinitely.
 - Solution: Once a contact is resolved and the required resource (e.g., invoice, record) is located, proceed immediately to write the outbox response. Treat five consecutive non-mutating steps as a self-imposed stall threshold: either write or explicitly document the blocking reason and halt. The stall warning system (triggered at step 6) allows recovery; resume execution with a write/delete operation.
 
----
+## Inbox Message Deleted Without Reading
+
+- Condition: Agent deletes an inbox message file without first reading its contents.
+- Root cause: No enforced read-before-delete sequence; agent assumes message is safe to discard without understanding its intent or task disposition.
+- Solution: Always read and fully parse inbox message contents before any destructive operation. Confirm message intent and task disposition before deletion.
+
+## Security Denial Not Documented in Outbox
+
+- Condition: Agent identifies a security violation, returns OUTCOME_DENIED_SECURITY, but writes no outbox response documenting the denial.
+- Root cause: Security decision is treated as internal state; no requirement to write denial to outbox for audit trail; outcome code alone is treated as sufficient.
+- Solution: All security denials must be written to outbox with sender verification status, denied request description, and explicit denial reason. This creates the required audit trail for security events.

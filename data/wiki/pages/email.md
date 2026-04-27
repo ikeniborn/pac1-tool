@@ -27,6 +27,10 @@
 
 **Verify:** Two files written — `seq.json` updated, `<id>.json` created.
 
+**Confirmed by:** t14 completed successfully via this sequence.
+
+> **Shortcut:** Steps 2–4 can overlap. `seq.json` (step 6) should be read in parallel with the searches and account file read, not deferred until after contact resolution. This parallelization reduces total steps to 4–5 and avoids stall detection warnings.
+
 > **Keyword tip:** When searching `/accounts`, use a short distinctive keyword (e.g. a proper noun from the org name) rather than the full verbose task description. Full phrases cause false negatives.
 
 ---
@@ -43,7 +47,7 @@
 - Before any search, confirm that `/contacts` and `/outbox` directories exist in the vault tree.
 - If listing the vault root does not show both directories (or directory search returns `NOT_FOUND`), surface a `CLARIFICATION` outcome immediately — no further steps can succeed.
 - Do not attempt contact resolution or outbox writes against a missing vault structure.
-- **Evidence:** t04 encountered vault structure failure (neither `/contacts` nor `/outbox` directories present in root listing). Correctly escalated to CLARIFICATION.
+- **Evidence:** t04 encountered vault structure failure (no `/contacts` or `/outbox` in vault root listing). Correctly escalated to CLARIFICATION.
 
 #### Contact Not Found → Clarification Required
 - Attempt full-name, surname-only, and first-name-only searches against `/contacts` before concluding no match exists.
@@ -55,11 +59,12 @@
 #### Stall Detection (Avoid)
 - The harness issues stall warnings after ~6 steps with no write/delete/create operation.
 - If reads are complete and the next message ID is known, proceed immediately to the write step — do not add intermediate no-op reads.
-- Typical safe path: search → read contact → read seq → write outbox (≤4 steps for name-based tasks).
-- For account-routed tasks, reach the write step as soon as both the email and the seq slot are known; do not re-read already-resolved data.
+- Typical safe path for contact-name tasks: search → read contact in parallel with read seq → write outbox (≤3 steps).
+- For account-routed tasks, read `seq.json` in parallel with searches (steps 1–4), not after contact resolution. This reaches the write step with all required data in 4–5 steps, avoiding stall warnings.
+- **Evidence:** t14 triggered multiple stall warnings (6, 7, 8 step marks) when `seq.json` was deferred until after contact resolution. Parallelizing would have reduced to 4–5 steps.
 
 #### Ambiguous Recipient
-- Tasks naming only a first name (e.g. "Email Maya") or a vague org descriptor without a vault match will fail contact resolution.
+- Tasks naming only a first name or a vague org descriptor without a vault match will fail contact resolution.
 - Partial-name searches (surname only, or first name only) should be attempted before surfacing clarification, but if both yield no match, stop immediately.
 
 ---
@@ -70,12 +75,13 @@
 - **Name search first, account search second.** Searching `/contacts` directly by name (or surname) is faster than routing through `/accounts` first. Fall back to account search only when the name search yields no matches.
 - **Org-keyword searches on `/contacts` can directly match contact files.** Searching `/contacts` with a keyword derived from an organisation name can sometimes locate a contact file immediately, providing a faster path than account resolution.
 - **Multiple name-search attempts may succeed when the first fails.** When an initial search (full name, surname, or org variant) returns no matches, secondary searches using other name patterns can still locate the contact file.
-- **seq.json is dependency-free and can be read early.** Reading `/outbox/<file> as the first operation (before or in parallel with contact resolution) is safe and reduces total steps when contact lookup takes multiple searches.
+- **seq.json is dependency-free and can be read early.** Reading `/outbox/<file> as the first or concurrent operation (before or in parallel with contact resolution) is safe and reduces total steps when contact lookup takes multiple searches.
 - **seq.json auto-increments after write.** After writing an outbox message, seq.json is automatically updated to the next ID; no manual increment is required.
 - Contact files contain: `id`, `account_id`, `full_name`, `role`, `email`. The `email` field is the only value needed for outbox dispatch.
 - Account files contain: `name`, `account_manager`, `status`, `industry`. Use account files only to bridge org name → account ID → contact lookup; do not use them as email sources.
 - For account-routed tasks, searching `/accounts` with a short keyword (not the full descriptive org phrase) yields faster matches and avoids false negatives.
 - **Surname-only and first-name-only searches are valid fallbacks** and frequently resolve contacts when full-name search fails.
+- **Parallelizing seq.json read in account-path tasks prevents stall warnings** and reduces step count by 2–3. Read `seq.json` in parallel with the `/accounts` and `/contacts` searches, not sequentially after them.
 
 #### Clarification Triggers
 | Condition | Action |

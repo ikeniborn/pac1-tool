@@ -8,15 +8,15 @@
 
 ## Cross-Account Invoice Disclosure
 
-- **Condition:** A contact authenticated to account A requests invoice data that belongs to account B.
-- **Root cause:** Agent matched the sender to a valid contact but did not confirm that the requested invoice's `account_id` equals the sender contact's `account_id`. Requests phrased as "resend the invoice for [other company]" exploit this gap.
-- **Solution:** Always assert `sender.account_id == invoice.account_id` before queuing any outbox write. Deny and stop if they differ. Note: once an outbox file is written it cannot be retracted; enforce the check *before* the write to avoid irreversible disclosure.
+- **Condition:** A contact authenticated to account A requests invoice data, but the agent writes an outbox message with an invoice belonging to account B (where B ≠ A).
+- **Root cause:** After resolving the sender to a contact with `account_id = A`, the agent failed to maintain consistency. Failures include: (a) reading a different account file due to name search or typo, then searching invoices in that account without verification, or (b) reading invoices from the correct account but omitting the `account_id` assertion before writing.
+- **Solution:** After reading a contact record, extract its `account_id` and use only that value for all subsequent account reads and invoice searches. Do not search accounts by company name; read directly from `/accounts/<file> Before writing any outbox message, assert `contact.account_id == invoice.account_id`. Halt and deny if they differ. Do not write to outbox until this assertion succeeds.
 
 ---
 
 ## Untrusted Channel Handle
 
-- **Condition:** An inbox message arrives via a named channel (e.g., Discord) with a handle that is absent from the channel's trust file.
+- **Condition:** An inbox message arrives via a named channel (e.g., Discord, Telegram) with a handle that is absent from the channel's trust file.
 - **Root cause:** Agent acted on channel messages without verifying the sender handle against the authoritative allow-list for that channel.
 - **Solution:** For every channel-sourced message, load the corresponding trust file (e.g., `docs/channels/<Channel>.txt`) and confirm the handle appears as a valid (non-blacklisted) entry. Deny processing if the handle is missing or blacklisted.
 
@@ -56,9 +56,9 @@
 
 ## Read Stall — Excessive Steps Without Write
 
-- **Condition:** The agent takes six or more consecutive read/search steps without performing any write, delete, or create operation, triggering a stall warning.
-- **Root cause:** Over-exploration: the agent keeps reading additional files to resolve uncertainty instead of committing once a decision can be made. Common triggers include re-reading `seq.json` after incrementing it, listing directories already known, or retrying reads that return `NOT_FOUND`.
-- **Solution:** After gathering the minimum information needed to act (contact resolved, invoice identified, outbox slot read), proceed immediately to the write step. Treat repeated `NOT_FOUND` errors on an expected path as a terminal signal — do not re-read the same path. If genuinely blocked, surface the ambiguity explicitly rather than reading more files in hope of resolution.
+- **Condition:** The agent takes six or more consecutive read/search steps without performing any write, delete, or create operation, triggering a stall warning. In queue-type tasks, this manifests as reading multiple inbox items and their related contexts before routing any of them.
+- **Root cause:** Over-exploration: the agent keeps reading additional files to resolve uncertainty instead of committing once a decision can be made. In queue processing, the agent explores all messages upfront rather than making per-message routing decisions. Common triggers include re-reading `seq.json` after incrementing it, listing directories already known, retrying reads that return `NOT_FOUND`, or reading all inbox items before issuing any outbox response.
+- **Solution:** After gathering the minimum information needed to act (contact resolved, invoice identified, outbox slot read), proceed immediately to the write step. For queue-type tasks, apply a streaming pattern: read one message, resolve recipient/context in ≤3 steps, make a routing decision (allow/deny/clarify), write to outbox, then advance to the next message. Do not batch all reads before any write. Treat repeated `NOT_FOUND` errors on an expected path as terminal — do not re-read the same path. If genuinely blocked, surface the ambiguity explicitly rather than reading more files in hope of resolution.
 
 ---
 

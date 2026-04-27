@@ -4,9 +4,9 @@
 - Solution: After reading any reminder file, assert `reminder.account_id == target_account_id` before computing changes. If mismatch, continue searching for the correct file instead of modifying the wrong record.
 
 ## Exploration Stall — Write Deferred Indefinitely
-- Condition: Agent reads all required files and computes the correct new value but issues 6–14 explore steps before executing `Req_Write`.
-- Root cause: Agent re-reads already-visited files or re-queries search instead of committing the computed write, usually due to unresolved internal uncertainty about which file is canonical. May also manifest as attempts to read non-existent auxiliary documents (e.g. `/docs/follow-up-audit.json`) before proceeding.
-- Solution: After reading both the account file and the matching reminder file, immediately write both updates in a single pass. Do not re-read either file unless the write explicitly fails. If an auxiliary reference file is not found, proceed with information already gathered rather than stalling.
+- Condition: Agent reads all required account/transaction files and computes the correct output but issues 6+ explore steps before executing the write.
+- Root cause: Agent re-reads already-visited files or consults auxiliary documentation (READMEs, reference files) instead of committing the write, usually due to uncertainty about operation specifics or output format.
+- Solution: After reading the account and target record, immediately execute the write. Do not re-read either file unless write fails. Do not read auxiliary documentation before writing. If an auxiliary reference is not found, proceed with already-gathered information rather than stalling.
 
 ## Repeated Identical Write Call Without Progress
 - Condition: Agent calls `Req_Write` with the same path and payload 3 or more times consecutively without the write succeeding.
