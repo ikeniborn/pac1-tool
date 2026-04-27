@@ -309,6 +309,31 @@ def cc_complete(
                 stop_reason == "end_turn" and out_tok > 0 and fail_reason == "ok"
             )
 
+            # FIX-390: fail-fast on OAuth quota exhaustion. Without this, the
+            # caller burns _CC_MAX_RETRIES × _CC_RETRY_DELAY_S waiting for a
+            # limit that won't lift for hours, masking the real failure mode
+            # behind generic "empty/error" messages and silently killing
+            # downstream work (post-run wiki-lint observed dying mid-loop).
+            tail_text = "".join(stdout_lines[-12:]).lower()
+            quota_exhausted = any(
+                marker in tail_text
+                for marker in (
+                    "hit your limit",
+                    "claude usage limit",
+                    "you have reached",
+                    "rate limit",
+                    "too many requests",
+                )
+            )
+            if quota_exhausted:
+                tail_print = "".join(stdout_lines[-8:]).rstrip()[:800] or "<empty>"
+                print(
+                    f"[CC] OAuth quota exhausted — aborting retries to avoid "
+                    f"{_CC_MAX_RETRIES * _CC_RETRY_DELAY_S}s of useless backoff. "
+                    f"Stdout tail:\n{tail_print}"
+                )
+                break
+
             # FIX-N+4: diagnostic — dump tail of stdout so we can distinguish
             # "iclaude crashed silently" vs "envelope parse failed" vs "rate-limited".
             _debug = os.environ.get("CC_DEBUG_EMPTY") == "1"

@@ -59,7 +59,7 @@ flowchart LR
 1. [**01 — Поток выполнения**](01-execution-flow.md) — `main.py`, `run_agent`, `loop.py`, жизненный цикл шага.
 2. [**02 — LLM-маршрутизация**](02-llm-routing.md) — four-tier `dispatch.py` (+ `cc_client.py`), `classifier.py`, `ModelRouter`, `models.json`.
 3. [**03 — Prompt-система**](03-prompt-system.md) — `prompt.py` (статический), `prephase.py` (discovery), `prompt_builder.py` (DSPy addendum).
-4. [**04 — DSPy и оптимизация**](04-dspy-optimization.md) — сигнатуры, `optimize_prompts.py`, COPRO, сбор примеров.
+4. [**04 — DSPy и оптимизация**](04-dspy-optimization.md) — сигнатуры, `scripts/optimize_prompts.py`, COPRO, сбор примеров.
 5. [**05 — Безопасность и stall-detection**](05-security-stall.md) — `security.py`, `stall.py`, многоуровневый pipeline защиты.
 6. [**06 — Evaluator**](06-evaluator.md) — `evaluator.py`, pre-submission review, verbatim-gate.
 7. [**07 — Wiki-память**](07-wiki-memory.md) — `wiki.py`, fragments/pages/lint, кросс-сессионные знания.
@@ -98,7 +98,7 @@ graph TD
     classifier --> dispatch
     security --> classifier
 
-    optimize[optimize_prompts.py] --> builder
+    optimize[scripts/optimize_prompts.py] --> builder
     optimize --> evaluator
     optimize --> classifier
     optimize --> dspy_lm
@@ -131,6 +131,6 @@ make sync                           # uv sync
 make run                            # все задачи бенчмарка
 make task TASKS='t01,t02'           # подмножество
 uv run python -m agent.tracer logs/<file>.jsonl   # реплей
-uv run python optimize_prompts.py --target builder
-uv run python optimize_prompts.py --target evaluator
+uv run python scripts/optimize_prompts.py --target builder
+uv run python scripts/optimize_prompts.py --target evaluator
 ```

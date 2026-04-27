@@ -2,7 +2,7 @@
 
 Uses dspy.Predict(PromptAddendum) to generate a short task-specific guidance
 section before run_loop. Replaces the hand-crafted _BUILDER_SYSTEM prompt with
-a DSPy Signature whose docstring is optimised by COPRO (see optimize_prompts.py).
+a DSPy Signature whose docstring is optimised by COPRO (see scripts/optimize_prompts.py).
 
 Design:
   - Fail-open: returns ("", 0, 0) on any error so the agent runs with base prompt.
@@ -163,6 +163,9 @@ class PromptAddendum(dspy.Signature):
 
     task_type: str = dspy.InputField(desc="classified task type")
     task_text: str = dspy.InputField(desc="task description")
+    graph_context: str = dspy.InputField(
+        desc="optional knowledge-graph snippet (top-K relevant insights/rules/patterns); empty string if none. Use to ground bullets without paraphrasing task values."
+    )
     addendum: str = dspy.OutputField(
         desc="3–6 bullet points starting with '-', plain text, no JSON, no preamble"
     )
@@ -178,6 +181,7 @@ def build_dynamic_addendum(
     model: str,
     cfg: dict,
     max_tokens: int = 2000,
+    graph_context: str = "",
 ) -> tuple[str, int, int]:
     """Return (addendum, in_tokens, out_tokens). addendum='' if skipped or failed.
 
@@ -218,6 +222,7 @@ def build_dynamic_addendum(
             result = predictor(
                 task_type=task_type,
                 task_text=task_text,
+                graph_context=graph_context,
             )
         addendum = (result.addendum or "").strip()
         if task_type == "temporal":

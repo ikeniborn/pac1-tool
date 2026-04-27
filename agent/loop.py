@@ -34,7 +34,13 @@ from .classifier import (
     TASK_QUEUE, TASK_CAPTURE, TASK_CRM, TASK_TEMPORAL, TASK_PREJECT,
     TASK_DEFAULT,
 )
-from .evaluator import check_quoted_values_verbatim, evaluate_completion  # FIX-218
+from .evaluator import (  # FIX-218
+    _load_graph_insights,
+    _load_reference_patterns,
+    check_quoted_values_verbatim,
+    evaluate_completion,
+)
+from .evaluator import _GRAPH_EVAL_TOP_K, _WIKI_EVAL_MAX_CHARS
 from .tracer import get_task_tracer  # П3: replay tracer (no-op when TRACE_ENABLED=0)
 from .security import (  # FIX-203/206/214/215/250/321
     _normalize_for_injection,
@@ -225,7 +231,7 @@ class _LoopState:
     total_eval_ms: int = 0
     step_count: int = 0
     llm_call_count: int = 0
-    contract: "Any" = None  # FIX-390
+    contract: "Any" = None  # FIX-392
 
 
 # _extract_fact, build_digest, _compact_log — imported from agent/log_compaction.py above
@@ -2207,6 +2213,8 @@ def _run_step(
             "done_ops": "\n".join(f"- {op}" for op in _eval_done_ops) or "(none)",
             "completed_steps": _steps_str or "(none)",
             "skepticism_level": _EVAL_SKEPTICISM,
+            "reference_patterns": _load_reference_patterns(task_type, _WIKI_EVAL_MAX_CHARS) or "(none)",
+            "graph_insights": _load_graph_insights(task_type, st.task_text, _GRAPH_EVAL_TOP_K) or "(none)",
         }
         _tracer.emit("evaluator_call", st.step_count, {
             "approved": verdict.approved,
@@ -2382,7 +2390,7 @@ def run_loop(vm: PcmRuntimeClientSync, model: str, _task_text: str,
     st.evaluator_model = evaluator_model or ""
     st.evaluator_cfg = evaluator_cfg or {}
     st.researcher_mode = bool(researcher_mode)
-    # FIX-390: inject agreed contract into system prompt
+    # FIX-392: inject agreed contract into system prompt
     if contract is not None:
         _contract_block = _format_contract_block(contract)
         if pre.log:

@@ -389,7 +389,7 @@
 
 **Подход**: Продакшн-oriented LLM observability + evaluation + agent optimizer в одном стеке. Предоставляет SDK с набором оптимизаторов для промтов и агентов, LLM-as-a-judge метрики, продакшн-мониторинг.
 
-**Применимо для PAC1-tool**: Связка tracing + optimization; может заменить собственную реализацию `OptimizeLogger` в `optimize_prompts.py`.
+**Применимо для PAC1-tool**: Связка tracing + optimization; может заменить собственную реализацию `OptimizeLogger` в `scripts/optimize_prompts.py`.
 
 ### 14e. Eladlev/AutoPrompt
 
@@ -446,7 +446,7 @@
 - `ConfidenceAdapter` идеально подходит для `classifier` (10 task_type — logprob-aware optimization).
 - `DSPy Full Program Adapter` позволяет оптимизировать всю программу сразу, включая control flow.
 - Метрика возвращает `feedback` (не только скаляр) — информативнее для `evaluator`.
-- Требует только переписать метрики в `optimize_prompts.py` (возвращать `dspy.Prediction(score, feedback)`) и заменить `COPRO(...)` на `GEPA(...)`.
+- Требует только переписать метрики в `scripts/optimize_prompts.py` (возвращать `dspy.Prediction(score, feedback)`) и заменить `COPRO(...)` на `GEPA(...)`.
 
 ### Приоритет 2 — если данных мало для отдельных task_type
 
@@ -472,7 +472,7 @@
 # Установить GEPA (интегрирован в DSPy)
 uv add dspy-ai[gepa]
 
-# В optimize_prompts.py заменить:
+# В scripts/optimize_prompts.py заменить:
 #   from dspy.teleprompt import COPRO
 # на:
 #   from dspy.teleprompt import GEPA

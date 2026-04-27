@@ -13,6 +13,13 @@ from .wiki import load_wiki_patterns, format_fragment, write_fragment
 
 _PROMPT_BUILDER_ENABLED = os.getenv("PROMPT_BUILDER_ENABLED", "1") == "1"
 _WIKI_ENABLED = os.getenv("WIKI_ENABLED", "1") == "1"
+# FIX-389: graph injection into the agent's system prompt + DSPy addendum.
+# Controlled by the same WIKI_GRAPH_ENABLED flag the evaluator already uses.
+_GRAPH_READ_ENABLED = os.getenv("WIKI_GRAPH_ENABLED", "1") == "1"
+try:
+    _GRAPH_TOP_K = int(os.getenv("WIKI_GRAPH_TOP_K", "5"))
+except ValueError:
+    _GRAPH_TOP_K = 5
 # FIX-362: researcher mode master switch. When enabled, run_agent() bypasses
 # the prompt_builder / evaluator / stall / timeout pipeline and delegates to
 # agent.researcher.run_researcher, which drives a bounded outer cycle with
@@ -22,7 +29,7 @@ try:
     _PROMPT_BUILDER_MAX_TOKENS = int(os.getenv("PROMPT_BUILDER_MAX_TOKENS", "500"))
 except ValueError:
     _PROMPT_BUILDER_MAX_TOKENS = 500
-# FIX-390: contract negotiation phase
+# FIX-392: contract negotiation phase
 _CONTRACT_ENABLED = os.getenv("CONTRACT_ENABLED", "0") == "1"
 try:
     _CONTRACT_MAX_ROUNDS = int(os.getenv("CONTRACT_MAX_ROUNDS", "3"))
@@ -145,6 +152,23 @@ def run_agent(router: ModelRouter, harness_url: str, task_text: str, task_id: st
 
     base_prompt = build_system_prompt(task_type)
 
+    # FIX-389: inject KNOWLEDGE GRAPH section + capture node ids the agent saw,
+    # so main.py can reinforce/degrade them after end_trial().
+    graph_section = ""
+    graph_node_ids: list[str] = []
+    if _GRAPH_READ_ENABLED:
+        try:
+            from . import wiki_graph
+            _g = wiki_graph.load_graph()
+            if _g.nodes:
+                graph_section, graph_node_ids = wiki_graph.retrieve_relevant_with_ids(
+                    _g, task_type, task_text, top_k=_GRAPH_TOP_K,
+                )
+        except Exception as _exc:
+            print(f"[wiki-graph] retrieval failed ({_exc}) — skipping injection")
+    if graph_section:
+        base_prompt = base_prompt + "\n\n" + graph_section
+
     addendum = ""
     builder_in_tok = builder_out_tok = 0
     if _PROMPT_BUILDER_ENABLED:
@@ -158,6 +182,7 @@ def run_agent(router: ModelRouter, harness_url: str, task_text: str, task_id: st
             model=builder_model,
             cfg=builder_cfg,
             max_tokens=_PROMPT_BUILDER_MAX_TOKENS,
+            graph_context=graph_section,
         )
 
     final_prompt = _inject_addendum(base_prompt, addendum)
@@ -179,7 +204,7 @@ def run_agent(router: ModelRouter, harness_url: str, task_text: str, task_id: st
                 task_type=task_type,
                 agents_md=getattr(pre, "agents_md_content", "") or "",
                 wiki_context=_wiki_patterns,
-                graph_context="",
+                graph_context=graph_section,
                 model=_contract_model,
                 cfg=_contract_cfg,
                 max_rounds=_CONTRACT_MAX_ROUNDS,
@@ -197,6 +222,8 @@ def run_agent(router: ModelRouter, harness_url: str, task_text: str, task_id: st
     stats["builder_in_tok"] = builder_in_tok
     stats["builder_out_tok"] = builder_out_tok
     stats["builder_addendum"] = addendum
+    stats["graph_injected_node_ids"] = graph_node_ids  # FIX-389
+    stats["graph_context"] = graph_section  # for DSPy example collection
     stats["contract_rounds_taken"] = getattr(contract, "rounds_taken", 0) if contract else 0
     stats["contract_is_default"] = getattr(contract, "is_default", True) if contract else True
     stats["contract_in_tok"] = contract_in_tok

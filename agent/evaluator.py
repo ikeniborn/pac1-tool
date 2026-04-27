@@ -3,11 +3,11 @@
 Intercepts ReportTaskCompletion before dispatch() sends vm.answer().
 Uses dspy.ChainOfThought(EvaluateCompletion) backed by DispatchLM to review
 outcome vs evidence. Compiled program loaded from data/evaluator_program.json
-if present (optimised by optimize_prompts.py).
+if present (optimised by scripts/optimize_prompts.py).
 
 Fail-open: any LLM/parse error → auto-approve (never blocks a working agent).
 _build_eval_prompt() is preserved as a reference context builder and for use
-in optimize_prompts.py as the baseline prompt source.
+in scripts/optimize_prompts.py as the baseline prompt source.
 """
 from __future__ import annotations
 
@@ -253,7 +253,7 @@ class EvaluateCompletion(dspy.Signature):
 
 
 # ---------------------------------------------------------------------------
-# Reference prompt builder (preserved for optimize_prompts.py baseline)
+# Reference prompt builder (preserved for scripts/optimize_prompts.py baseline)
 # ---------------------------------------------------------------------------
 
 def _build_eval_prompt(
@@ -270,7 +270,7 @@ def _build_eval_prompt(
     """Build (system_prompt, user_message) for reference / optimizer baseline.
 
     Preserved from the original evaluator — not used in the live inference path
-    (which now goes through DSPy). Used by optimize_prompts.py to build the
+    (which now goes through DSPy). Used by scripts/optimize_prompts.py to build the
     human-readable baseline for COPRO comparison.
     """
     _codes_block = "\n".join(f"- {k} — {v}" for k, v in _OUTCOME_CODES.items())

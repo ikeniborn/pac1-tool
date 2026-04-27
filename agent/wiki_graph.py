@@ -213,7 +213,7 @@ def add_pattern_node(
     task_type: str,
     task_id: str,
     traj_hash: str,
-    trajectory: list[str],
+    trajectory: list,
     linked_node_ids: list[str],
 ) -> str:
     """Register a promoted pattern as a graph node; link it to supporting insights."""
@@ -229,7 +229,7 @@ def add_pattern_node(
         g.nodes[pid] = {
             "type": "pattern",
             "tags": [task_type],
-            "text": f"pattern:{task_type}",
+            "text": f"pattern:{task_type}:{traj_hash}",
             "trajectory": [
                 f"{s.get('tool','?')}({s.get('path','')})" if isinstance(s, dict) else str(s)
                 for s in trajectory
@@ -276,31 +276,19 @@ def degrade_confidence(g: Graph, node_ids: list[str], epsilon: float) -> list[st
     return archived
 
 
-def retrieve_relevant(
+def _score_candidates(
     g: Graph,
     task_type: str,
-    task_text: str = "",
-    top_k: int = 5,
-    min_retrieve_confidence: float = 0.0,
-    degraded_this_session: "set[str] | None" = None,
-    quarantine_weak_antipatterns: bool = False,
-) -> str:
-    """Render the top-K most relevant nodes as a Markdown section for addendum injection.
-
-    Scoring: tag overlap + text-token overlap + confidence × log(uses).
-    Nothing to show → returns ''.
-
-    FIX-376g: optional quarantine filters (researcher-only opt-in; defaults
-    are permissive so normal-mode behaviour is unchanged):
-      - min_retrieve_confidence: drop nodes whose confidence is below this
-      - degraded_this_session: drop node IDs that were degrade_confidence'd
-        during the current trial (avoid re-injecting just-poisoned nodes)
-      - quarantine_weak_antipatterns: drop antipatterns with uses<2 AND conf<0.5
-    """
+    task_text: str,
+    min_retrieve_confidence: float,
+    degraded_this_session: "set[str] | None",
+    quarantine_weak_antipatterns: bool,
+) -> list[tuple[float, str, dict]]:
+    """Shared scorer used by retrieve_relevant / retrieve_relevant_with_ids."""
     import math
 
     if not g.nodes:
-        return ""
+        return []
 
     task_tokens = set(_normalize(task_text).split()) if task_text else set()
     candidates: list[tuple[float, str, dict]] = []
@@ -331,14 +319,16 @@ def retrieve_relevant(
             continue
         candidates.append((score, nid, node))
 
-    if not candidates:
-        return ""
-
     candidates.sort(key=lambda x: -x[0])
-    top = candidates[:top_k]
+    return candidates
 
+
+def _render_top(g: Graph, top: list[tuple[float, str, dict]]) -> str:
+    """Render scored top-K nodes into a Markdown KNOWLEDGE GRAPH section."""
+    if not top:
+        return ""
     lines = ["## KNOWLEDGE GRAPH (relevant)"]
-    for score, nid, node in top:
+    for _, nid, node in top:
         ntype = node.get("type", "node")
         uses = node.get("uses", 1)
         conf = node.get("confidence", _DEFAULT_CONFIDENCE)
@@ -360,7 +350,6 @@ def retrieve_relevant(
         else:
             lines.append(f"- [{ntype}] {text} (conf={conf:.2f}, uses={uses})")
 
-    # Attached edges (requires) for patterns in top-k — only list rules/insights.
     top_ids = {nid for _, nid, _ in top}
     for e in g.edges:
         if e.get("from") in top_ids and e.get("rel") == "requires":
@@ -369,3 +358,63 @@ def retrieve_relevant(
                 lines.append(f"  requires: [{target.get('type')}] {target.get('text', '')}")
 
     return "\n".join(lines)
+
+
+def retrieve_relevant_with_ids(
+    g: Graph,
+    task_type: str,
+    task_text: str = "",
+    top_k: int = 5,
+    min_retrieve_confidence: float = 0.0,
+    degraded_this_session: "set[str] | None" = None,
+    quarantine_weak_antipatterns: bool = False,
+) -> tuple[str, list[str]]:
+    """FIX-389: same as retrieve_relevant but also returns the injected node ids,
+    so callers can later reinforce/degrade exactly the nodes the agent saw."""
+    candidates = _score_candidates(
+        g, task_type, task_text, min_retrieve_confidence,
+        degraded_this_session, quarantine_weak_antipatterns,
+    )
+    top = candidates[:top_k]
+    text = _render_top(g, top)
+    return text, [nid for _, nid, _ in top]
+
+
+def bump_uses(g: Graph, node_ids: list[str]) -> None:
+    """FIX-389: reinforcement on a successful trial. Increments uses, lifts
+    confidence by +0.02 (capped at 1.0), updates last_seen. No-op for missing ids."""
+    if not node_ids:
+        return
+    today = time.strftime("%Y-%m-%d")
+    for nid in node_ids:
+        n = g.nodes.get(nid)
+        if not n:
+            continue
+        n["uses"] = int(n.get("uses", 0)) + 1
+        n["last_seen"] = today
+        conf = float(n.get("confidence", _DEFAULT_CONFIDENCE))
+        n["confidence"] = round(min(1.0, conf + 0.02), 4)
+
+
+def retrieve_relevant(
+    g: Graph,
+    task_type: str,
+    task_text: str = "",
+    top_k: int = 5,
+    min_retrieve_confidence: float = 0.0,
+    degraded_this_session: "set[str] | None" = None,
+    quarantine_weak_antipatterns: bool = False,
+) -> str:
+    """Render the top-K most relevant nodes as a Markdown section for addendum injection.
+
+    Scoring: tag overlap + text-token overlap + confidence × log(uses).
+    Nothing to show → returns ''.
+
+    FIX-376g: optional quarantine filters (researcher-only opt-in; defaults
+    are permissive so normal-mode behaviour is unchanged).
+    FIX-389: shares scoring/render with retrieve_relevant_with_ids."""
+    candidates = _score_candidates(
+        g, task_type, task_text, min_retrieve_confidence,
+        degraded_this_session, quarantine_weak_antipatterns,
+    )
+    return _render_top(g, candidates[:top_k])

@@ -22,9 +22,15 @@ import shutil
 import sys
 from pathlib import Path
 
+# FIX-391: tightened to researcher-leakage markers only.
+# Removed bare "otp" — OTP is a legit PAC1 entity (admin-elevation tasks,
+# security insights, antipatterns about echoing OTP chars). Substring match on
+# "otp" caught 3 legitimate nodes (Discord admin handles, OTP echo antipattern)
+# in normal-mode graph after FIX-389/390. Researcher artifacts that actually
+# need purging mention the file path, not the entity name.
 DEFAULT_KEYWORDS = [
     "invalid_argument",
-    "otp",
+    "otp.txt",
     "artifact id",
     "seq.json increment",
     "must populate required fields",

@@ -16,11 +16,11 @@ DSPy-оптимизации).
 
 ```bash
 DSPY_COLLECT=1 uv run python main.py
-uv run python optimize_prompts.py --target evaluator
-uv run python optimize_prompts.py --target builder
+uv run python scripts/optimize_prompts.py --target evaluator
+uv run python scripts/optimize_prompts.py --target builder
 ```
 
-`optimize_prompts.py` использует COPRO; занимает ~1 час на 43 tasks corpus.
+`scripts/optimize_prompts.py` использует COPRO; занимает ~1 час на 43 tasks corpus.
 
 ## Verify
 
@@ -44,7 +44,7 @@ RUN_PARAMS: ... eval_program=loaded builder_program=loaded ...
 
 Per-task-type программы:
 ```bash
-uv run python optimize_prompts.py --target evaluator --task-type email
+uv run python scripts/optimize_prompts.py --target evaluator --task-type email
 ```
 
 После growing researcher corpus (FIX-367 — evaluator теперь видит wiki+graph),

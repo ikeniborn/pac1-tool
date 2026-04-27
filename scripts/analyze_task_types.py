@@ -18,7 +18,7 @@ Records are grouped by a normalized form of `llm_suggested`:
   - collapsed underscores, stripped
 
 After promotion, prints a reminder to run:
-    uv run python optimize_prompts.py --target classifier
+    uv run python scripts/optimize_prompts.py --target classifier
 so the COPRO-compiled DSPy classifier learns the new type.
 """
 from __future__ import annotations
@@ -186,7 +186,7 @@ def _promote(buckets: dict[str, list[dict]], min_count: int) -> None:
         print("NEXT STEPS:")
         print("  1. Set MODEL_<UPPER> in .env for any new type that needs a specific model.")
         print("  2. Recompile the DSPy classifier so it learns to predict the new types:")
-        print("       uv run python optimize_prompts.py --target classifier")
+        print("       uv run python scripts/optimize_prompts.py --target classifier")
         print("  3. (Optional) Add a bespoke _TASK_BLOCKS entry in agent/prompt.py —")
         print("     until you do, new types reuse the 'default' system-prompt block.")
     else:

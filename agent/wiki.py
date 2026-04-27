@@ -38,6 +38,27 @@ _ARCHIVE_DIR = _WIKI_DIR / "archive"
 
 _LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
 
+# FIX-389: gate the normal-mode graph autobuild path; orthogonal to
+# WIKI_GRAPH_ENABLED (read-side) and RESEARCHER_MODE (researcher writes).
+_GRAPH_AUTOBUILD = os.environ.get("WIKI_GRAPH_AUTOBUILD", "1") == "1"
+
+# FIX-389: matches a fenced ```json ... ``` block (multi-line, lazy).
+_JSON_FENCE_RE = re.compile(r"```json\s*(\{.*?\})\s*```", re.DOTALL)
+
+_GRAPH_INSTRUCTION_SUFFIX = (
+    "\n\nAfter the merged Markdown, append a fenced JSON block describing "
+    "graph deltas for this category (used by the knowledge graph index):\n"
+    "```json\n"
+    "{\"graph_deltas\": {\n"
+    "  \"new_insights\": [{\"text\": \"<≤120 chars>\", \"tags\": [\"<category>\"], \"confidence\": 0.5}],\n"
+    "  \"new_rules\":     [{\"text\": \"<≤120 chars>\", \"tags\": [\"<category>\"]}],\n"
+    "  \"antipatterns\":  [{\"text\": \"<≤120 chars>\", \"tags\": [\"<category>\"]}]\n"
+    "}}\n"
+    "```\n"
+    "Rules: 1-line text only; max 6 items per array; do not duplicate items "
+    "already on the existing page; if nothing worth recording, output empty arrays."
+)
+
 # Task type → wiki page name mapping (FIX-325: driven by data/task_types.json).
 # 'think' is not a registered task type but a legacy synthesis-prompt bucket;
 # keep it pinned in the map so wiki-lint for 'think' fragments still resolves.
@@ -632,7 +653,36 @@ def run_wiki_lint(model: str = "", cfg: dict | None = None) -> None:
     if not categories:
         return
 
+    # FIX-390: skip lint entirely when no category has fragments. Avoids the
+    # noisy "processing N categories" log followed by zero work and keeps
+    # pre-run lint silent on cold start.
+    has_any = any(
+        any((_FRAGMENTS_DIR / c).glob("*.md")) for c in categories
+    )
+    if not has_any:
+        return
+
     print(f"[wiki-lint] processing {len(categories)} categories: {categories}")
+
+    # FIX-390: per-category persistence. Previously aggregated all deltas and
+    # called merge_updates+save_graph once at the end (agent/wiki.py:693). If
+    # the process was killed mid-loop (CC quota, SIGTERM) the entire graph
+    # contribution was lost — observed in run 20260425_210938 where lint died
+    # after 2/18 categories with no graph.json written. Now save after each
+    # successful synthesis so kill-mid-loop loses at most one category.
+    graph_module = None
+    graph_state = None
+    if _GRAPH_AUTOBUILD:
+        try:
+            from . import wiki_graph as _wg
+            graph_module = _wg
+            graph_state = _wg.load_graph()
+        except Exception as e:
+            print(f"[wiki-graph] init failed ({e}) — graph autobuild disabled this run")
+            graph_module = None
+
+    n_total_items = 0
+    n_total_touched = 0
 
     for category in categories:
         frag_dir = _FRAGMENTS_DIR / category
@@ -643,7 +693,7 @@ def run_wiki_lint(model: str = "", cfg: dict | None = None) -> None:
         existing = _read_page(category)
         new_entries = [f.read_text(encoding="utf-8") for f in fragments]
 
-        merged = _llm_synthesize(existing, new_entries, category, model, cfg)
+        merged, deltas = _llm_synthesize(existing, new_entries, category, model, cfg)
         merged = _sanitize_synthesized_page(merged)  # FIX-328
 
         page_path = _PAGES_DIR / f"{category}.md"
@@ -655,7 +705,51 @@ def run_wiki_lint(model: str = "", cfg: dict | None = None) -> None:
         for f in fragments:
             f.rename(archive_dir / f.name)
 
+        # FIX-390: per-category diagnostic + immediate persist.
+        if graph_module is not None and graph_state is not None:
+            n_ins = len(deltas.get("new_insights") or []) if isinstance(deltas, dict) else 0
+            n_rul = len(deltas.get("new_rules") or []) if isinstance(deltas, dict) else 0
+            n_apt = len(deltas.get("antipatterns") or []) if isinstance(deltas, dict) else 0
+            print(
+                f"[wiki-graph] {category}: deltas insights={n_ins} rules={n_rul} antipatterns={n_apt}"
+            )
+            if deltas and (n_ins or n_rul or n_apt):
+                _stamp_category_tag(deltas, category)
+                try:
+                    touched = graph_module.merge_updates(graph_state, deltas)
+                    graph_module.save_graph(graph_state)
+                    n_total_items += n_ins + n_rul + n_apt
+                    n_total_touched += len(touched)
+                    print(
+                        f"[wiki-graph] {category}: persisted, touched {len(touched)} nodes"
+                    )
+                except Exception as e:
+                    print(f"[wiki-graph] {category}: merge failed: {e}")
+
         print(f"[wiki-lint] {category}: synthesized {len(fragments)} fragments → {category}.md")
+
+    if graph_module is not None and n_total_items:
+        print(
+            f"[wiki-graph] run total: {n_total_items} delta items, {n_total_touched} node touches"
+        )
+
+
+def _stamp_category_tag(deltas: dict, category: str) -> None:
+    """FIX-389: ensure every item in deltas has the category in its tags list.
+    Mutates in place. Robust to malformed item shapes."""
+    for key in ("new_insights", "new_rules", "antipatterns"):
+        items = deltas.get(key)
+        if not isinstance(items, list):
+            continue
+        for it in items:
+            if not isinstance(it, dict):
+                continue
+            tags = it.get("tags")
+            if not isinstance(tags, list):
+                tags = []
+            if category not in tags:
+                tags = [*tags, category]
+            it["tags"] = tags
 
 
 def _llm_synthesize(
@@ -664,17 +758,21 @@ def _llm_synthesize(
     category: str,
     model: str,
     cfg: dict,
-) -> str:
-    """Synthesize wiki page from fragments via LLM. Fallback: concat."""
+) -> tuple[str, dict]:
+    """Synthesize wiki page from fragments via LLM. Fallback: concat.
+
+    FIX-389: returns (markdown, graph_deltas). graph_deltas is empty when
+    autobuild is off, when the LLM omits the JSON fence, or when parsing fails.
+    """
     if not model:
-        return _concat_merge(existing, new_entries)
+        return _concat_merge(existing, new_entries), {}
 
     # FIX-360: skip LLM synthesis when there's nothing to merge (single new
     # fragment, empty existing page). Concat is equivalent, and the CC tier
     # often returns empty result here (model attempts a banned built-in tool,
     # tool_use block is stripped, result="" → 3×retry before fallback).
     if len(new_entries) == 1 and not (existing or "").strip():
-        return _concat_merge(existing, new_entries)
+        return _concat_merge(existing, new_entries), {}
 
     # FIX-358: errors/<domain> categories fall back to the errors-synthesis prompt
     if category.startswith("errors/") and category not in _LINT_PROMPTS:
@@ -682,11 +780,13 @@ def _llm_synthesize(
     else:
         synthesis_prompt = _LINT_PROMPTS.get(category, _LINT_PROMPTS["_pattern_default"])
     combined_new = "\n\n---\n\n".join(new_entries)
+    graph_suffix = _GRAPH_INSTRUCTION_SUFFIX if _GRAPH_AUTOBUILD else ""
     user_msg = (
         f"{synthesis_prompt}\n\n"
         f"EXISTING PAGE:\n{existing or '(empty)'}\n\n"
         f"NEW FRAGMENTS:\n{combined_new}\n\n"
-        f"Output only the merged Markdown content, no preamble."
+        f"Output the merged Markdown content first, no preamble."
+        f"{graph_suffix}"
     )
 
     try:
@@ -700,11 +800,41 @@ def _llm_synthesize(
             plain_text=True,
         )
         if response and len(response) > 50:
-            return response
+            markdown, deltas = _split_markdown_and_deltas(response)
+            return markdown, deltas
     except Exception as e:
         print(f"[wiki-lint] LLM synthesis failed for '{category}' ({e}), using concat")
 
-    return _concat_merge(existing, new_entries)
+    return _concat_merge(existing, new_entries), {}
+
+
+def _split_markdown_and_deltas(response: str) -> tuple[str, dict]:
+    """FIX-389: extract a trailing ```json {...} ``` fence from the synthesis
+    response. Returns (markdown_without_fence, parsed_deltas). On any failure
+    returns (response, {}) — fail-open.
+
+    FIX-390: log fence-parse outcome to diagnose LLM compliance (CC tier
+    opus-4.7 occasionally omits the fence)."""
+    if not _GRAPH_AUTOBUILD:
+        return response, {}
+    import json as _json
+    matches = list(_JSON_FENCE_RE.finditer(response))
+    if not matches:
+        print("[wiki-graph] fence: missing — LLM did not emit ```json block")
+        return response, {}
+    last = matches[-1]
+    raw = last.group(1)
+    try:
+        parsed = _json.loads(raw)
+    except Exception as e:
+        print(f"[wiki-graph] fence: invalid JSON ({e}) — fail-open")
+        return response, {}
+    deltas = parsed.get("graph_deltas") if isinstance(parsed, dict) else None
+    if not isinstance(deltas, dict):
+        print("[wiki-graph] fence: parsed but no graph_deltas dict — fail-open")
+        return response, {}
+    markdown = (response[:last.start()] + response[last.end():]).strip()
+    return markdown, deltas
 
 
 def _concat_merge(existing: str, new_entries: list[str]) -> str:

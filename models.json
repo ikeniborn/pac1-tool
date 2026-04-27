@@ -342,7 +342,7 @@
     "cc_model": "haiku",
     "cc_options": "cc_low",
     "cc_options_classifier": "cc_classifier",
-    "max_completion_tokens": 4000,
+    "max_completion_tokens": 16384,
     "response_format_hint": "json_object"
   },
   "claude-code/sonnet-4.6": {
@@ -350,7 +350,7 @@
     "cc_model": "sonnet",
     "cc_options": "cc_medium",
     "cc_options_classifier": "cc_classifier",
-    "max_completion_tokens": 4000,
+    "max_completion_tokens": 16384,
     "response_format_hint": "json_object"
   },
   "claude-code/opus-4.7": {
@@ -358,7 +358,7 @@
     "cc_model": "opus",
     "cc_options": "cc_high",
     "cc_options_classifier": "cc_classifier",
-    "max_completion_tokens": 4000,
+    "max_completion_tokens": 16384,
     "response_format_hint": "json_object"
   }
 }

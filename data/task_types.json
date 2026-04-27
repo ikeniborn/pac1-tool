@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "_comment": "Dynamic task-type registry (FIX-325). Source of truth for classifier enum, system prompt, cc_json_schema, model routing, wiki folders, and regex fast-path. To add a type: append here, set MODEL_<UPPER> in .env if needed, optionally create data/wiki/fragments/<wiki_folder>/. For soft types (status=soft), run optimize_prompts.py --target classifier to promote into compiled DSPy classifier.",
+  "_comment": "Dynamic task-type registry (FIX-325). Source of truth for classifier enum, system prompt, cc_json_schema, model routing, wiki folders, and regex fast-path. To add a type: append here, set MODEL_<UPPER> in .env if needed, optionally create data/wiki/fragments/<wiki_folder>/. For soft types (status=soft), run scripts/optimize_prompts.py --target classifier to promote into compiled DSPy classifier.",
   "types": {
     "default": {
       "description": "everything else (read, write, create, delete, move, standard tasks)",

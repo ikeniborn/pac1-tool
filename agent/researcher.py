@@ -1531,7 +1531,7 @@ def run_researcher(
         if reflection.is_solved and agent_outcome == "OUTCOME_OK":
             # FIX-374: expose the reflector-built addendum used in the winning
             # cycle as a builder example. main.py:300 records it with the real
-            # benchmark score; optimize_prompts filters by score >= 0.8.
+            # benchmark score; scripts/optimize_prompts filters by score >= 0.8.
             stats["builder_used"] = True
             stats["builder_addendum"] = addendum
             traj_hash = wiki_graph.hash_trajectory(step_facts)

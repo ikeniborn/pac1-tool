@@ -50,7 +50,7 @@ OPENROUTER_API_KEY=sk-or-...
 | `MODEL_WIKI` | `MODEL_DEFAULT` | Модель для wiki-lint (до/после прогона) |
 | `MODEL_EVALUATOR` | `MODEL_DEFAULT` | Критик (evaluator/critic) |
 | `MODEL_PROMPT_BUILDER` | `MODEL_CLASSIFIER` | Генератор addendum (на каждом прогоне) |
-| `MODEL_OPTIMIZER` | `MODEL_CLASSIFIER` | Модель для `optimize_prompts.py` |
+| `MODEL_OPTIMIZER` | `MODEL_CLASSIFIER` | Модель для `scripts/optimize_prompts.py` |
 
 Для нового типа, добавленного в `data/task_types.json` (см. [Реестр типов задач](#реестр-типов-задач-fix-325)),
 `ModelRouter` автоматически читает `MODEL_<UPPER>` (например `MODEL_ORDER` для типа `order`).
@@ -125,9 +125,9 @@ OPENROUTER_API_KEY=sk-or-...
   └─► data/dspy_eval_examples.jsonl ← evaluator (1 запись/задача, если EVALUATOR_ENABLED=1)
 
 при ≥ 30 builder-записях
-  └─► агент печатает: "[dspy] 30 real examples → run: optimize_prompts.py --target builder"
+  └─► агент печатает: "[dspy] 30 real examples → run: scripts/optimize_prompts.py --target builder"
 
-optimize_prompts.py
+scripts/optimize_prompts.py
   ├─► читает dspy_examples.jsonl      → builder + classifier trainset
   │   если < 30 — добавляет dspy_synthetic.jsonl (cold-start, статичный)
   ├─► читает dspy_eval_examples.jsonl → evaluator trainset
@@ -139,30 +139,30 @@ optimize_prompts.py
 
 ```bash
 # Только классификатор
-uv run python optimize_prompts.py --target classifier
+uv run python scripts/optimize_prompts.py --target classifier
 
 # Только prompt builder
-uv run python optimize_prompts.py --target builder
+uv run python scripts/optimize_prompts.py --target builder
 
 # Только evaluator
-uv run python optimize_prompts.py --target evaluator
+uv run python scripts/optimize_prompts.py --target evaluator
 
 # Все три сразу
-uv run python optimize_prompts.py --target all
+uv run python scripts/optimize_prompts.py --target all
 
 # Ограничение по типу задачи: последние N примеров на каждый task_type
 # Гарантирует представленность редких типов (crm, temporal, distill)
-uv run python optimize_prompts.py --target all --max-per-type 10
+uv run python scripts/optimize_prompts.py --target all --max-per-type 10
 
 # Повысить порог качества примеров (по умолчанию 0.8)
-uv run python optimize_prompts.py --target builder --min-score 0.9
+uv run python scripts/optimize_prompts.py --target builder --min-score 0.9
 
 # Комбинация: лёгкая модель + ограничение + строгий порог
 MODEL_OPTIMIZER=anthropic/claude-haiku-4.5 \
-  uv run python optimize_prompts.py --target all --max-per-type 10 --min-score 0.9
+  uv run python scripts/optimize_prompts.py --target all --max-per-type 10 --min-score 0.9
 ```
 
-#### Аргументы `optimize_prompts.py`
+#### Аргументы `scripts/optimize_prompts.py`
 
 | Аргумент | По умолчанию | Описание |
 |---|---|---|
@@ -304,7 +304,7 @@ echo "MODEL_ORDER=anthropic/claude-haiku-4.5" >> .env
 # 3. Опционально создать папку для wiki-фрагментов
 mkdir -p data/wiki/fragments/order
 # 4. Для soft-типов — перекомпилировать DSPy-классификатор с новым enum
-uv run python optimize_prompts.py --target classifier
+uv run python scripts/optimize_prompts.py --target classifier
 # 5. Опционально — добавить bespoke-блок в _TASK_BLOCKS внутри agent/prompt.py
 #    (иначе тип унаследует системный промт default-типа; warn-once в логе при старте)
 ```
@@ -368,5 +368,5 @@ uv run python -m agent.tracer logs/<trace_file>.jsonl
 make proto        # или: buf generate
 
 # Оптимизировать промты в фоне (пока main.py накапливает примеры)
-uv run python optimize_prompts.py --target classifier --max-examples 60
+uv run python scripts/optimize_prompts.py --target classifier --max-examples 60
 ```

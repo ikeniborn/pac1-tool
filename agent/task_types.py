@@ -9,7 +9,7 @@ Adding a new type:
   2. Optionally set MODEL_<UPPER> in .env (else falls back via fallback_chain).
   3. Optionally create data/wiki/fragments/<wiki_folder>/ for wiki fragments.
   4. For the compiled DSPy classifier to know the new type, run:
-       uv run python optimize_prompts.py --target classifier
+       uv run python scripts/optimize_prompts.py --target classifier
      Until then, the new type lives in system-prompt / enum but may not be
      predicted by the COPRO-compiled program (falls back to regex/default).
 """
