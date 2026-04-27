@@ -313,7 +313,7 @@ def _score_candidates(
         text_tokens = set(_normalize(node.get("text", "")).split())
         overlap = len(task_tokens & text_tokens) * 0.5
         uses = max(1, int(node.get("uses", 1)))
-        base = conf * (1.0 + math.log(uses))
+        base = conf * math.log(uses + 1)
         score = tag_score + overlap + base
         if score <= 0:
             continue
