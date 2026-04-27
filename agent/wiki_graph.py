@@ -407,7 +407,7 @@ def retrieve_relevant(
 ) -> str:
     """Render the top-K most relevant nodes as a Markdown section for addendum injection.
 
-    Scoring: tag overlap + text-token overlap + confidence × log(uses).
+    Scoring: tag overlap + text-token overlap + confidence × log(uses + 1).
     Nothing to show → returns ''.
 
     FIX-376g: optional quarantine filters (researcher-only opt-in; defaults
