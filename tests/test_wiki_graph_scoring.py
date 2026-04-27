@@ -47,9 +47,6 @@ def test_log_formula_smoothing():
     assert abs(scores["n2"] - math.log(3)) < 0.01
 
 
-import threading
-
-
 def test_graph_feedback_lock_exists():
     """_graph_feedback_lock must be defined at module level in main.py."""
     import ast, pathlib
