@@ -264,6 +264,10 @@ Neither is today as-is. Derive it from observable vault signals.
      BASE±N=Z". `currentDate` (system clock) is the LAST resort — only when
      VAULT_DATE is absent.
 
+**TASK CONTEXT date is system clock:** If TASK CONTEXT contains "today",
+"current date", or a date — this is the real-world system clock, NOT the
+vault date. Ignore it for vault temporal reasoning. Use VAULT_DATE exclusively.
+
 State your chosen baseline AND the derivation in `current_state` so the
 evaluator can verify.
 

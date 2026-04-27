@@ -244,6 +244,35 @@ def run_prephase(
         for dir_name in to_preload:
             _read_dir(f"/{dir_name}", set())
 
+    # FIX-400: check AGENTS.MD for explicit vault date declaration (highest priority).
+    # If vault declares VAULT_DATE: or today: explicitly, use that over inference.
+    _explicit_vault_date = ""
+    if agents_md_content:
+        for _line in agents_md_content.splitlines():
+            _dm = re.match(
+                r"(?:VAULT_DATE|today)\s*:\s*(\d{4}-\d{2}-\d{2})", _line, re.IGNORECASE
+            )
+            if _dm:
+                _explicit_vault_date = _dm.group(1)
+                print(f"{CLI_BLUE}[prephase] explicit vault_date in AGENTS.MD: {_explicit_vault_date}{CLI_CLR}")
+                break
+    # Also check root-level vault meta files for explicit date
+    if not _explicit_vault_date:
+        for _meta_path in ("/context.json", "/vault-meta.json", "/meta.md"):
+            try:
+                _meta_r = vm.read(ReadRequest(path=_meta_path))
+                if _meta_r.content:
+                    _mm = re.search(
+                        r"(?:VAULT_DATE|today|current_date)\s*[:\=]\s*(\d{4}-\d{2}-\d{2})",
+                        _meta_r.content, re.IGNORECASE,
+                    )
+                    if _mm:
+                        _explicit_vault_date = _mm.group(1)
+                        print(f"{CLI_BLUE}[prephase] explicit vault_date in {_meta_path}: {_explicit_vault_date}{CLI_CLR}")
+                        break
+            except Exception:
+                pass
+
     # Estimate VAULT_DATE from date-prefixed filenames.
     # Priority: inbox file paths (represent "today's" messages) > tree-wide mode.
     _date_prefix_re = re.compile(r'\b(\d{4}-\d{2}-\d{2})__')
@@ -329,6 +358,10 @@ def run_prephase(
     # No constant calibration works. The LLM derives benchmark "today" from the
     # raw signals in temporal.md rule 3 using explicit reasoning (signal source
     # → direction of bias → candidate anchor → consistency check against task N).
+    # FIX-400: explicit declaration overrides inference
+    if _explicit_vault_date:
+        _vault_date_est = _explicit_vault_date
+        _vault_date_src = "AGENTS.MD explicit declaration"
     if _vault_date_est:
         _vault_date_hint = (
             f"VAULT_DATE: {_vault_date_est}  (source: {_vault_date_src} — this "
