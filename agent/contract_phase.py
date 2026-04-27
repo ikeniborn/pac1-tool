@@ -121,6 +121,7 @@ def negotiate_contract(
                 print(f"[contract] executor LLM failed round {round_num}")
             return _load_default_contract(task_type), total_in, total_out
 
+        raw_executor = _strip_fences(raw_executor)
         try:
             proposal = ExecutorProposal(**json.loads(raw_executor))
         except (json.JSONDecodeError, ValidationError) as e:
@@ -148,6 +149,7 @@ def negotiate_contract(
                 print(f"[contract] evaluator LLM failed round {round_num}")
             return _load_default_contract(task_type), total_in, total_out
 
+        raw_evaluator = _strip_fences(raw_evaluator)
         try:
             response = EvaluatorResponse(**json.loads(raw_evaluator))
         except (json.JSONDecodeError, ValidationError) as e:

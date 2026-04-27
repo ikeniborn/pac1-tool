@@ -165,3 +165,27 @@ def test_strip_fences_empty():
     from agent.contract_phase import _strip_fences
     assert _strip_fences("") == ""
     assert _strip_fences("   ") == ""
+
+
+@patch("agent.contract_phase.call_llm_raw")
+def test_consensus_with_fenced_json(mock_llm):
+    """CC-tier returns markdown-fenced JSON — must be stripped before parsing."""
+    executor_json = _make_executor_json(agreed=True)
+    evaluator_json = _make_evaluator_json(agreed=True)
+    mock_llm.side_effect = [
+        f"```json\n{executor_json}\n```",
+        f"```json\n{evaluator_json}\n```",
+    ]
+    from agent.contract_phase import negotiate_contract
+    contract, _, _ = negotiate_contract(
+        task_text="Send email",
+        task_type="email",
+        agents_md="",
+        wiki_context="",
+        graph_context="",
+        model="claude-code/haiku-4.5",
+        cfg={},
+        max_rounds=3,
+    )
+    assert contract.is_default is False
+    assert contract.rounds_taken == 1
