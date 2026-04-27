@@ -6,14 +6,11 @@ from unittest.mock import MagicMock
 # Stub out heavy external modules before any agent imports.
 # pydantic, annotated_types, and openai are real installed dependencies — NOT mocked.
 # openai must NOT be mocked: dspy → litellm → openai._models imports it at module level.
-# dspy is a real dependency but needs to be imported before classifier loads.
 _STUB_MODULES = [
     "google", "google.protobuf", "google.protobuf.json_format",
     "connectrpc", "connectrpc.errors",
     "anthropic",
-    "openai",
     "bitgn", "bitgn.vm", "bitgn.vm.pcm_connect", "bitgn.vm.pcm_pb2",
-    "dspy", "dspy.utils", "dspy.predict", "dspy.cot", "dspy.evaluate", "dspy.context",
 ]
 
 for mod_name in _STUB_MODULES:
