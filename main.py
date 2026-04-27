@@ -307,6 +307,19 @@ def _run_single_task(trial_id: str, task_filter: list, router: ModelRouter) -> t
                     stall_detected=bool(token_stats.get("stall_hints")),
                     write_scope_violations=bool(token_stats.get("write_scope_blocks")),
                 )
+            if os.getenv("CONTRACT_COLLECT_DSPY", "0") == "1":
+                _rounds = token_stats.get("contract_rounds_taken", 0)
+                _is_default = token_stats.get("contract_is_default", True)
+                if _rounds > 0 or not _is_default:
+                    _record_dspy_example(
+                        task_text=trial.instruction,
+                        task_type=token_stats.get("task_type", "default"),
+                        addendum=f"[contract] rounds={_rounds} is_default={_is_default}",
+                        score=_score_f,
+                        graph_context=token_stats.get("graph_context", ""),
+                        stall_detected=bool(token_stats.get("stall_hints")),
+                        write_scope_violations=bool(token_stats.get("write_scope_blocks")),
+                    )
             _eval_call = token_stats.get("eval_last_call")
             if _eval_call and token_stats.get("evaluator_calls", 0) > 0:
                 _record_eval_example(**_eval_call, score=_score_f)

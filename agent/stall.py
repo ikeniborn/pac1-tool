@@ -22,6 +22,7 @@ def _check_stall(
     steps_since_write: int,
     error_counts: Counter,
     step_facts: "list[_StepFact] | None" = None,
+    contract_plan_steps: "list[str] | None" = None,
 ) -> str | None:
     """Detect stall patterns and return an adaptive, task-agnostic hint.
 
@@ -36,8 +37,11 @@ def _check_stall(
         # Include recent exploration context in hint
         _recent = [f"{f.kind}({f.path})" for f in step_facts[-4:]] if step_facts else []
         _ctx = f" Recent actions: {_recent}." if _recent else ""
+        _plan_ctx = ""
+        if contract_plan_steps:
+            _plan_ctx = f" Your agreed plan was: {contract_plan_steps}."
         return (
-            f"You have called {tool_name} with the same arguments 3 times in a row without progress.{_ctx} "
+            f"You have called {tool_name} with the same arguments 3 times in a row without progress.{_ctx}{_plan_ctx} "
             "Try a different tool, a different path, or use search/find with different terms. "
             "If the task is complete or cannot be completed, call report_completion."
         )
@@ -91,12 +95,13 @@ def _handle_stall_retry(
     step_facts: "list[_StepFact]",
     stall_active: bool,
     call_llm_fn,  # injected: _call_llm from loop.py — avoids circular import
+    contract_plan_steps: "list[str] | None" = None,
 ) -> tuple:
     """Check for stall and issue a one-shot retry LLM call if needed.
     Returns (job, stall_active, retry_fired, in_tok, out_tok, elapsed_ms, ev_c, ev_ms, cache_cr, cache_rd).
     retry_fired is True when a stall LLM call was made (even if it returned None).
     Token/timing deltas reflect the retry call when it fired. cache_cr/cache_rd: FIX-N CC cache tokens."""
-    _stall_hint = _check_stall(fingerprints, steps_since_write, error_counts, step_facts)
+    _stall_hint = _check_stall(fingerprints, steps_since_write, error_counts, step_facts, contract_plan_steps)
     # FIX-323: re-fire stall at 12/18/24 steps even when stall_active=True.
     # Previously stall_active stayed True forever → agent could loop 30 steps ignored.
     _escalating = steps_since_write >= 12 and steps_since_write % 6 == 0
