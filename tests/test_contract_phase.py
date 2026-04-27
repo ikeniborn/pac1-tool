@@ -169,7 +169,7 @@ def test_strip_fences_empty():
 
 @patch("agent.contract_phase.call_llm_raw")
 def test_consensus_with_fenced_json(mock_llm):
-    """CC-tier returns markdown-fenced JSON — must be stripped before parsing."""
+    """LLM returns markdown-fenced JSON — must be stripped before parsing."""
     executor_json = _make_executor_json(agreed=True)
     evaluator_json = _make_evaluator_json(agreed=True)
     mock_llm.side_effect = [
@@ -183,7 +183,7 @@ def test_consensus_with_fenced_json(mock_llm):
         agents_md="",
         wiki_context="",
         graph_context="",
-        model="claude-code/haiku-4.5",
+        model="claude-3.5-sonnet",
         cfg={},
         max_rounds=3,
     )
@@ -207,7 +207,7 @@ def test_executor_and_evaluator_get_separate_schemas(mock_llm):
         agents_md="",
         wiki_context="",
         graph_context="",
-        model="claude-code/haiku-4.5",
+        model="claude-3.5-sonnet",
         cfg={"cc_options": {"cc_effort": "low"}},
         max_rounds=1,
     )
@@ -227,3 +227,24 @@ def test_executor_and_evaluator_get_separate_schemas(mock_llm):
     # Original cc_effort preserved
     assert executor_call_cfg["cc_options"]["cc_effort"] == "low"
     assert evaluator_call_cfg["cc_options"]["cc_effort"] == "low"
+
+
+@patch("agent.contract_phase.call_llm_raw")
+def test_cc_tier_skips_negotiation_no_llm_calls(mock_llm):
+    """CC tier model → immediate default contract, zero LLM calls."""
+    from agent.contract_phase import negotiate_contract
+
+    contract, in_tok, out_tok = negotiate_contract(
+        task_text="Write email to bob@x.com",
+        task_type="email",
+        agents_md="",
+        wiki_context="",
+        graph_context="",
+        model="claude-code/sonnet-4.6",
+        cfg={},
+        max_rounds=3,
+    )
+    assert contract.is_default is True
+    assert in_tok == 0
+    assert out_tok == 0
+    mock_llm.assert_not_called()

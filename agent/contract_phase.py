@@ -90,6 +90,14 @@ def negotiate_contract(
             print("[contract] prompts missing — using default contract")
         return _load_default_contract(task_type), 0, 0
 
+    # FIX-394: CC tier cannot produce structured JSON (tool_use blocks are stripped
+    # from result). Skip negotiation entirely — avoids 1-2 empty subprocess launches
+    # per task. Default contract is equivalent to what negotiate_contract would return.
+    if model.startswith("claude-code/"):
+        if _LOG_LEVEL == "DEBUG":
+            print("[contract] CC tier — skipping negotiation, using default contract")
+        return _load_default_contract(task_type), 0, 0
+
     context_block = ""
     if agents_md:
         context_block += f"\n\nAGENTS.MD:\n{agents_md[:2000]}"
