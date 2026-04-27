@@ -1,9 +1,5 @@
 """Tests for normal-mode wiki promotion (FIX-399)."""
-import json
-import os
-import tempfile
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 
 def _make_step_facts(tools=None):
