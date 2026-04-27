@@ -1,70 +1,65 @@
-⚠️ **Do NOT Mutate Fields the Task Didn't Name**
-Only write fields explicitly specified by the current task. Never infer, copy, or "correct" other fields — even if they look stale or inconsistent across reads.
+> ⚠️ **Do NOT Mutate Fields the Task Didn't Name**
+> Only write fields explicitly listed in the task specification. Do not infer, carry over, or "helpfully" update unrelated fields such as `account_manager`, `industry`, or `status` during reschedule or rename operations.
 
 ---
 
-## Read-Before-Write Pattern
+## Proven Step Sequences
 
-Proven sequence for update tasks:
+### Read-Verify-Write (Single Account Update)
+Applies to any task that modifies a JSON account file.
 
-1. **Read** the target file to load current state.
-2. **Diff** the current state against the task's required changes — identify only the named fields.
-3. **Write** the file with only the named fields changed; all other fields pass through verbatim.
-4. **Verify** the written file matches the expected post-state.
+1. **Read** the target file → capture current state.
+2. **Verify** that only the task-specified fields differ from current values.
+3. **Write** the mutated file with exactly those fields changed — no others.
+4. **Confirm** the write succeeded (check for `WRITTEN:` acknowledgement).
 
-> Outcome: tasks following this sequence consistently resolve with `OUTCOME_OK`.
+*OUTCOME_OK observed when this sequence is followed without deviation.*
 
----
+### Read-Only Lookup (No Write Required)
+When the task only needs to inspect or report a value:
 
-## Multi-Record Read Pattern
+1. **Read** the target file.
+2. **Extract** the requested field(s).
+3. **Return** the value — do not issue a write.
 
-For tasks requiring reads across several accounts before any write:
-
-1. **Read all** target files first, in sequence, before performing any writes.
-2. **Aggregate** only the values relevant to the task (e.g., filtering by a shared field value).
-3. **Act** (write / report) only after the full read pass is complete.
-
-> Rationale: avoids partial-state decisions; ensures the action is based on a consistent snapshot.
+*Avoid writing back unchanged content; it creates false diffs and breaks field-diff checks.*
 
 ---
 
 ## Key Risks and Pitfalls
 
-### Stale Read / Concurrent Modification
-- A field value read at time T may differ from the value at time T+1. Same-file, same-day reads have been observed returning different field values across separate tasks — confirming that intra-day divergence is a real, not merely theoretical, risk. Example pattern: the same file read in one task returned one manager value; a later same-day task read it and returned a different manager value.
-- **Mitigation:** Read immediately before writing. Do not cache reads across task boundaries. If two sequential reads of the same file return different values, treat the data as volatile and do not write until the task scope is confirmed.
+### Silent Field Mutation
+**Risk:** During a write, fields not named by the task (e.g., `account_manager`, `industry`, `status`) are carried forward with altered values from stale cache or incorrect assumptions.
+**Mitigation:** Always diff intended write payload against the last-read snapshot before committing. Reject writes that touch unnamed fields.
 
-### Silent Field Overwrite
-- Writing a record fetched for one field update may inadvertently overwrite other fields if the write payload is reconstructed from the read rather than patched.
-- **Mitigation:** Treat the read payload as a base; apply only the task-named delta; write the merged object.
+### Write Without Prior Read
+**Risk:** Writing to a file without first reading it may overwrite concurrent changes or introduce stale data.
+**Mitigation:** Every write task sequence must begin with a read of the same path.
 
-### Manager-Assignment Confusion on Reschedule Tasks
-- Reschedule or reassignment tasks may tempt the agent to update account manager as a side effect. This breaks field-diff checks.
-- **Mitigation:** Unless the manager field is explicitly named in the task, never modify it — even if it appears inconsistent with other records or diverges across reads.
+### Read-Only Task Escalated to Write
+**Risk:** A lookup task inadvertently triggers a write (e.g., "update view" interpreted as file mutation).
+**Mitigation:** If the task verb is `get`, `find`, `list`, `check`, or `read`, issue no write calls.
 
-### Read-Only Task Misclassified as Write
-- A task that only needs to report or aggregate data does not require a write step.
-- **Mitigation:** Confirm a write is in scope before issuing any write call.
-
-### Diverging Reads Across Task Boundaries (Reinforced)
-- Multiple same-day tasks reading the same file have returned different values for fields such as manager assignments, with no intervening write visible in the task log. This is direct evidence that file state can change between task executions within the same day.
-- **Mitigation:** Never assume a value read in a prior task is still current. Always re-read at the start of a new task touching the same file.
+### Multi-File Fan-Out Without Isolation
+**Risk:** When reading multiple account files in one task, values from one file bleed into the write payload for another.
+**Mitigation:** Treat each file's read result as a strictly scoped local variable; never merge field values across files.
 
 ---
 
-## Task-Type Shortcuts
+## Task-Type Specific Insights
 
-### Status-Update Tasks
-- Only field required: `status`. Read → patch status → write. No other field should change.
+### Reschedule / Status-Change Tasks
+- Only mutate the field(s) the task names (e.g., `status`).
+- `account_manager` is **never** a side-effect of a reschedule — do not touch it.
+- Re-read the file immediately before writing even if a prior read exists in the same session (state may have changed).
 
-### Portfolio / Manager-Coverage Tasks
-- Pattern: read N records, filter by a shared field, return the matching set. No write needed unless explicitly stated.
-- Read-only tasks producing a filtered result set require zero write calls — confirm no write is issued.
+### Bulk Read Tasks (Multiple Accounts)
+- Reading several files in sequence is safe and common for reporting.
+- Maintain a per-file result map; do not aggregate into a single mutable object.
+- If any single read fails, surface the error rather than proceeding with partial data.
 
-### Single-Field Rename Tasks
-- Read → change exactly one field → write. Diff the output to confirm only one field changed before committing.
-
-### Read-Only Lookup Tasks
-- Some tasks require only one or two reads with no write. Treat absence of a write step as correct, not as an incomplete task.
+### Write Confirmation
+- A successful write is confirmed by a `WRITTEN: <path>` acknowledgement.
+- Absence of this token means the write did not complete — do not assume success.
 
 ---

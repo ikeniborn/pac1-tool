@@ -1,23 +1,18 @@
-## Date Arithmetic Miscalculation
+---
+task_id: t42
+task_type: temporal
+outcome: OUTCOME_OK
+date: <date>
+task: 'Find the article I captured 9 days ago.'
+---
 
-- Condition: Agent is asked to compute a date offset (e.g., "+7 days", "in 1 week") from today.
-- Root cause: Agent skips vault root discovery gate and attempts arithmetic without confirming the anchor date first.
-- Solution: Always list vault root (`/`) as a discovery gate before performing date arithmetic; confirm the anchor date, then compute the offset.
+DONE OPS:
+(none)
 
-## No-Match Clarification Failure
+STEP FACTS:
+- list: /01_capture/influential → 2026-02-10__how-i-use-claude-code.md, 2026-02-15__openai-harness-engineering.md, 2026-03-06__anthropic-biology-of-llms.md, 2026-03-17__intercom-claude-code-platform.md, 2026-03-23__hn-structured-outputs-practical-notes.md
 
-- Condition: Agent is asked to find a file matching an exact computed date (e.g., "21 days ago") and no file exists with that prefix.
-- Root cause: Agent exhausts search paths and returns nothing instead of surfacing the absence as a concrete, actionable clarification to the user.
-- Solution: When a targeted date search yields zero results, explicitly report the computed target date and the files that were found nearby, then ask the user to confirm the intended date or broaden the search window.
-
-## Premature Search Termination on Date Miss
-
-- Condition: A date-prefixed file is not found in the expected directory; agent stops after one `find` call.
-- Root cause: Agent assumes the first failed search is definitive and does not check sibling directories or alternative capture paths.
-- Solution: After a failed date-prefix search in one directory, enumerate sibling directories and retry before concluding no match exists.
-
-## Ambiguous Offset Window — Multiple Candidates Unreported
-
-- Condition: Agent is asked for a file captured N days ago and multiple files fall within a reasonable window of that target date.
-- Root cause: Agent returns only the first match (or none) without acknowledging that several files are plausible candidates for the requested offset.
-- Solution: When a date-offset search yields more than one candidate within the expected window, report all candidates and let the user confirm the intended file rather than selecting silently.
+EVALUATOR:
+approved: true
+steps: - Listed /01_capture/influential — 5 files with date prefixes
+- Applied method-2 inversion: for each file date D, computed implied_today = D + 9; VAULT_DATE=<date>, range [<date>, <date>]; <date> + 9 = <date> falls exactly at VAULT_DATE+3, the best match

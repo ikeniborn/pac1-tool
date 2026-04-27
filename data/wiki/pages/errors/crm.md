@@ -1,24 +1,40 @@
-## Read-Before-Write Omission on Mismatched Reminder
-- Condition: Agent locates a reminder file (via search or direct lookup) and applies updates without verifying the `account_id` field inside matches the target account_id.
-- Root cause: Reminder filename matching doesn't guarantee correct account ownership. Directory search may rank by line-match position rather than semantic relevance; a file from a different account may be returned first. Agent skips this validation.
-- Solution: After reading any reminder file, assert `reminder.account_id == target_account_id` before computing changes. If mismatch, continue searching for the correct file instead of modifying the wrong record.
+---
+task_id: t13
+task_type: crm
+outcome: 
+date: <date>
+task: 'Nordlicht Health asked to reconnect in two weeks. Reschedule the follow-up accordingly and keep the diff focused.'
+---
 
-## Exploration Stall — Write Deferred Indefinitely
-- Condition: Agent reads all required account/transaction files and computes the correct output but issues 6+ explore steps before executing the write.
-- Root cause: Agent re-reads already-visited files or consults auxiliary documentation (READMEs, reference files) instead of committing the write, usually due to uncertainty about operation specifics or output format.
-- Solution: After reading the account and target record, immediately execute the write. Do not re-read either file unless write fails. Do not read auxiliary documentation before writing. If an auxiliary reference is not found, proceed with already-gathered information rather than stalling.
+DONE OPS:
+(none)
 
-## Repeated Identical Write Call Without Progress
-- Condition: Agent calls `Req_Write` with the same path and payload 3 or more times consecutively without the write succeeding.
-- Root cause: Agent does not inspect the write result and loops on the same failing call, possibly because a prior read left the file handle in an unexpected state.
-- Solution: Check the return value of every `Req_Write`. On failure, read the error, adjust arguments or path, and retry once. On a second failure, surface the error rather than looping.
+STEP FACTS:
+- stall:  → You have taken 6 steps without writing, deleting, moving, or creating anything. Either take a concre
+- stall:  → You have taken 7 steps without writing, deleting, moving, or creating anything. Either take a concre
+- stall:  → You have taken 8 steps without writing, deleting, moving, or creating anything. Either take a concre
+- stall:  → You have taken 9 steps without writing, deleting, moving, or creating anything. Either take a concre
+- stall:  → You have taken 10 steps without writing, deleting, moving, or creating anything. Either take a concr
+- stall:  → You have taken 11 steps without writing, deleting, moving, or creating anything. Either take a concr
+- stall:  → [STALL ESCALATION] You have been exploring for 12 steps without action. Either: (1) Take a concrete 
+- read: /reminders/rem_006.json → {   "id": "rem_006",   "account_id": "<account>",   "contact_id": "<contact>",   "due_on": "<date>",   "title": "Follo
+- stall:  → [STALL ESCALATION] You have been exploring for 13 steps without action. Read: ['/reminders/rem_006.j
+- stall:  → [STALL ESCALATION] You have been exploring for 14 steps without action. Read: ['/reminders/rem_006.j
+- stall:  → [STALL ESCALATION] You have been exploring for 15 steps without action. Read: ['/reminders/rem_006.j
+- stall:  → [STALL ESCALATION] You have been exploring for 16 steps without action. Read: ['/reminders/rem_006.j
+- read: /accounts/<file> → {"name": "Blue Harbor Bank", "account_manager": "Holger Arnold", "status": "active", "industry": "finance"}
+- stall:  → [STALL ESCALATION] You have been exploring for 17 steps without action. Read: ['/reminders/rem_006.j
 
-## Diff Scope Violation — Unrelated Fields Modified
-- Condition: Task instructs "keep the diff focused" but agent updates fields beyond `due_on` and `next_follow_up_on`.
-- Root cause: Agent applies a broad account-update template that touches all writable fields instead of patching only the specified date fields.
-- Solution: Identify the minimal set of fields the task names, patch only those, and leave all other fields in their existing state.
-
-## Ghost Reference Read — Non-Existent Auxiliary File
-- Condition: Agent attempts to read a file such as `/docs/follow-up-audit.json` (or similar audit/reference document) that does not exist in the vault, receiving `NOT_FOUND`, and repeats the attempt or stalls instead of proceeding.
-- Root cause: Agent assumes a canonical reference document exists to guide the operation; when it is absent the agent loops on the failed read rather than falling back to information already in hand.
-- Solution: On the first `NOT_FOUND` for any auxiliary reference file, do not retry the same path. Proceed immediately using the account and reminder files already read. Auxiliary docs are optional; their absence must not block writes.
+STALL HINTS:
+- You have taken 6 steps without writing, deleting, moving, or creating anything. Either take a concre
+- You have taken 7 steps without writing, deleting, moving, or creating anything. Either take a concre
+- You have taken 8 steps without writing, deleting, moving, or creating anything. Either take a concre
+- You have taken 9 steps without writing, deleting, moving, or creating anything. Either take a concre
+- You have taken 10 steps without writing, deleting, moving, or creating anything. Either take a concr
+- You have taken 11 steps without writing, deleting, moving, or creating anything. Either take a concr
+- [STALL ESCALATION] You have been exploring for 12 steps without action. Either: (1) Take a concrete 
+- [STALL ESCALATION] You have been exploring for 13 steps without action. Read: ['/reminders/rem_006.j
+- [STALL ESCALATION] You have been exploring for 14 steps without action. Read: ['/reminders/rem_006.j
+- [STALL ESCALATION] You have been exploring for 15 steps without action. Read: ['/reminders/rem_006.j
+- [STALL ESCALATION] You have been exploring for 16 steps without action. Read: ['/reminders/rem_006.j
+- [STALL ESCALATION] You have been exploring for 17 steps without action. Read: ['/reminders/rem_006.j
