@@ -22,7 +22,7 @@ from .dispatch import call_llm_raw
 _DATA = Path(__file__).parent.parent / "data"
 _LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
 
-_FENCE_RE = re.compile(r"^```(?:json)?\s*\n(.*?)\n```\s*$", re.DOTALL)
+_FENCE_RE = re.compile(r"^```(?:json)?\s*\n(.*?)\n\s*```\s*$", re.DOTALL)
 
 
 def _strip_fences(text: str) -> str:
