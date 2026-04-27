@@ -552,3 +552,19 @@ def test_force_read_message_mentions_create_option():
     # The gate message should differentiate create vs update
     assert "creating new" in src.lower() or "If creating" in src
     assert "updating existing" in src.lower() or "If updating" in src
+
+
+# ---------------------------------------------------------------------------
+# FIX-398: FILE UNREADABLE hint injection
+# ---------------------------------------------------------------------------
+
+def test_file_unreadable_hint_in_prompt_core():
+    """_CORE prompt must contain FILE UNREADABLE guidance."""
+    import pathlib
+    prompt_file = pathlib.Path(__file__).parent.parent / "agent" / "prompt.py"
+    src = prompt_file.read_text()
+    # Check for [FILE UNREADABLE] marker
+    assert "[FILE UNREADABLE]" in src
+    # Check for guidance keywords
+    assert any(word in src.lower() for word in ("search", "fallback", "retry"))
+    assert any(word in src.lower() for word in ("hallucinate", "guess", "infer"))

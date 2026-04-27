@@ -2291,6 +2291,16 @@ def _run_step(
             "tool": action_name, "result": txt[:300], "is_error": False,
         })
 
+        # FIX-398: if PCM returned [FILE UNREADABLE], inject a hint so the agent
+        # retries with search instead of hallucinating file content.
+        if isinstance(job.function, Req_Read) and "[FILE UNREADABLE]" in txt:
+            _unreadable_path = getattr(job.function, "path", "")
+            print(f"{CLI_YELLOW}[FIX-398] Injecting unreadable hint for {_unreadable_path}{CLI_CLR}")
+            st.log.append({"role": "user", "content": (
+                f"[READ ERROR: {_unreadable_path}] File is unreadable. "
+                f"Retry with search on this path. Do NOT guess or infer content."
+            )})
+
         # FIX-336: track successful reads for downstream force-read guard
         if isinstance(job.function, Req_Read) and not txt.startswith("ERROR"):
             st.read_paths.add(job.function.path.lstrip("/"))
