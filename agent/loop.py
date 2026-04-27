@@ -530,8 +530,38 @@ def _call_llm(log: list, model: str, max_tokens: int, cfg: dict) -> tuple[NextSt
             print(f"{CLI_YELLOW}[ClaudeCode] RAW: {raw}{CLI_CLR}")
         print(f"{CLI_YELLOW}[ClaudeCode] tokens in={in_tok} out={out_tok} "
               f"cache_cr={cache_cr} cache_rd={cache_rd}{CLI_CLR}")
+        # FIX-397: CC sometimes appends trailing text after closing '}'. Pre-strip
+        # to the balanced JSON object before model_validate_json to avoid parse errors
+        # on ~70% of tasks. Fallback extraction remains for malformed JSON.
+        _raw_stripped = raw
+        _start = raw.find("{")
+        if _start != -1:
+            _depth = 0
+            _in_str = False
+            _esc = False
+            _end = _start
+            for _i, _ch in enumerate(raw[_start:], _start):
+                if _esc:
+                    _esc = False
+                    continue
+                if _ch == "\\" and _in_str:
+                    _esc = True
+                    continue
+                if _ch == '"':
+                    _in_str = not _in_str
+                    continue
+                if _in_str:
+                    continue
+                if _ch == "{":
+                    _depth += 1
+                elif _ch == "}":
+                    _depth -= 1
+                    if _depth == 0:
+                        _end = _i
+                        break
+            _raw_stripped = raw[_start:_end + 1]
         try:
-            return NextStep.model_validate_json(raw), elapsed_ms, in_tok, out_tok, 0, 0, 0, cache_cr, cache_rd
+            return NextStep.model_validate_json(_raw_stripped), elapsed_ms, in_tok, out_tok, 0, 0, 0, cache_cr, cache_rd
         except (ValidationError, ValueError) as e:
             print(f"{CLI_YELLOW}[ClaudeCode] JSON parse failed, trying extraction: {e}{CLI_CLR}")
             parsed = _extract_json_from_text(raw)
