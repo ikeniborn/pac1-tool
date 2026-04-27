@@ -537,3 +537,18 @@ def test_fix395_mixed_readme_and_json_blocks_bypass():
     st = _fix378_make_state(facts)
     err = _pre_dispatch()(_fix378_make_write_job(), "email", MagicMock(), st)
     assert err is not None and "force-read-contact" in err
+
+
+# ---------------------------------------------------------------------------
+# FIX-396: force-read-before-write — create vs update distinction
+# ---------------------------------------------------------------------------
+
+def test_force_read_message_mentions_create_option():
+    """Gate message for unread path should mention create vs update distinction."""
+    # Read source file directly without importing
+    import pathlib
+    loop_file = pathlib.Path(__file__).parent.parent / "agent" / "loop.py"
+    src = loop_file.read_text()
+    # The gate message should differentiate create vs update
+    assert "creating new" in src.lower() or "If creating" in src
+    assert "updating existing" in src.lower() or "If updating" in src

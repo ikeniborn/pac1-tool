@@ -1700,12 +1700,11 @@ def _pre_dispatch(
         if _is_mutating_record and _norm_path not in st.read_content_cache:
             print(f"{CLI_YELLOW}[FIX-350] Write blocked — no prior read of {_norm_path}{CLI_CLR}")
             return (
-                f"[force-read-before-write] BLOCKED: Cannot write to '{job.function.path}' "
-                f"without first reading it in this task. A write without a preceding read "
-                f"synthesizes the schema from memory and drops unrequested fields "
-                f"(account_manager, legal_name, description, notes, etc.). "
-                f"Do `read '{job.function.path}'` FIRST, preserve every top-level key "
-                f"verbatim, substitute ONLY the field(s) the task explicitly names, then write."
+                f"[force-read-before-write] BLOCKED: No prior read of '{job.function.path}'.\n"
+                f"If updating existing file — read it first, preserve all top-level keys verbatim, "
+                f"substitute ONLY the explicitly requested field(s), then write.\n"
+                f"If creating new file — proceed with write directly (no read needed).\n"
+                f"Determine from context whether this is a create or update and act accordingly."
             )
 
     # Guard: FIX-349 — post-write field-diff guard (CRM/accounts preservation).
