@@ -196,8 +196,6 @@ def run_agent(router: ModelRouter, harness_url: str, task_text: str, task_id: st
     contract_in_tok = contract_out_tok = 0
     if _CONTRACT_ENABLED:
         from .contract_phase import negotiate_contract
-        _contract_model = os.getenv("CONTRACT_MODEL") or model
-        _contract_cfg = cfg  # reuse same model config
         try:
             contract, contract_in_tok, contract_out_tok = negotiate_contract(
                 task_text=task_text,
@@ -205,8 +203,8 @@ def run_agent(router: ModelRouter, harness_url: str, task_text: str, task_id: st
                 agents_md=getattr(pre, "agents_md_content", "") or "",
                 wiki_context=_wiki_patterns,
                 graph_context=graph_section,
-                model=_contract_model,
-                cfg=_contract_cfg,
+                model=model,
+                cfg=cfg,
                 max_rounds=_CONTRACT_MAX_ROUNDS,
             )
         except Exception as _ce:

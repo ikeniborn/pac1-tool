@@ -90,7 +90,6 @@ additional hard-gates in the evaluator. Falls back to `data/default_contracts/` 
 |---|---|---|
 | `CONTRACT_ENABLED` | `0` | `1` — включить фазу переговоров |
 | `CONTRACT_MAX_ROUNDS` | `3` | Максимум раундов до fallback-контракта |
-| `CONTRACT_MODEL` | `MODEL_DEFAULT` | Модель для агентов контракт-фазы |
 | `CONTRACT_COLLECT_DSPY` | `0` | Записывать метрики контракта в `dspy_examples.jsonl` |
 
 ### Prompt Builder
