@@ -1783,16 +1783,21 @@ def _pre_dispatch(
         # считаем что recipient точно не в vault. Гейт срабатывает один раз;
         # повторных попыток write блокировать не нужно — иначе агент сдаётся
         # с OUTCOME_NONE_CLARIFICATION на валидной email-задаче (t11 post-mortem).
+        # FIX-395: README.MD hit ("contacts/README.MD:17") is NOT a contact file.
+        # Count search as empty when result has no contacts/*.json reference.
         if not _read_any_contact:
             _empty_searches = 0
             for _f in st.step_facts:
                 if _f.kind != "search" or not (_f.path or "").startswith("/contacts"):
                     continue
                 _summary_lower = (_f.summary or "").lower()
-                if not _summary_lower or "no match" in _summary_lower or "not found" in _summary_lower or _f.error:
+                _has_contact_json = ".json" in _summary_lower
+                if (not _summary_lower or "no match" in _summary_lower
+                        or "not found" in _summary_lower or _f.error
+                        or not _has_contact_json):
                     _empty_searches += 1
                     if _empty_searches >= 2:
-                        _read_any_contact = True  # bypass: recipient absent after thorough search
+                        _read_any_contact = True  # bypass: no contact .json found
                         break
         if not _read_any_contact:
             print(f"{CLI_YELLOW}[FIX-336] Outbox write blocked — no /contacts/ read yet{CLI_CLR}")

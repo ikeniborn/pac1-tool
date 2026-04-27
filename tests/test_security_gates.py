@@ -496,3 +496,44 @@ def test_fix378_no_bypass_when_searches_have_hits():
     st = _fix378_make_state(facts)
     err = _pre_dispatch()(_fix378_make_write_job(), "email", MagicMock(), st)
     assert err is not None and "force-read-contact" in err
+
+
+# ---------------------------------------------------------------------------
+# FIX-395: force-read-contact gate — README.MD hit does not count as contact found
+# ---------------------------------------------------------------------------
+
+def test_fix395_readme_hit_counts_as_empty_search():
+    """FIX-395: contacts/README.MD:17 should NOT count as contact-found result."""
+    from unittest.mock import MagicMock
+    SF = _step_fact()
+    facts = [
+        SF(kind="search", path="/contacts", summary="contacts/README.MD:17"),
+        SF(kind="search", path="/contacts", summary="contacts/README.MD:17"),
+    ]
+    st = _fix378_make_state(facts)
+    err = _pre_dispatch()(_fix378_make_write_job(), "email", MagicMock(), st)
+    assert err is None or "force-read-contact" not in err
+
+
+def test_fix395_contact_json_hit_blocks_gate_bypass():
+    """FIX-395: contacts/alice.json:5 IS a contact found → gate should NOT relax."""
+    from unittest.mock import MagicMock
+    SF = _step_fact()
+    facts = [
+        SF(kind="search", path="/contacts", summary="contacts/alice.json:5"),
+    ]
+    st = _fix378_make_state(facts)
+    err = _pre_dispatch()(_fix378_make_write_job(), "email", MagicMock(), st)
+    assert err is not None and "force-read-contact" in err
+
+
+def test_fix395_mixed_readme_and_json_blocks_bypass():
+    """FIX-395: README.MD + contacts/alice.json → contact found, gate should NOT relax."""
+    from unittest.mock import MagicMock
+    SF = _step_fact()
+    facts = [
+        SF(kind="search", path="/contacts", summary="contacts/README.MD:17, contacts/alice.json:5"),
+    ]
+    st = _fix378_make_state(facts)
+    err = _pre_dispatch()(_fix378_make_write_job(), "email", MagicMock(), st)
+    assert err is not None and "force-read-contact" in err
