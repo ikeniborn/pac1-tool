@@ -79,6 +79,20 @@ OPENROUTER_API_KEY=sk-or-...
 | `EVAL_EFFICIENCY` | `mid` | Глубина контекста: `low` / `mid` / `high` |
 | `EVAL_MAX_REJECTIONS` | `2` | Максимум отказов до принудительного одобрения |
 
+### Contract Phase (FIX-392)
+
+Pre-execution negotiation between executor and evaluator agents before tool calls begin.
+Both roles exchange Pydantic-validated JSON for up to `CONTRACT_MAX_ROUNDS` rounds; the
+resulting `Contract` is injected into the execution loop system prompt and used as
+additional hard-gates in the evaluator. Falls back to `data/default_contracts/` on error.
+
+| Переменная | По умолчанию | Описание |
+|---|---|---|
+| `CONTRACT_ENABLED` | `0` | `1` — включить фазу переговоров |
+| `CONTRACT_MAX_ROUNDS` | `3` | Максимум раундов до fallback-контракта |
+| `CONTRACT_MODEL` | `MODEL_DEFAULT` | Модель для агентов контракт-фазы |
+| `CONTRACT_COLLECT_DSPY` | `0` | Записывать метрики контракта в `dspy_examples.jsonl` |
+
 ### Prompt Builder
 
 | Переменная | По умолчанию | Описание |
@@ -235,6 +249,7 @@ main.py → run_agent()
   │                                       → LLM fallback → regex fallback
   ├── build_system_prompt()             — модульная сборка системного промта
   ├── build_dynamic_addendum()          — DSPy Prompt Builder
+  ├── negotiate_contract()              — CONTRACT_ENABLED=1: N раундов executor↔evaluator
   └── run_loop()                        — до 30 шагов: LLM → tool → PCM
         ├── evaluator                   — DSPy Evaluator перед submit
         ├── stall detection             — обнаружение зависания
