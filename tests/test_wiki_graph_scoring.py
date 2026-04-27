@@ -45,3 +45,18 @@ def test_log_formula_smoothing():
     # base(uses=1) = log(2) ≈ 0.693, base(uses=2) = log(3) ≈ 1.099
     assert abs(scores["n1"] - math.log(2)) < 0.01
     assert abs(scores["n2"] - math.log(3)) < 0.01
+
+
+import threading
+
+
+def test_graph_feedback_lock_exists():
+    """_graph_feedback_lock must be defined at module level in main.py."""
+    import ast, pathlib
+    src = pathlib.Path("main.py").read_text()
+    tree = ast.parse(src)
+    assigns = [n for n in ast.walk(tree)
+               if isinstance(n, ast.Assign)
+               and any(isinstance(t, ast.Name) and t.id == "_graph_feedback_lock"
+                       for t in n.targets)]
+    assert len(assigns) == 1, "_graph_feedback_lock not found at module level in main.py"
