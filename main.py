@@ -371,6 +371,56 @@ def _run_single_task(trial_id: str, task_filter: list, router: ModelRouter) -> t
                     print(f"[researcher] refusal promotion failed: {_pr_exc}")
             elif _pending_ref:
                 print(f"[researcher] refusal promotion skipped: score={_score_f} (<1.0)")
+            # FIX-399: normal-mode pattern promotion — enabled for all modes.
+            # Researcher sets researcher_pending_* in token_stats; normal mode does not,
+            # so we build promotion data directly from token_stats fields available
+            # after every run_loop() call.
+            _is_normal = not _pending and not _pending_ref
+            _nm_outcome = token_stats.get("outcome", "")
+            _nm_step_facts = token_stats.get("step_facts") or []
+            _nm_report = token_stats.get("report")  # ReportTaskCompletion | None
+            _nm_task_type = token_stats.get("task_type", "default")
+            _nm_traj = [
+                {"tool": getattr(f, "kind", "?"), "path": getattr(f, "path", "")}
+                for f in _nm_step_facts
+            ]
+            if _is_normal and _score_f >= 1.0 and _nm_traj:
+                try:
+                    from agent.wiki import promote_successful_pattern, promote_verified_refusal
+                    from agent import wiki_graph as _wg_nm
+                    _TERMINAL_REFUSALS = {
+                        "OUTCOME_DENIED_SECURITY",
+                        "OUTCOME_NONE_CLARIFICATION",
+                        "OUTCOME_NONE_UNSUPPORTED",
+                    }
+                    if _nm_outcome == "OUTCOME_OK":
+                        _traj_hash_nm = _wg_nm.hash_trajectory(_nm_step_facts)
+                        _final_ans = (getattr(_nm_report, "message", "") or "")[:200] if _nm_report else ""
+                        _promoted = promote_successful_pattern(
+                            task_type=_nm_task_type,
+                            task_id=task_id,
+                            traj_hash=_traj_hash_nm,
+                            trajectory=_nm_traj,
+                            insights=[],
+                            goal_shape=(trial.instruction or "")[:100],
+                            final_answer=_final_ans,
+                        )
+                        if _promoted:
+                            print(f"[wiki] normal-mode pattern promoted: {task_id} ({_nm_task_type})")
+                    elif _nm_outcome in _TERMINAL_REFUSALS:
+                        _refusal_reason = (getattr(_nm_report, "message", "") or "")[:200] if _nm_report else ""
+                        _promoted_ref = promote_verified_refusal(
+                            task_type=_nm_task_type,
+                            task_id=task_id,
+                            outcome=_nm_outcome,
+                            goal_shape=(trial.instruction or "")[:100],
+                            refusal_reason=_refusal_reason,
+                            trajectory=_nm_traj[:6],
+                        )
+                        if _promoted_ref:
+                            print(f"[wiki] normal-mode refusal promoted: {task_id} ({_nm_outcome})")
+                except Exception as _nm_exc:
+                    print(f"[wiki] normal-mode promotion failed: {_nm_exc}")
             # FIX-389: normal-mode confidence feedback — reinforce on success,
             # degrade on failure, but only on the nodes that were actually
             # injected into this trial's prompt. Skip if researcher already
