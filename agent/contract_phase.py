@@ -98,6 +98,16 @@ def negotiate_contract(
     if graph_context:
         context_block += f"\n\nKNOWLEDGE GRAPH:\n{graph_context[:500]}"
 
+    # FIX-393: build per-role cfg overrides with Pydantic-derived JSON schemas
+    # so CC tier enforces structured output via --json-schema.
+    _base_cc_opts = cfg.get("cc_options")
+    if not isinstance(_base_cc_opts, dict):
+        _base_cc_opts = {}
+    executor_cfg = {**cfg, "cc_options": {**_base_cc_opts,
+                                           "cc_json_schema": ExecutorProposal.model_json_schema()}}
+    evaluator_cfg = {**cfg, "cc_options": {**_base_cc_opts,
+                                            "cc_json_schema": EvaluatorResponse.model_json_schema()}}
+
     total_in = total_out = 0
     last_evaluator_response = ""
 
@@ -110,7 +120,7 @@ def negotiate_contract(
 
         executor_tok: dict = {}
         raw_executor = call_llm_raw(
-            executor_system, executor_user, model, cfg,
+            executor_system, executor_user, model, executor_cfg,
             max_tokens=800, token_out=executor_tok,
         )
         total_in += executor_tok.get("input", 0)
@@ -138,7 +148,7 @@ def negotiate_contract(
 
         evaluator_tok: dict = {}
         raw_evaluator = call_llm_raw(
-            evaluator_system, evaluator_user, model, cfg,
+            evaluator_system, evaluator_user, model, evaluator_cfg,
             max_tokens=800, token_out=evaluator_tok,
         )
         total_in += evaluator_tok.get("input", 0)

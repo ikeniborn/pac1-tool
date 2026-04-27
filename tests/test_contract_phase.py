@@ -189,3 +189,41 @@ def test_consensus_with_fenced_json(mock_llm):
     )
     assert contract.is_default is False
     assert contract.rounds_taken == 1
+
+
+@patch("agent.contract_phase.call_llm_raw")
+def test_executor_and_evaluator_get_separate_schemas(mock_llm):
+    """Each role gets a cfg with its own cc_json_schema derived from its Pydantic model."""
+    mock_llm.side_effect = [
+        _make_executor_json(agreed=True),
+        _make_evaluator_json(agreed=True),
+    ]
+    from agent.contract_phase import negotiate_contract
+    from agent.contract_models import ExecutorProposal, EvaluatorResponse
+
+    negotiate_contract(
+        task_text="Send email",
+        task_type="email",
+        agents_md="",
+        wiki_context="",
+        graph_context="",
+        model="claude-code/haiku-4.5",
+        cfg={"cc_options": {"cc_effort": "low"}},
+        max_rounds=1,
+    )
+
+    assert mock_llm.call_count == 2
+    executor_call_cfg = mock_llm.call_args_list[0][0][3]   # positional arg index 3
+    evaluator_call_cfg = mock_llm.call_args_list[1][0][3]
+
+    ex_schema = executor_call_cfg["cc_options"]["cc_json_schema"]
+    ev_schema = evaluator_call_cfg["cc_options"]["cc_json_schema"]
+
+    # Schemas come from Pydantic and differ
+    assert ex_schema == ExecutorProposal.model_json_schema()
+    assert ev_schema == EvaluatorResponse.model_json_schema()
+    assert ex_schema != ev_schema
+
+    # Original cc_effort preserved
+    assert executor_call_cfg["cc_options"]["cc_effort"] == "low"
+    assert evaluator_call_cfg["cc_options"]["cc_effort"] == "low"
