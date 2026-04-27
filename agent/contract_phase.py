@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 
 from pydantic import ValidationError
@@ -20,6 +21,15 @@ from .dispatch import call_llm_raw
 
 _DATA = Path(__file__).parent.parent / "data"
 _LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
+
+_FENCE_RE = re.compile(r"^```(?:json)?\s*\n(.*?)\n```\s*$", re.DOTALL)
+
+
+def _strip_fences(text: str) -> str:
+    """Strip markdown code fences from LLM output before JSON parsing."""
+    text = text.strip()
+    m = _FENCE_RE.match(text)
+    return m.group(1).strip() if m else text
 
 
 def _load_prompt(role: str, task_type: str) -> str:

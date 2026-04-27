@@ -135,3 +135,33 @@ def test_token_counting(mock_llm):
     assert contract.rounds_taken == 1
     assert in_tok > 0
     assert out_tok > 0
+
+
+def test_strip_fences_plain_json():
+    from agent.contract_phase import _strip_fences
+    raw = '{"agreed": true}'
+    assert _strip_fences(raw) == '{"agreed": true}'
+
+
+def test_strip_fences_json_block():
+    from agent.contract_phase import _strip_fences
+    raw = '```json\n{"agreed": true}\n```'
+    assert _strip_fences(raw) == '{"agreed": true}'
+
+
+def test_strip_fences_plain_block():
+    from agent.contract_phase import _strip_fences
+    raw = '```\n{"agreed": true}\n```'
+    assert _strip_fences(raw) == '{"agreed": true}'
+
+
+def test_strip_fences_with_whitespace():
+    from agent.contract_phase import _strip_fences
+    raw = '\n\n```json\n  {"agreed": true}\n```\n'
+    assert _strip_fences(raw) == '{"agreed": true}'
+
+
+def test_strip_fences_empty():
+    from agent.contract_phase import _strip_fences
+    assert _strip_fences("") == ""
+    assert _strip_fences("   ") == ""
