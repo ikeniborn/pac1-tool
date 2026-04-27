@@ -1,0 +1,10 @@
+{
+  "task_id": "t99",
+  "task_type": "default",
+  "traj_hash": "hash",
+  "cycles": 4,
+  "last_reflection": {
+    "outcome": "stuck",
+    "what_failed": []
+  }
+}

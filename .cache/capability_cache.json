@@ -1,0 +1,14 @@
+{
+  "anthropic/claude-sonnet-4.6": {
+    "mode": "json_object",
+    "ts": 1777209100.2407348
+  },
+  "anthropic/claude-opus-4.7": {
+    "mode": "json_object",
+    "ts": 1777209100.2407355
+  },
+  "claude-haiku-4-5-20251001": {
+    "mode": "json_object",
+    "ts": 1777209100.2407358
+  }
+}

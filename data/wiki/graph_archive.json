@@ -1,0 +1,25 @@
+{
+  "n_2ee8e9d816": {
+    "type": "insight",
+    "tags": [
+      "default",
+      "delete",
+      "filesystem"
+    ],
+    "text": "List parent dir before any delete to confirm exact filename and avoid ghost deletes.",
+    "confidence": 0.18,
+    "uses": 29,
+    "last_seen": "2026-04-26"
+  },
+  "r_6a24339bf4": {
+    "type": "rule",
+    "tags": [
+      "email",
+      "safety"
+    ],
+    "text": "If contact or account search returns no matches, return CLARIFICATION — never write to outbox without a file-sourced email.",
+    "confidence": 0.18,
+    "uses": 20,
+    "last_seen": "2026-04-26"
+  }
+}
