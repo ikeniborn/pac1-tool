@@ -255,6 +255,13 @@ def _count_eval_examples() -> int:
         return sum(1 for line in fh if line.strip())
 
 
+def _count_contract_examples() -> int:
+    if not _CONTRACT_EXAMPLES_PATH.exists():
+        return 0
+    with _CONTRACT_EXAMPLES_PATH.open(encoding="utf-8") as fh:
+        return sum(1 for line in fh if line.strip())
+
+
 # ---------------------------------------------------------------------------
 # Write — contract
 # ---------------------------------------------------------------------------
@@ -292,7 +299,7 @@ def record_contract_example(
     with _CONTRACT_EXAMPLES_PATH.open("a", encoding="utf-8") as fh:
         fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
-    count = sum(1 for _ in _CONTRACT_EXAMPLES_PATH.open(encoding="utf-8"))
+    count = _count_contract_examples()
     if count == _CONTRACT_THRESHOLD:
         print(
             f"[dspy] {_CONTRACT_THRESHOLD} contract examples collected "
@@ -315,6 +322,9 @@ def get_contract_trainset(
     role='evaluator': input=(task_text, task_type, executor_proposal), output=evaluator_response fields
     expand_rounds=True: each round becomes a separate example.
     """
+    if role not in ("executor", "evaluator"):
+        raise ValueError(f"role must be 'executor' or 'evaluator', got {role!r}")
+
     import dspy
 
     if not _CONTRACT_EXAMPLES_PATH.exists():
