@@ -148,6 +148,9 @@ class DispatchLM(dspy.BaseLM):
             plain_text=not self._json_mode,
             logprobs=self._logprobs,
         )
+        # FIX-402: strip <think> blocks emitted by Ollama reasoning models before DSPy field parser
+        if raw and "<think>" in raw:
+            raw = _re.sub(r"<think>.*?</think>", "", raw, flags=_re.DOTALL).strip()
         raw = _coerce_to_json(raw or "", user_msg)
         self._last_tokens = tok
         # FIX-N: include CC cache tokens in reported input — Claude API usage.input_tokens
