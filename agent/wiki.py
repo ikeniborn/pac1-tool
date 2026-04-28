@@ -312,7 +312,10 @@ def _load_dead_ends(task_type: str) -> str:
     if not frag_dir.exists():
         return ""
 
-    frags = sorted(frag_dir.glob("*.md"), key=lambda p: p.stat().st_mtime, reverse=True)[:5]
+    try:
+        frags = sorted(frag_dir.glob("*.md"), key=lambda p: p.stat().st_mtime, reverse=True)[:5]
+    except OSError:
+        return ""
     if not frags:
         return ""
 
