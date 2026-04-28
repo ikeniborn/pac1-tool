@@ -604,7 +604,7 @@ def _call_llm(log: list, model: str, max_tokens: int, cfg: dict) -> tuple[NextSt
 # Stall detection — extracted to agent/stall.py
 # ---------------------------------------------------------------------------
 
-from .stall import _handle_stall_retry as _handle_stall_retry_base, _check_stall
+from .stall import _handle_stall_retry as _handle_stall_retry_base
 
 
 def _handle_stall_retry(

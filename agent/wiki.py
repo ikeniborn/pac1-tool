@@ -39,7 +39,7 @@ _ARCHIVE_DIR = _WIKI_DIR / "archive"
 _LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
 
 # FIX-389: gate the normal-mode graph autobuild path; orthogonal to
-# WIKI_GRAPH_ENABLED (read-side) and RESEARCHER_MODE (researcher writes).
+# WIKI_GRAPH_ENABLED (read-side).
 _GRAPH_AUTOBUILD = os.environ.get("WIKI_GRAPH_AUTOBUILD", "1") == "1"
 
 # FIX-389: matches a fenced ```json ... ``` block (multi-line, lazy).
@@ -322,12 +322,11 @@ def promote_successful_pattern(
     final_answer: str = "",
     max_patterns: int = 10,
 ) -> bool:
-    """FIX-362: promote a verified success trajectory into pages/<task_type>.md.
+    """Promote a verified success trajectory into pages/<task_type>.md.
 
-    Called by agent.researcher only when the inner loop reports done AND the
-    reflector classifies the cycle as 'solved'. Idempotent by (task_id, traj_hash):
-    repeated promotion of the same trajectory is a no-op. Oldest patterns are
-    rotated to archive/ when page accumulates > max_patterns entries.
+    Idempotent by (task_id, traj_hash): repeated promotion of the same
+    trajectory is a no-op. Oldest patterns are rotated to archive/ when
+    page accumulates > max_patterns entries.
 
     trajectory: list of {"tool": str, "path": str, "summary": str} dicts.
     goal_shape / final_answer: abstract single-sentence summaries from reflector.
@@ -639,8 +638,7 @@ def run_wiki_lint(model: str = "", cfg: dict | None = None) -> None:
     for top in sorted(_FRAGMENTS_DIR.iterdir()):
         if not top.is_dir():
             continue
-        # FIX-362: research/* fragments are consumed by agent.researcher's inner
-        # addendum builder, not by LLM lint synthesis — skip them here.
+        # Skip research/* — not processed by LLM lint synthesis.
         if top.name == "research":
             continue
         if top.name == "errors":
