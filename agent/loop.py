@@ -1971,9 +1971,15 @@ def _run_step(
     print(f"\n{CLI_BLUE}--- {step} ---{CLI_CLR} ", end="")
     _tracer = get_task_tracer()
 
-    # Compact log to prevent token overflow; pass accumulated step facts for digest-based compaction
-    st.log = _compact_log(st.log, max_tool_pairs=5, preserve_prefix=st.preserve_prefix,
-                          step_facts=st.step_facts)
+    # FIX-409: lazy token-aware compaction; ctx_window from model config
+    _ctx_window = cfg.get("ctx_window")
+    if _ctx_window is None:
+        print(f"[warn] ctx_window missing for model {model!r} — defaulting to 180000")
+        _ctx_window = 180_000
+    _compact_pct = float(os.getenv("CTX_COMPACT_THRESHOLD_PCT", "0.70"))
+    st.log = _compact_log(st.log, preserve_prefix=st.preserve_prefix,
+                          step_facts=st.step_facts, token_limit=_ctx_window,
+                          compact_threshold_pct=_compact_pct)
 
     # --- LLM call ---
     job, elapsed_ms, in_tok, out_tok, _, ev_c, ev_ms, cache_cr, cache_rd = _call_llm(st.log, model, max_tokens, cfg)
