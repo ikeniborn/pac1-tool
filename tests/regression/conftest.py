@@ -29,33 +29,6 @@ def fake_connect_error():
 
 
 @pytest.fixture
-def fake_reflection():
-    """Factory: build an `agent.reflector.Reflection` with sensible defaults."""
-    from agent.reflector import Reflection
-
-    def _make(
-        outcome: str = "stuck",
-        what_failed: list | None = None,
-        graph_deltas: dict | None = None,
-        hypothesis: str = "",
-        goal_shape: str = "",
-        final_answer: str = "",
-        what_worked: list | None = None,
-    ) -> Reflection:
-        return Reflection(
-            outcome=outcome,
-            goal_shape=goal_shape,
-            final_answer=final_answer,
-            what_worked=list(what_worked) if what_worked else [],
-            what_failed=list(what_failed) if what_failed else [],
-            hypothesis_for_next=hypothesis,
-            graph_deltas=dict(graph_deltas) if graph_deltas else {},
-        )
-
-    return _make
-
-
-@pytest.fixture
 def fake_step_fact():
     """Factory: build an `agent.log_compaction._StepFact`."""
     from agent.log_compaction import _StepFact
