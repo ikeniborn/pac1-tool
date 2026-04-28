@@ -14,6 +14,7 @@ dependencies = [
     "anthropic>=0.86.0",
     "dspy-ai[gepa]>=2.5",
     "gepa>=0.0.26",
+    "json5>=0.9.0",
 ]
 
 [tool.pytest.ini_options]

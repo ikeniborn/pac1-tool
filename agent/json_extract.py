@@ -13,6 +13,12 @@ import re
 from .dispatch import CLI_YELLOW, CLI_CLR
 
 
+def _try_json5(text: str):
+    """Try json5 parse; raises on failure (ImportError or parse error)."""
+    import json5 as _j5  # optional dep, guarded by try/except at call sites
+    return _j5.loads(text)
+
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
@@ -103,18 +109,34 @@ def _extract_json_from_text(text: str) -> dict | None:  # FIX-146 (revised FIX-1
             elif text[idx] == "}":
                 depth -= 1
                 if depth == 0:
+                    fragment = text[start:idx + 1]
+                    obj = None
                     try:
-                        obj = json.loads(text[start:idx + 1])
-                        if isinstance(obj, dict):
-                            # Inject inferred tool name when model omits it (e.g. Req_Read({"path":"..."}))
-                            if prefix_match and "tool" not in obj:
-                                obj = {"tool": prefix_match, **obj}
-                            candidates.append(obj)
+                        obj = json.loads(fragment)
                     except (json.JSONDecodeError, ValueError):
-                        pass
+                        try:
+                            obj = _try_json5(fragment)
+                        except Exception:
+                            pass
+                    if obj is not None and isinstance(obj, dict):
+                        if prefix_match and "tool" not in obj:
+                            obj = {"tool": prefix_match, **obj}
+                        candidates.append(obj)
                     pos = idx + 1
                     break
         else:
+            # FIX-401: bracket-balance repair — truncated JSON at EOF
+            repaired = text[start:] + "}" * depth
+            for _load in (json.loads, _try_json5):
+                try:
+                    obj = _load(repaired)
+                    if isinstance(obj, dict):
+                        if prefix_match and "tool" not in obj:
+                            obj = {"tool": prefix_match, **obj}
+                        candidates.append(obj)
+                        break
+                except Exception:
+                    continue
             break
 
     if candidates:

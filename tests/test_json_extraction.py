@@ -135,3 +135,38 @@ def test_richness_non_report_preferred():
     read_step = {"current_state": "x", "function": {"tool": "read"}, "task_completed": False}
     report_step = {"current_state": "x", "function": {"tool": "report_completion"}, "task_completed": True}
     assert key(read_step) < key(report_step)
+
+
+# --- FIX-401: json5 fallback ---
+
+def test_json5_trailing_comma():
+    """Model emits trailing comma — json.loads fails, json5 succeeds."""
+    text = '{"tool": "read", "path": "/x.md",}'
+    result = _extract()(text)
+    assert result is not None
+    assert result["tool"] == "read"
+
+
+def test_json5_single_quotes():
+    """Model emits single-quoted JSON."""
+    text = "{'tool': 'list', 'path': '/'}"
+    result = _extract()(text)
+    assert result is not None
+    assert result["tool"] == "list"
+
+
+# --- FIX-401: bracket-balance repair ---
+
+def test_bracket_balance_repair_truncated():
+    """Truncated JSON at EOF (missing closing brace)."""
+    text = '{"tool": "read", "path": "/x.md"'
+    result = _extract()(text)
+    assert result is not None
+    assert result["path"] == "/x.md"
+
+
+def test_bracket_balance_repair_nested_truncated():
+    """Nested object truncated."""
+    text = '{"current_state": "working", "function": {"tool": "read"'
+    result = _extract()(text)
+    assert result is not None
