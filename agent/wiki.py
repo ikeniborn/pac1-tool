@@ -42,6 +42,13 @@ _LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
 # WIKI_GRAPH_ENABLED (read-side).
 _GRAPH_AUTOBUILD = os.environ.get("WIKI_GRAPH_AUTOBUILD", "1") == "1"
 
+# FIX-410: dead-end injection from error fragments at agent startup.
+_WIKI_NEGATIVES_ENABLED = os.environ.get("WIKI_NEGATIVES_ENABLED", "1") == "1"
+try:
+    _WIKI_NEGATIVES_MAX_CHARS = int(os.environ.get("WIKI_NEGATIVES_MAX_CHARS", "800"))
+except ValueError:
+    _WIKI_NEGATIVES_MAX_CHARS = 800
+
 # FIX-389: matches a fenced ```json ... ``` block (multi-line, lazy).
 _JSON_FENCE_RE = re.compile(r"```json\s*(\{.*?\})\s*```", re.DOTALL)
 
@@ -273,16 +280,72 @@ def load_wiki_base(task_text: str = "") -> str:
     return "\n\n".join(parts)
 
 
-def load_wiki_patterns(task_type: str) -> str:
+def load_wiki_patterns(task_type: str, include_negatives: bool = True) -> str:
     """Load patterns page for the given task type.
 
-    Fail-open: returns '' if page doesn't exist.
+    include_negatives=True (default) appends a KNOWN DEAD ENDS block from the
+    last 5 error fragments for this task_type (FIX-410). Fail-open.
     """
     page_name = _TYPE_TO_PAGE.get(task_type, task_type)
     content = _read_page(page_name)
+    parts = []
     if content:
-        return f"## Wiki: {task_type} Patterns\n{content}"
-    return ""
+        parts.append(f"## Wiki: {task_type} Patterns\n{content}")
+    if include_negatives:
+        negatives = _load_dead_ends(task_type)
+        if negatives:
+            parts.append(negatives)
+    return "\n\n".join(parts)
+
+
+def _load_dead_ends(task_type: str) -> str:
+    """FIX-410: load last 5 error fragments and format as KNOWN DEAD ENDS block.
+
+    Parses ## Dead end: blocks written by _build_dead_end_block.
+    Falls back to frontmatter task_id/outcome for legacy fragments.
+    Returns '' if no error fragments exist for this task_type.
+    """
+    if not _WIKI_NEGATIVES_ENABLED:
+        return ""
+    domain = _TYPE_TO_PAGE.get(task_type, task_type)
+    frag_dir = _FRAGMENTS_DIR / "errors" / domain
+    if not frag_dir.exists():
+        return ""
+
+    frags = sorted(frag_dir.glob("*.md"), key=lambda p: p.stat().st_mtime, reverse=True)[:5]
+    if not frags:
+        return ""
+
+    entries: list[str] = []
+    for frag_path in reversed(frags):  # chronological: oldest first
+        try:
+            text = frag_path.read_text(encoding="utf-8")
+            m = re.search(
+                r"^## Dead end: (\S+)\nOutcome: (\S+)\nWhat failed:\n(.*?)(?=\n## |\Z)",
+                text, re.MULTILINE | re.DOTALL,
+            )
+            if m:
+                tid, out, what = m.group(1), m.group(2), m.group(3).strip()
+                first_fail = what.splitlines()[0] if what.splitlines() else "(unknown)"
+                entries.append(f"- {tid} ({out}): {first_fail[:120]}")
+            else:
+                # Legacy fragment without dead-end block
+                tid_m = re.search(r"^task_id: (\S+)", text, re.MULTILINE)
+                out_m = re.search(r"^outcome: (\S+)", text, re.MULTILINE)
+                if tid_m and out_m:
+                    entries.append(f"- {tid_m.group(1)} ({out_m.group(1)}): (legacy fragment)")
+        except Exception:
+            continue
+
+    if not entries:
+        return ""
+
+    header = f"## KNOWN DEAD ENDS ({task_type})"
+    # Trim oldest entries if over char limit
+    while entries and len(header + "\n" + "\n".join(entries)) > _WIKI_NEGATIVES_MAX_CHARS:
+        entries.pop(0)
+
+    return (header + "\n" + "\n".join(entries)) if entries else ""
 
 
 _ENTITY_PATTERNS = [
@@ -539,6 +602,20 @@ def _build_entity_raw(task_id: str, today: str, facts: list) -> str:
     )
 
 
+def _build_dead_end_block(task_id: str, outcome: str, step_facts: list) -> str:
+    """FIX-410: structured dead-end block appended to error fragments."""
+    error_facts = [f for f in step_facts if hasattr(f, "error") and f.error]
+    what_failed_lines = [
+        f"- {f.kind}({f.path}): {f.error[:100]}"
+        for f in error_facts
+    ] or ["- (see outcome above)"]
+    return (
+        f"\n## Dead end: {task_id}\n"
+        f"Outcome: {outcome}\n"
+        f"What failed:\n" + "\n".join(what_failed_lines) + "\n"
+    )
+
+
 def format_fragment(
     outcome: str,
     task_type: str,
@@ -598,6 +675,7 @@ def format_fragment(
             step_facts, done_ops, stall_hints, eval_last_call,
         )
         domain = task_type if task_type in _TYPE_TO_PAGE else "default"
+        raw += _build_dead_end_block(task_id, outcome, step_facts)  # FIX-410
         results.append((raw, f"errors/{domain}"))
         return results
 
