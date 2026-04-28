@@ -2446,7 +2446,6 @@ def run_loop(vm: PcmRuntimeClientSync, model: str, _task_text: str,
             except Exception:
                 _decision = "continue"
             if _decision in ("abort_cycle", "force_report"):
-                st.midcycle_aborted = True
                 print(f"{CLI_YELLOW}[midcycle-breakout] {_decision} at step {i + 1}{CLI_CLR}")
                 break
 
