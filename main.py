@@ -341,44 +341,7 @@ def _run_single_task(trial_id: str, task_filter: list, router: ModelRouter) -> t
                 )
             except Exception as _wiki_exc:
                 print(f"[wiki] deferred fragment write failed: {_wiki_exc}")
-            # FIX-363a: score-gated promotion for researcher mode.
-            _pending = token_stats.get("researcher_pending_promotion")
-            if _pending and _score_f >= 1.0:
-                try:
-                    from agent.wiki import promote_successful_pattern
-                    from agent import wiki_graph as _wg
-                    _pp = dict(_pending)
-                    _touched = _pp.pop("touched_node_ids", [])
-                    promote_successful_pattern(**_pp)
-                    _g = _wg.load_graph()
-                    _wg.add_pattern_node(
-                        _g, _pp["task_type"], _pp["task_id"],
-                        _pp["traj_hash"], _pp["trajectory"], _touched,
-                    )
-                    _wg.save_graph(_g)
-                    print(f"[researcher] promoted {_pp['task_id']} (score=1.0)")
-                except Exception as _pp_exc:
-                    print(f"[researcher] deferred promotion failed: {_pp_exc}")
-            elif _pending:
-                print(f"[researcher] promotion skipped: score={_score_f} (<1.0)")
-            # FIX-366: score-gated refusal promotion — only correct refusals
-            # (benchmark score=1) become wiki guidance.
-            _pending_ref = token_stats.get("researcher_pending_refusal")
-            if _pending_ref and _score_f >= 1.0:
-                try:
-                    from agent.wiki import promote_verified_refusal
-                    promote_verified_refusal(**_pending_ref)
-                    print(f"[researcher] promoted refusal {_pending_ref['task_id']} "
-                          f"({_pending_ref['outcome']}, score=1.0)")
-                except Exception as _pr_exc:
-                    print(f"[researcher] refusal promotion failed: {_pr_exc}")
-            elif _pending_ref:
-                print(f"[researcher] refusal promotion skipped: score={_score_f} (<1.0)")
-            # FIX-399: normal-mode pattern promotion — enabled for all modes.
-            # Researcher sets researcher_pending_* in token_stats; normal mode does not,
-            # so we build promotion data directly from token_stats fields available
-            # after every run_loop() call.
-            _is_normal = not _pending and not _pending_ref
+            # FIX-399: normal-mode pattern promotion.
             _nm_outcome = token_stats.get("outcome", "")
             _nm_step_facts = token_stats.get("step_facts") or []
             _nm_report = token_stats.get("report")  # ReportTaskCompletion | None
@@ -387,7 +350,7 @@ def _run_single_task(trial_id: str, task_filter: list, router: ModelRouter) -> t
                 {"tool": getattr(f, "kind", "?"), "path": getattr(f, "path", "")}
                 for f in _nm_step_facts
             ]
-            if _is_normal and _score_f >= 1.0 and _nm_traj:
+            if _score_f >= 1.0 and _nm_traj:
                 try:
                     from agent.wiki import promote_successful_pattern, promote_verified_refusal
                     from agent import wiki_graph as _wg_nm
@@ -424,13 +387,10 @@ def _run_single_task(trial_id: str, task_filter: list, router: ModelRouter) -> t
                             print(f"[wiki] normal-mode refusal promoted: {task_id} ({_nm_outcome})")
                 except Exception as _nm_exc:
                     print(f"[wiki] normal-mode promotion failed: {_nm_exc}")
-            # FIX-389: normal-mode confidence feedback — reinforce on success,
-            # degrade on failure, but only on the nodes that were actually
-            # injected into this trial's prompt. Skip if researcher already
-            # handled the trial (its own bookkeeping covers the same ids).
+            # FIX-389: confidence feedback — reinforce injected nodes on success, degrade on failure.
             _gf_enabled = os.getenv("WIKI_GRAPH_FEEDBACK", "1") == "1"
             _injected = token_stats.get("graph_injected_node_ids", []) or []
-            if _gf_enabled and _injected and not _pending and not _pending_ref:
+            if _gf_enabled and _injected:
                 with _graph_feedback_lock:
                     try:
                         from agent import wiki_graph as _wg2
