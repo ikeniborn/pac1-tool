@@ -202,21 +202,7 @@ class _LoopState:
     successful_writes: list = field(default_factory=list)
     # FIX-303: wiki outcome — set at answer submission for fragment writing
     outcome: str = ""
-    # FIX-362: researcher mode — disables evaluator/stall/timeout inside the inner loop.
-    # Set by run_loop() when called by agent.researcher; default False preserves normal behaviour.
-    researcher_mode: bool = False
-    # FIX-374: last ReportTaskCompletion — exposed to researcher outer-loop evaluator gate.
     last_report: "ReportTaskCompletion | None" = None
-    # FIX-376c: mid-cycle breakout flag — set when researcher_breakout_check
-    # asks the inner loop to abort early. Surfaced to outer loop via _st_to_result.
-    midcycle_aborted: bool = False
-    # FIX-377: structural detection of "answer already submitted" in researcher
-    # mode. Cycle 1 succeeds; cycle ≥ 2 ReportTaskCompletion is rejected by
-    # harness with INVALID_ARGUMENT. Outer researcher loop short-circuits on
-    # this signal so reflector never sees a contaminated trajectory.
-    report_completion_attempted: bool = False
-    report_completion_dispatch_error_code: str | None = None
-    report_completion_succeeded: bool = False
     # FIX-251: pre-write JSON snapshot for unicode fidelity check
     _pre_write_snapshot: dict | None = None
     # FIX-259: format-gate fired flag — hard-enforces CLARIFICATION outcome + evaluator bypass
@@ -903,15 +889,7 @@ def _st_to_result(st: _LoopState) -> dict:
         "step_facts": st.step_facts,
         "done_ops": st.done_ops,
         "stall_hints": [f.summary for f in st.step_facts if f.kind == "stall"],
-        # FIX-374: last ReportTaskCompletion for researcher evaluator gate
         "report": st.last_report,
-        # FIX-376c: surface mid-cycle abort to outer researcher loop
-        "midcycle_aborted": st.midcycle_aborted,
-        # FIX-377: surface ReportTaskCompletion dispatch state so researcher
-        # can detect "answer already submitted" via INVALID_ARGUMENT.
-        "report_completion_attempted": st.report_completion_attempted,
-        "report_completion_dispatch_error_code": st.report_completion_dispatch_error_code,
-        "report_completion_succeeded": st.report_completion_succeeded,
     }
 
 
@@ -2325,13 +2303,6 @@ def _run_step(
         _tracer.emit("dispatch_result", st.step_count, {
             "tool": action_name, "result": txt[:300], "is_error": True,
         })
-        # FIX-377: surface ReportTaskCompletion dispatch failure (e.g. INVALID_ARGUMENT
-        # when the harness has already accepted an answer) so the researcher
-        # outer-loop can short-circuit instead of feeding a contaminated trajectory
-        # to the reflector.
-        if isinstance(job.function, ReportTaskCompletion):
-            st.report_completion_attempted = True
-            st.report_completion_dispatch_error_code = exc.code.name
         # Record repeated errors for stall detection
         _err_path = getattr(job.function, "path", getattr(job.function, "from_name", "?"))
         st.error_counts[(action_name, _err_path, exc.code.name)] += 1
@@ -2384,9 +2355,7 @@ def _run_step(
 
     if isinstance(job.function, ReportTaskCompletion):
         st.outcome = job.function.outcome  # FIX-303: capture for wiki fragment writing
-        st.last_report = job.function  # FIX-374: evaluator gate needs full report in researcher mode
-        st.report_completion_attempted = True  # FIX-377
-        st.report_completion_succeeded = True  # FIX-377
+        st.last_report = job.function
         status = CLI_GREEN if job.function.outcome == "OUTCOME_OK" else CLI_YELLOW
         print(f"{status}agent {job.function.outcome}{CLI_CLR}. Summary:")
         for item in job.function.completed_steps_laconic:
