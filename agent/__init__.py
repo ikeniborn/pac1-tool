@@ -197,7 +197,7 @@ def run_agent(router: ModelRouter, harness_url: str, task_text: str, task_id: st
     if _CONTRACT_ENABLED:
         from .contract_phase import negotiate_contract
         try:
-            contract, contract_in_tok, contract_out_tok = negotiate_contract(
+            contract, contract_in_tok, contract_out_tok, _rounds = negotiate_contract(
                 task_text=task_text,
                 task_type=task_type,
                 agents_md=getattr(pre, "agents_md_content", "") or "",
