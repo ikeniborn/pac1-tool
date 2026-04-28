@@ -34,7 +34,7 @@ def test_consensus_on_round_1(mock_llm):
         _make_evaluator_json(agreed=True),
     ]
     from agent.contract_phase import negotiate_contract
-    contract, in_tok, out_tok = negotiate_contract(
+    contract, in_tok, out_tok, _rounds = negotiate_contract(
         task_text="Write email to bob@x.com",
         task_type="email",
         agents_md="",
@@ -60,7 +60,7 @@ def test_consensus_on_round_2(mock_llm):
         _make_evaluator_json(agreed=True),
     ]
     from agent.contract_phase import negotiate_contract
-    contract, _, _ = negotiate_contract(
+    contract, _, _, _rounds = negotiate_contract(
         task_text="task", task_type="default", agents_md="", wiki_context="",
         graph_context="", model="m", cfg={}, max_rounds=3,
     )
@@ -78,7 +78,7 @@ def test_fallback_on_max_rounds(mock_llm):
         _make_evaluator_json(agreed=False, objections=["still not satisfied"]),
     ]
     from agent.contract_phase import negotiate_contract
-    contract, _, _ = negotiate_contract(
+    contract, _, _, _rounds = negotiate_contract(
         task_text="task", task_type="default", agents_md="", wiki_context="",
         graph_context="", model="m", cfg={}, max_rounds=2,
     )
@@ -91,7 +91,7 @@ def test_fallback_on_llm_error(mock_llm):
     """LLM returns None (all tiers failed) → falls back to default contract."""
     mock_llm.return_value = None
     from agent.contract_phase import negotiate_contract
-    contract, _, _ = negotiate_contract(
+    contract, _, _, _rounds = negotiate_contract(
         task_text="task", task_type="default", agents_md="", wiki_context="",
         graph_context="", model="m", cfg={}, max_rounds=3,
     )
@@ -103,7 +103,7 @@ def test_fallback_on_invalid_json(mock_llm):
     """LLM returns malformed JSON → falls back to default contract."""
     mock_llm.return_value = "not json at all"
     from agent.contract_phase import negotiate_contract
-    contract, _, _ = negotiate_contract(
+    contract, _, _, _rounds = negotiate_contract(
         task_text="task", task_type="default", agents_md="", wiki_context="",
         graph_context="", model="m", cfg={}, max_rounds=3,
     )
@@ -127,7 +127,7 @@ def test_token_counting(mock_llm):
 
     mock_llm.side_effect = side_effect
     from agent.contract_phase import negotiate_contract
-    contract, in_tok, out_tok = negotiate_contract(
+    contract, in_tok, out_tok, _rounds = negotiate_contract(
         task_text="task", task_type="default", agents_md="", wiki_context="",
         graph_context="", model="m", cfg={}, max_rounds=3,
     )
@@ -177,7 +177,7 @@ def test_consensus_with_fenced_json(mock_llm):
         f"```json\n{evaluator_json}\n```",
     ]
     from agent.contract_phase import negotiate_contract
-    contract, _, _ = negotiate_contract(
+    contract, _, _, _rounds = negotiate_contract(
         task_text="Send email",
         task_type="email",
         agents_md="",
@@ -210,7 +210,7 @@ def test_executor_and_evaluator_get_separate_schemas(mock_llm):
         model="claude-3.5-sonnet",
         cfg={"cc_options": {"cc_effort": "low"}},
         max_rounds=1,
-    )
+    )  # return value not unpacked — just checking call args
 
     assert mock_llm.call_count == 2
     executor_call_cfg = mock_llm.call_args_list[0][0][3]   # positional arg index 3
@@ -234,7 +234,7 @@ def test_cc_tier_skips_negotiation_no_llm_calls(mock_llm):
     """CC tier model → immediate default contract, zero LLM calls."""
     from agent.contract_phase import negotiate_contract
 
-    contract, in_tok, out_tok = negotiate_contract(
+    contract, in_tok, out_tok, rounds = negotiate_contract(
         task_text="Write email to bob@x.com",
         task_type="email",
         agents_md="",
@@ -248,3 +248,49 @@ def test_cc_tier_skips_negotiation_no_llm_calls(mock_llm):
     assert in_tok == 0
     assert out_tok == 0
     mock_llm.assert_not_called()
+
+
+@patch("agent.contract_phase.call_llm_raw")
+def test_negotiate_returns_rounds_transcript(mock_llm):
+    """negotiate_contract returns 4-tuple with list containing one ContractRound dict."""
+    mock_llm.side_effect = [
+        _make_executor_json(agreed=True),
+        _make_evaluator_json(agreed=True),
+    ]
+    from agent.contract_phase import negotiate_contract
+    result = negotiate_contract(
+        task_text="Write email to bob@x.com",
+        task_type="email",
+        agents_md="", wiki_context="", graph_context="",
+        model="test-model", cfg={}, max_rounds=3,
+    )
+    assert len(result) == 4
+    contract, in_tok, out_tok, rounds = result
+    assert len(rounds) == 1
+    assert rounds[0]["round_num"] == 1
+    assert "plan_steps" in rounds[0]["executor_proposal"]
+    assert "success_criteria" in rounds[0]["evaluator_response"]
+
+
+@patch("agent.contract_phase.call_llm_raw")
+def test_default_fallback_returns_empty_rounds(mock_llm):
+    """CC-tier model path returns empty rounds list."""
+    from agent.contract_phase import negotiate_contract
+    contract, in_tok, out_tok, rounds = negotiate_contract(
+        task_text="task",
+        task_type="email",
+        agents_md="", wiki_context="", graph_context="",
+        model="claude-code/opus",
+        cfg={}, max_rounds=3,
+    )
+    assert rounds == []
+    assert contract.is_default is True
+
+
+def test_effective_model_uses_env(monkeypatch):
+    """_effective_model returns MODEL_CONTRACT when set."""
+    from agent.contract_phase import _effective_model
+    monkeypatch.setenv("MODEL_CONTRACT", "openrouter/anthropic/claude-3-5-haiku")
+    assert _effective_model("anthropic/claude-sonnet-4.6") == "openrouter/anthropic/claude-3-5-haiku"
+    monkeypatch.delenv("MODEL_CONTRACT", raising=False)
+    assert _effective_model("anthropic/claude-sonnet-4.6") == "anthropic/claude-sonnet-4.6"

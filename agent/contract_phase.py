@@ -16,13 +16,21 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
-from .contract_models import Contract, EvaluatorResponse, ExecutorProposal
+from .contract_models import Contract, ContractRound, EvaluatorResponse, ExecutorProposal
 from .dispatch import call_llm_raw
 
 _DATA = Path(__file__).parent.parent / "data"
 _LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
 
 _FENCE_RE = re.compile(r"^```(?:json)?\s*\n(.*?)\n\s*```\s*$", re.DOTALL)
+
+_EXECUTOR_PROGRAM_PATH = _DATA / "contract_executor_program.json"
+_EVALUATOR_PROGRAM_PATH = _DATA / "contract_evaluator_program.json"
+
+
+def _effective_model(caller_model: str) -> str:
+    """Return MODEL_CONTRACT if set, else caller_model."""
+    return os.environ.get("MODEL_CONTRACT") or caller_model
 
 
 def _strip_fences(text: str) -> str:
@@ -73,8 +81,8 @@ def negotiate_contract(
     model: str,
     cfg: dict,
     max_rounds: int = 3,
-) -> tuple[Contract, int, int]:
-    """Run contract negotiation. Returns (contract, total_in_tokens, total_out_tokens).
+) -> tuple[Contract, int, int, list[dict]]:
+    """Run contract negotiation. Returns (contract, total_in_tokens, total_out_tokens, rounds_transcript).
 
     Each round:
       1. ExecutorAgent proposes/refines plan → ExecutorProposal
@@ -88,7 +96,7 @@ def negotiate_contract(
     if not executor_system or not evaluator_system:
         if _LOG_LEVEL == "DEBUG":
             print("[contract] prompts missing — using default contract")
-        return _load_default_contract(task_type), 0, 0
+        return _load_default_contract(task_type), 0, 0, []
 
     # FIX-394: CC tier cannot produce structured JSON (tool_use blocks are stripped
     # from result). Skip negotiation entirely — avoids 1-2 empty subprocess launches
@@ -96,7 +104,9 @@ def negotiate_contract(
     if model.startswith("claude-code/"):
         if _LOG_LEVEL == "DEBUG":
             print("[contract] CC tier — skipping negotiation, using default contract")
-        return _load_default_contract(task_type), 0, 0
+        return _load_default_contract(task_type), 0, 0, []
+
+    negotiation_model = _effective_model(model)
 
     context_block = ""
     if agents_md:
@@ -118,6 +128,7 @@ def negotiate_contract(
 
     total_in = total_out = 0
     last_evaluator_response = ""
+    rounds_transcript: list[dict] = []
 
     for round_num in range(1, max_rounds + 1):
         # --- Executor turn ---
@@ -128,7 +139,7 @@ def negotiate_contract(
 
         executor_tok: dict = {}
         raw_executor = call_llm_raw(
-            executor_system, executor_user, model, executor_cfg,
+            executor_system, executor_user, negotiation_model, executor_cfg,
             max_tokens=800, token_out=executor_tok,
         )
         total_in += executor_tok.get("input", 0)
@@ -137,7 +148,7 @@ def negotiate_contract(
         if not raw_executor:
             if _LOG_LEVEL == "DEBUG":
                 print(f"[contract] executor LLM failed round {round_num}")
-            return _load_default_contract(task_type), total_in, total_out
+            return _load_default_contract(task_type), total_in, total_out, rounds_transcript
 
         raw_executor = _strip_fences(raw_executor)
         try:
@@ -145,7 +156,7 @@ def negotiate_contract(
         except (json.JSONDecodeError, ValidationError) as e:
             if _LOG_LEVEL == "DEBUG":
                 print(f"[contract] executor parse error round {round_num}: {e}")
-            return _load_default_contract(task_type), total_in, total_out
+            return _load_default_contract(task_type), total_in, total_out, rounds_transcript
 
         # --- Evaluator turn ---
         evaluator_user = (
@@ -156,7 +167,7 @@ def negotiate_contract(
 
         evaluator_tok: dict = {}
         raw_evaluator = call_llm_raw(
-            evaluator_system, evaluator_user, model, evaluator_cfg,
+            evaluator_system, evaluator_user, negotiation_model, evaluator_cfg,
             max_tokens=800, token_out=evaluator_tok,
         )
         total_in += evaluator_tok.get("input", 0)
@@ -165,7 +176,7 @@ def negotiate_contract(
         if not raw_evaluator:
             if _LOG_LEVEL == "DEBUG":
                 print(f"[contract] evaluator LLM failed round {round_num}")
-            return _load_default_contract(task_type), total_in, total_out
+            return _load_default_contract(task_type), total_in, total_out, rounds_transcript
 
         raw_evaluator = _strip_fences(raw_evaluator)
         try:
@@ -173,7 +184,13 @@ def negotiate_contract(
         except (json.JSONDecodeError, ValidationError) as e:
             if _LOG_LEVEL == "DEBUG":
                 print(f"[contract] evaluator parse error round {round_num}: {e}")
-            return _load_default_contract(task_type), total_in, total_out
+            return _load_default_contract(task_type), total_in, total_out, rounds_transcript
+
+        rounds_transcript.append(ContractRound(
+            round_num=round_num,
+            executor_proposal=proposal.model_dump(),
+            evaluator_response=response.model_dump(),
+        ).model_dump())
 
         last_evaluator_response = raw_evaluator
 
@@ -195,9 +212,9 @@ def negotiate_contract(
             )
             if _LOG_LEVEL == "DEBUG":
                 print(f"[contract] consensus reached in {round_num} round(s)")
-            return contract, total_in, total_out
+            return contract, total_in, total_out, rounds_transcript
 
     # Max rounds exceeded — fallback
     if _LOG_LEVEL == "DEBUG":
         print(f"[contract] max_rounds={max_rounds} exceeded — using default contract")
-    return _load_default_contract(task_type), total_in, total_out
+    return _load_default_contract(task_type), total_in, total_out, rounds_transcript

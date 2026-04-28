@@ -27,3 +27,9 @@ class Contract(BaseModel):
     failure_conditions: list[str]
     is_default: bool
     rounds_taken: int
+
+
+class ContractRound(BaseModel):
+    round_num: int
+    executor_proposal: dict
+    evaluator_response: dict
