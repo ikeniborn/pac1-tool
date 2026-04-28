@@ -2028,28 +2028,14 @@ def _run_step(
     # (hint retry must use a log that doesn't yet contain this step)
     st.action_fingerprints.append(f"{action_name}:{action_args}")
 
-    # FIX-362: researcher mode — skip stall hints; repetitive probing is legitimate
-    # exploration when the outer orchestrator drives the experiment.
-    # FIX-376e: opt-in soft-stall — produce advisory hint as a step_fact so the
-    # reflector sees the signal, but do NOT trigger an LLM retry. The outer
-    # researcher loop decides whether to inject mid-cycle breakout / hint forcing.
     _si = _so = _se = _sev_c = _sev_ms = _scc = _scr = 0
     _stall_fired = False
-    if not st.researcher_mode:
-        job, st.stall_hint_active, _stall_fired, _si, _so, _se, _sev_c, _sev_ms, _scc, _scr = _handle_stall_retry(
-            job, st.log, model, max_tokens, cfg,
-            st.action_fingerprints, st.steps_since_write, st.error_counts, st.step_facts,
-            st.stall_hint_active,
-            contract_plan_steps=st.contract.plan_steps if st.contract else None,
-        )
-    elif os.environ.get("RESEARCHER_SOFT_STALL", "0") == "1":
-        _soft_hint = _check_stall(
-            st.action_fingerprints, st.steps_since_write, st.error_counts, st.step_facts,
-        )
-        if _soft_hint and not st.stall_hint_active:
-            from .log_compaction import _StepFact as _SF
-            st.step_facts.append(_SF(kind="stall_advisory", path="", summary=_soft_hint[:160]))
-            st.stall_hint_active = True
+    job, st.stall_hint_active, _stall_fired, _si, _so, _se, _sev_c, _sev_ms, _scc, _scr = _handle_stall_retry(
+        job, st.log, model, max_tokens, cfg,
+        st.action_fingerprints, st.steps_since_write, st.error_counts, st.step_facts,
+        st.stall_hint_active,
+        contract_plan_steps=st.contract.plan_steps if st.contract else None,
+    )
     if _stall_fired:
         _st_accum(st, _se, _si, _so, _sev_c, _sev_ms, _scc, _scr)
         action_name = job.function.__class__.__name__
@@ -2152,7 +2138,6 @@ def _run_step(
         if _eval_bypass:
             print(f"{CLI_GREEN}[evaluator] Code-verified bypass → auto-approve{CLI_CLR}")
     if (_EVALUATOR_ENABLED
-            and not st.researcher_mode  # FIX-362: evaluator is a skeptic-gate; off in research
             and isinstance(job.function, ReportTaskCompletion)
             and not _eval_bypass
             and job.function.outcome in (
@@ -2383,16 +2368,9 @@ def _run_step(
 def run_loop(vm: PcmRuntimeClientSync, model: str, _task_text: str,
              pre: PrephaseResult, cfg: dict, task_type: str = "default",
              evaluator_model: str = "", evaluator_cfg: "dict | None" = None,
-             researcher_mode: bool = False, max_steps: int | None = None,
-             researcher_breakout_check=None,
+             max_steps: int | None = None,
              contract: "Any" = None) -> dict:
-    """Run main agent loop. Returns token usage stats dict.
-
-    FIX-362: researcher_mode=True disables evaluator, stall hints, and timeout —
-    intended to be called by agent.researcher as an inner loop inside a bounded
-    outer cycle. max_steps overrides the default 30-step cap; pass small values
-    (e.g. 15) when the outer orchestrator will retry.
-    """
+    """Run main agent loop. Returns token usage stats dict."""
     # FIX-195: run_loop() is now a thin orchestrator — logic lives in:
     #   _run_pre_route() — injection detection + semantic routing (pre-loop)
     #   _run_step()      — one iteration of the 30-step loop
@@ -2400,7 +2378,6 @@ def run_loop(vm: PcmRuntimeClientSync, model: str, _task_text: str,
     st.task_text = _task_text  # FIX-218: evaluator needs task text
     st.evaluator_model = evaluator_model or ""
     st.evaluator_cfg = evaluator_cfg or {}
-    st.researcher_mode = bool(researcher_mode)
     # FIX-392: inject agreed contract into system prompt
     if contract is not None:
         _contract_block = _format_contract_block(contract)
@@ -2428,24 +2405,10 @@ def run_loop(vm: PcmRuntimeClientSync, model: str, _task_text: str,
         })
         return result
 
-    # Main loop — up to `loop_cap` steps (30 default; FIX-362 overrides for researcher)
+    # Main loop — up to `loop_cap` steps (30 default; override via max_steps)
     for i in range(loop_cap):
         if _run_step(i, vm, model, cfg, task_type, max_tokens, task_start, st):
             break
-        # FIX-376c: mid-cycle breakout checkpoint — researcher-only opt-in.
-        # The outer orchestrator can abort an obviously-stuck inner cycle to
-        # free step budget for the next reflector cycle.
-        if (
-            researcher_breakout_check is not None
-            and (i + 1) % max(1, int(os.environ.get("RESEARCHER_MIDCYCLE_CHECK_EVERY", "5"))) == 0
-        ):
-            try:
-                _decision = researcher_breakout_check(st.step_facts)
-            except Exception:
-                _decision = "continue"
-            if _decision in ("abort_cycle", "force_report"):
-                print(f"{CLI_YELLOW}[midcycle-breakout] {_decision} at step {i + 1}{CLI_CLR}")
-                break
 
     result = _st_to_result(st)
     _tracer.emit("task_end", st.step_count, {
