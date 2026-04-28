@@ -351,7 +351,7 @@ def _load_reference_patterns(task_type: str) -> str:
         return ""
     try:
         from .wiki import load_wiki_patterns
-        return load_wiki_patterns(task_type) or ""
+        return load_wiki_patterns(task_type, include_negatives=False) or ""
     except Exception as exc:
         print(f"{CLI_YELLOW}[evaluator] wiki load failed ({exc}) — skipping patterns{CLI_CLR}")
         return ""

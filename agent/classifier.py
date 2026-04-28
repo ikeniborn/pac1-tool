@@ -379,7 +379,7 @@ class ModelRouter:
                 from .wiki import load_wiki_patterns as _load_wiki
                 wiki_hints = []
                 for _tp in ("inbox", "queue"):
-                    _content = _load_wiki(_tp)
+                    _content = _load_wiki(_tp, include_negatives=False)
                     if _content:
                         _hint = _extract_type_hints(_content)
                         if _hint:
