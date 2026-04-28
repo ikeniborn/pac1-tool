@@ -9,7 +9,8 @@
     "ollama_options": "Ollama-specific options passed via extra_body.options (e.g. {num_ctx: 16384})",
     "seed": "Random seed for reproducible sampling (Ollama only); fixes the RNG state so identical prompt+seed always produces identical output. Use with temperature=0 for full determinism (classifier), or with low temperature to stabilize code generation (coder)",
     "cc_model": "Model alias passed as --model to iclaude CLI (e.g. 'haiku', 'sonnet', 'opus'). Provider='claude-code' only.",
-    "cc_options": "Named profile reference (e.g. 'cc_low') or inline dict. Resolved from _profiles at load time, same mechanism as ollama_options. Recognised keys (FIX-N+1): cc_effort (low|medium|high|xhigh|max), cc_timeout_s (int), cc_fallback_model (string → --fallback-model), cc_exclude_dynamic (bool → --exclude-dynamic-system-prompt-sections, improves cross-run prompt-cache reuse), cc_json_schema (raw JSON schema → --json-schema, used by classifier). --bare is intentionally NOT exposed (it breaks OAuth auth)."
+    "cc_options": "Named profile reference (e.g. 'cc_low') or inline dict. Resolved from _profiles at load time, same mechanism as ollama_options. Recognised keys (FIX-N+1): cc_effort (low|medium|high|xhigh|max), cc_timeout_s (int), cc_fallback_model (string → --fallback-model), cc_exclude_dynamic (bool → --exclude-dynamic-system-prompt-sections, improves cross-run prompt-cache reuse), cc_json_schema (raw JSON schema → --json-schema, used by classifier). --bare is intentionally NOT exposed (it breaks OAuth auth).",
+    "ctx_window": "Context window size in tokens (input limit). Used by _compact_log for token-aware compaction threshold."
   },
   "_ollama_tuning_rationale": {
     "temperature": "0.35 — instructional but not overly deterministic. 0.2 caused regression on conditional-check tasks (inbox no-From → model skipped OUTCOME_NONE_CLARIFICATION). 0.8 default too high (hallucinated paths). 0.35 balances precision with rule-following",
@@ -29,7 +30,7 @@
       "repeat_penalty": 1.3,
       "repeat_last_n": 256,
       "top_k": 30,
-      "top_p": 0.90
+      "top_p": 0.9
     },
     "think": {
       "num_ctx": 16384,
@@ -42,7 +43,7 @@
     },
     "long_ctx": {
       "num_ctx": 32768,
-      "temperature": 0.20,
+      "temperature": 0.2,
       "seed": 1,
       "repeat_penalty": 1.4,
       "repeat_last_n": 512,
@@ -67,10 +68,26 @@
       "temperature": 0.1,
       "seed": 1
     },
-    "cc_low":    { "cc_effort": "low",    "cc_timeout_s": 120, "cc_exclude_dynamic": true },
-    "cc_medium": { "cc_effort": "medium", "cc_timeout_s": 180, "cc_exclude_dynamic": true },
-    "cc_high":   { "cc_effort": "high",   "cc_timeout_s": 240, "cc_exclude_dynamic": true },
-    "cc_max":    { "cc_effort": "max",    "cc_timeout_s": 300, "cc_exclude_dynamic": true },
+    "cc_low": {
+      "cc_effort": "low",
+      "cc_timeout_s": 120,
+      "cc_exclude_dynamic": true
+    },
+    "cc_medium": {
+      "cc_effort": "medium",
+      "cc_timeout_s": 180,
+      "cc_exclude_dynamic": true
+    },
+    "cc_high": {
+      "cc_effort": "high",
+      "cc_timeout_s": 240,
+      "cc_exclude_dynamic": true
+    },
+    "cc_max": {
+      "cc_effort": "max",
+      "cc_timeout_s": 300,
+      "cc_exclude_dynamic": true
+    },
     "cc_classifier": {
       "cc_effort": "low",
       "cc_timeout_s": 90,
@@ -80,10 +97,23 @@
         "properties": {
           "task_type": {
             "type": "string",
-            "enum": ["preject", "queue", "inbox", "email", "lookup", "capture", "crm", "temporal", "distill", "default"]
+            "enum": [
+              "preject",
+              "queue",
+              "inbox",
+              "email",
+              "lookup",
+              "capture",
+              "crm",
+              "temporal",
+              "distill",
+              "default"
+            ]
           }
         },
-        "required": ["task_type"],
+        "required": [
+          "task_type"
+        ],
         "additionalProperties": false
       }
     }
@@ -98,7 +128,8 @@
     "ollama_options_longContext": "long_ctx",
     "ollama_options_classifier": "classifier",
     "ollama_options_coder": "coder",
-    "ollama_options_evaluator": "evaluator"
+    "ollama_options_evaluator": "evaluator",
+    "ctx_window": 16384
   },
   "glm-5.1:cloud": {
     "provider": "ollama",
@@ -109,7 +140,8 @@
     "ollama_options_longContext": "long_ctx",
     "ollama_options_classifier": "classifier",
     "ollama_options_coder": "coder",
-    "ollama_options_evaluator": "evaluator"
+    "ollama_options_evaluator": "evaluator",
+    "ctx_window": 16384
   },
   "qwen3.5:cloud": {
     "provider": "ollama",
@@ -120,7 +152,8 @@
     "ollama_options_longContext": "long_ctx",
     "ollama_options_classifier": "classifier",
     "ollama_options_coder": "coder",
-    "ollama_options_evaluator": "evaluator"
+    "ollama_options_evaluator": "evaluator",
+    "ctx_window": 16384
   },
   "qwen3-coder-next:cloud": {
     "provider": "ollama",
@@ -131,7 +164,8 @@
     "ollama_options_longContext": "long_ctx",
     "ollama_options_classifier": "classifier",
     "ollama_options_coder": "coder",
-    "ollama_options_evaluator": "evaluator"
+    "ollama_options_evaluator": "evaluator",
+    "ctx_window": 16384
   },
   "qwen3.5:397b-cloud": {
     "provider": "ollama",
@@ -142,7 +176,8 @@
     "ollama_options_longContext": "long_ctx",
     "ollama_options_classifier": "classifier",
     "ollama_options_coder": "coder",
-    "ollama_options_evaluator": "evaluator"
+    "ollama_options_evaluator": "evaluator",
+    "ctx_window": 16384
   },
   "ministral-3:3b-cloud": {
     "provider": "ollama",
@@ -153,7 +188,8 @@
     "ollama_options_longContext": "long_ctx",
     "ollama_options_classifier": "classifier",
     "ollama_options_coder": "coder",
-    "ollama_options_evaluator": "evaluator"
+    "ollama_options_evaluator": "evaluator",
+    "ctx_window": 16384
   },
   "ministral-3:8b-cloud": {
     "provider": "ollama",
@@ -164,7 +200,8 @@
     "ollama_options_longContext": "long_ctx",
     "ollama_options_classifier": "classifier",
     "ollama_options_coder": "coder",
-    "ollama_options_evaluator": "evaluator"
+    "ollama_options_evaluator": "evaluator",
+    "ctx_window": 16384
   },
   "ministral-3:14b-cloud": {
     "provider": "ollama",
@@ -175,7 +212,8 @@
     "ollama_options_longContext": "long_ctx",
     "ollama_options_classifier": "classifier",
     "ollama_options_coder": "coder",
-    "ollama_options_evaluator": "evaluator"
+    "ollama_options_evaluator": "evaluator",
+    "ctx_window": 16384
   },
   "nemotron-3-super:cloud": {
     "provider": "ollama",
@@ -186,7 +224,8 @@
     "ollama_options_longContext": "long_ctx",
     "ollama_options_classifier": "classifier",
     "ollama_options_coder": "coder",
-    "ollama_options_evaluator": "evaluator"
+    "ollama_options_evaluator": "evaluator",
+    "ctx_window": 16384
   },
   "nemotron-3-nano:30b-cloud": {
     "provider": "ollama",
@@ -197,7 +236,8 @@
     "ollama_options_longContext": "long_ctx",
     "ollama_options_classifier": "classifier",
     "ollama_options_coder": "coder",
-    "ollama_options_evaluator": "evaluator"
+    "ollama_options_evaluator": "evaluator",
+    "ctx_window": 16384
   },
   "glm-5:cloud": {
     "provider": "ollama",
@@ -208,7 +248,8 @@
     "ollama_options_longContext": "long_ctx",
     "ollama_options_classifier": "classifier",
     "ollama_options_coder": "coder",
-    "ollama_options_evaluator": "evaluator"
+    "ollama_options_evaluator": "evaluator",
+    "ctx_window": 16384
   },
   "kimi-k2.5:cloud": {
     "provider": "ollama",
@@ -219,7 +260,8 @@
     "ollama_options_longContext": "long_ctx",
     "ollama_options_classifier": "classifier",
     "ollama_options_coder": "coder",
-    "ollama_options_evaluator": "evaluator"
+    "ollama_options_evaluator": "evaluator",
+    "ctx_window": 16384
   },
   "kimi-k2-thinking:cloud": {
     "provider": "ollama",
@@ -230,7 +272,8 @@
     "ollama_options_longContext": "long_ctx",
     "ollama_options_classifier": "classifier",
     "ollama_options_coder": "coder",
-    "ollama_options_evaluator": "evaluator"
+    "ollama_options_evaluator": "evaluator",
+    "ctx_window": 16384
   },
   "gpt-oss:20b-cloud": {
     "provider": "ollama",
@@ -241,7 +284,8 @@
     "ollama_options_longContext": "long_ctx",
     "ollama_options_classifier": "classifier",
     "ollama_options_coder": "coder",
-    "ollama_options_evaluator": "evaluator"
+    "ollama_options_evaluator": "evaluator",
+    "ctx_window": 16384
   },
   "gpt-oss:120b-cloud": {
     "provider": "ollama",
@@ -252,7 +296,8 @@
     "ollama_options_longContext": "long_ctx",
     "ollama_options_classifier": "classifier",
     "ollama_options_coder": "coder",
-    "ollama_options_evaluator": "evaluator"
+    "ollama_options_evaluator": "evaluator",
+    "ctx_window": 16384
   },
   "deepseek-v3.1:671b-cloud": {
     "provider": "ollama",
@@ -263,7 +308,8 @@
     "ollama_options_longContext": "long_ctx",
     "ollama_options_classifier": "classifier",
     "ollama_options_coder": "coder",
-    "ollama_options_evaluator": "evaluator"
+    "ollama_options_evaluator": "evaluator",
+    "ctx_window": 16384
   },
   "rnj-1:8b-cloud": {
     "provider": "ollama",
@@ -274,7 +320,8 @@
     "ollama_options_longContext": "long_ctx",
     "ollama_options_classifier": "classifier",
     "ollama_options_coder": "coder",
-    "ollama_options_evaluator": "evaluator"
+    "ollama_options_evaluator": "evaluator",
+    "ctx_window": 16384
   },
   "gemma4:31b-cloud": {
     "provider": "ollama",
@@ -285,7 +332,8 @@
     "ollama_options_longContext": "long_ctx",
     "ollama_options_classifier": "classifier",
     "ollama_options_coder": "coder",
-    "ollama_options_evaluator": "evaluator"
+    "ollama_options_evaluator": "evaluator",
+    "ctx_window": 16384
   },
   "kimi-k2.6:cloud": {
     "provider": "ollama",
@@ -296,45 +344,52 @@
     "ollama_options_longContext": "long_ctx",
     "ollama_options_classifier": "classifier",
     "ollama_options_coder": "coder",
-    "ollama_options_evaluator": "evaluator"
+    "ollama_options_evaluator": "evaluator",
+    "ctx_window": 16384
   },
   "_section_anthropic": "--- Anthropic SDK ---",
   "anthropic/claude-haiku-4.5": {
     "provider": "anthropic",
     "max_completion_tokens": 16384,
     "thinking_budget": 2000,
-    "response_format_hint": "json_object"
+    "response_format_hint": "json_object",
+    "ctx_window": 200000
   },
   "anthropic/claude-sonnet-4.6": {
     "provider": "anthropic",
     "max_completion_tokens": 16384,
     "thinking_budget": 4000,
-    "response_format_hint": "json_object"
+    "response_format_hint": "json_object",
+    "ctx_window": 200000
   },
   "anthropic/claude-opus-4.6": {
     "provider": "anthropic",
     "max_completion_tokens": 16384,
     "thinking_budget": 8000,
-    "response_format_hint": "json_object"
+    "response_format_hint": "json_object",
+    "ctx_window": 200000
   },
   "anthropic/claude-opus-4.7": {
     "provider": "anthropic",
     "max_completion_tokens": 16384,
     "thinking_budget": 8000,
-    "response_format_hint": "json_object"
+    "response_format_hint": "json_object",
+    "ctx_window": 200000
   },
   "_section_openrouter": "--- OpenRouter ---",
   "qwen/qwen3.5-9b": {
     "provider": "openrouter",
     "max_completion_tokens": 4000,
     "response_format_hint": "json_object",
-    "temperature": 0.35
+    "temperature": 0.35,
+    "ctx_window": 131072
   },
   "meta-llama/llama-3.3-70b-instruct": {
     "provider": "openrouter",
     "max_completion_tokens": 4000,
     "response_format_hint": "json_object",
-    "temperature": 0.35
+    "temperature": 0.35,
+    "ctx_window": 131072
   },
   "_section_claude_code": "--- Claude Code CLI (iclaude subprocess, OAuth) ---",
   "claude-code/haiku-4.5": {
@@ -343,7 +398,8 @@
     "cc_options": "cc_low",
     "cc_options_classifier": "cc_classifier",
     "max_completion_tokens": 16384,
-    "response_format_hint": "json_object"
+    "response_format_hint": "json_object",
+    "ctx_window": 200000
   },
   "claude-code/sonnet-4.6": {
     "provider": "claude-code",
@@ -351,7 +407,8 @@
     "cc_options": "cc_medium",
     "cc_options_classifier": "cc_classifier",
     "max_completion_tokens": 16384,
-    "response_format_hint": "json_object"
+    "response_format_hint": "json_object",
+    "ctx_window": 200000
   },
   "claude-code/opus-4.7": {
     "provider": "claude-code",
@@ -359,6 +416,7 @@
     "cc_options": "cc_high",
     "cc_options_classifier": "cc_classifier",
     "max_completion_tokens": 16384,
-    "response_format_hint": "json_object"
+    "response_format_hint": "json_object",
+    "ctx_window": 200000
   }
 }
