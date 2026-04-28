@@ -136,7 +136,7 @@ def negotiate_contract(
     if vault_date_hint:
         context_block += f"\n\nDATE CONTEXT:\n{vault_date_hint}"
     if agents_md:
-        context_block += f"\n\nAGENTS.MD:\n{agents_md[:2000]}"
+        context_block += f"\n\nAGENTS.MD:\n{agents_md}"
     if wiki_context:
         context_block += f"\n\nWIKI CONTEXT:\n{wiki_context[:1000]}"
     if graph_context:
