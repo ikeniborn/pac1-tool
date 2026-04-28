@@ -113,6 +113,7 @@ from agent import run_agent, write_wiki_fragment as _write_wiki_fragment
 from agent.classifier import ModelRouter
 from agent.dspy_examples import record_example as _record_dspy_example
 from agent.dspy_examples import record_eval_example as _record_eval_example
+from agent.dspy_examples import record_contract_example as _record_contract_example
 from agent.wiki import run_wiki_lint as _run_wiki_lint
 
 _DSPY_COLLECT = os.getenv("DSPY_COLLECT", "1") == "1"
@@ -309,15 +310,17 @@ def _run_single_task(trial_id: str, task_filter: list, router: ModelRouter) -> t
                     write_scope_violations=bool(token_stats.get("write_scope_blocks")),
                 )
             if os.getenv("CONTRACT_COLLECT_DSPY", "0") == "1":
-                _rounds = token_stats.get("contract_rounds_taken", 0)
+                _contract_rounds = token_stats.get("contract_rounds", [])
                 _is_default = token_stats.get("contract_is_default", True)
-                if _rounds > 0 or not _is_default:
-                    _record_dspy_example(
+                if not _is_default and _contract_rounds:
+                    _record_contract_example(
                         task_text=trial.instruction,
                         task_type=token_stats.get("task_type", "default"),
-                        addendum=f"[contract] rounds={_rounds} is_default={_is_default}",
+                        rounds=_contract_rounds,
+                        final_contract=token_stats.get("contract_final", {}),
+                        is_default=_is_default,
+                        rounds_taken=token_stats.get("contract_rounds_taken", 0),
                         score=_score_f,
-                        graph_context=token_stats.get("graph_context", ""),
                         stall_detected=bool(token_stats.get("stall_hints")),
                         write_scope_violations=bool(token_stats.get("write_scope_blocks")),
                     )
