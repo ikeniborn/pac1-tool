@@ -121,3 +121,47 @@ def test_distill_dry_run_no_files_written(tmp_path):
     )
 
     assert not (contracts_dir / "email.json").exists()
+
+
+def test_distill_apply_skips_default_type(tmp_path):
+    """task_type='default' is never written even with --apply."""
+    from scripts.distill_contracts import run_distillation
+
+    examples_path = tmp_path / "dspy_contract_examples.jsonl"
+    contracts_dir = tmp_path / "default_contracts"
+    contracts_dir.mkdir()
+    (contracts_dir / "default.json").write_text('{"plan_steps":["fallback"]}')
+
+    examples = []
+    for _ in range(10):
+        examples.append(json.dumps({
+            "task_text": "task",
+            "task_type": "default",
+            "rounds": [],
+            "final_contract": {
+                "plan_steps": ["step1"],
+                "success_criteria": ["done"],
+                "required_evidence": [],
+                "failure_conditions": [],
+                "is_default": False,
+                "rounds_taken": 1,
+            },
+            "is_default": False,
+            "rounds_taken": 1,
+            "score": 1.0,
+            "stall_detected": False,
+            "write_scope_violations": False,
+        }))
+    examples_path.write_text("\n".join(examples) + "\n")
+
+    run_distillation(
+        examples_path=examples_path,
+        contracts_dir=contracts_dir,
+        apply=True,
+        min_examples=5,
+        task_type_filter=None,
+    )
+
+    # default.json must be unchanged
+    data = json.loads((contracts_dir / "default.json").read_text())
+    assert data["plan_steps"] == ["fallback"]

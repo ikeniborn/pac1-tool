@@ -103,6 +103,9 @@ def run_distillation(
             print(f"  {field}: {items}")
 
         if apply:
+            if tt == "default":
+                print(f"  [distill] skipping {tt} — default.json is reserved")
+                continue
             out_path = contracts_dir / f"{tt}.json"
             out_path.write_text(
                 json.dumps({**result, "is_default": True, "rounds_taken": 0},
