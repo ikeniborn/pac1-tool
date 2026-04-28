@@ -42,7 +42,7 @@ def distill_task_type(
     """
     good = [
         ex for ex in examples
-        if float(ex.get("score", 0)) >= 1.0 and not ex.get("is_default", True)
+        if float(ex.get("score", 0)) >= 1.0 and not ex.get("is_default", False)
     ]
     if len(good) < min_examples:
         return None
@@ -106,6 +106,7 @@ def run_distillation(
             if tt == "default":
                 print(f"  [distill] skipping {tt} — default.json is reserved")
                 continue
+            contracts_dir.mkdir(parents=True, exist_ok=True)
             out_path = contracts_dir / f"{tt}.json"
             out_path.write_text(
                 json.dumps({**result, "is_default": True, "rounds_taken": 0},
