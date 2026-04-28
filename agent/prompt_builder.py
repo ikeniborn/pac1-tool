@@ -225,6 +225,15 @@ def build_dynamic_addendum(
                 graph_context=graph_context,
             )
         addendum = (result.addendum or "").strip()
+        # FIX-405: DSPy JSONAdapter failure — model returns {"addendum": "..."} as string
+        if addendum.startswith("{"):
+            import json as _j
+            try:
+                _parsed = _j.loads(addendum)
+                if isinstance(_parsed, dict) and "addendum" in _parsed:
+                    addendum = str(_parsed["addendum"] or "").strip()
+            except Exception:
+                pass
         if task_type == "temporal":
             addendum = _sanitize_temporal_addendum(addendum)
         # FIX-N: include CC cache tokens — on claude-code tier `input_tokens`
