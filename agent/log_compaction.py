@@ -118,21 +118,21 @@ def _extract_fact(action_name: str, action, result_txt: str) -> "_StepFact | Non
                 except (json.JSONDecodeError, ValueError):
                     return _StepFact("read", path, content[:250])
             elif "inbox/" in path:
-                _limit = 500  # FIX-258: evaluator needs full message for cross-account check
+                _limit = 1000  # FIX-258: evaluator needs full message for cross-account check
             else:
-                _limit = 120
+                _limit = 500
             return _StepFact("read", path, content[:_limit])
         except (json.JSONDecodeError, ValueError):
             pass
-        return _StepFact("read", path, result_txt[:80].replace("\n", " "))
+        return _StepFact("read", path, result_txt[:300].replace("\n", " "))
 
     if action_name == "Req_List":
         try:
             d = json.loads(result_txt)
             names = [e["name"] for e in d.get("entries", [])]
-            return _StepFact("list", path, ", ".join(names[:10]))
+            return _StepFact("list", path, ", ".join(names[:20]))
         except (json.JSONDecodeError, ValueError, KeyError):
-            return _StepFact("list", path, result_txt[:60])
+            return _StepFact("list", path, result_txt[:200])
 
     if action_name == "Req_Search":
         try:
@@ -141,23 +141,23 @@ def _extract_fact(action_name: str, action, result_txt: str) -> "_StepFact | Non
             summary = ", ".join(hits) if hits else "(no matches)"
             return _StepFact("search", path, summary)
         except (json.JSONDecodeError, ValueError, KeyError):
-            return _StepFact("search", path, result_txt[:60])
+            return _StepFact("search", path, result_txt[:200])
 
     # For mutating operations, check result_txt for errors before reporting success
     _is_err = result_txt.startswith("ERROR")
-    _err_detail = result_txt[:120] if _is_err else ""  # FIX-199: capture error for digest
+    _err_detail = result_txt[:300] if _is_err else ""  # FIX-199: capture error for digest
     if action_name == "Req_Write":
-        summary = result_txt[:80] if _is_err else f"WRITTEN: {path}"
+        summary = result_txt[:300] if _is_err else f"WRITTEN: {path}"
         return _StepFact("write", path, summary, error=_err_detail)
     if action_name == "Req_Delete":
-        summary = result_txt[:80] if _is_err else f"DELETED: {path}"
+        summary = result_txt[:300] if _is_err else f"DELETED: {path}"
         return _StepFact("delete", path, summary, error=_err_detail)
     if action_name == "Req_Move":
         to = getattr(action, "to_name", "?")
-        summary = result_txt[:80] if _is_err else f"MOVED: {path} → {to}"
+        summary = result_txt[:300] if _is_err else f"MOVED: {path} → {to}"
         return _StepFact("move", path, summary, error=_err_detail)
     if action_name == "Req_MkDir":
-        summary = result_txt[:80] if _is_err else f"CREATED DIR: {path}"
+        summary = result_txt[:300] if _is_err else f"CREATED DIR: {path}"
         return _StepFact("mkdir", path, summary, error=_err_detail)
 
     return None
