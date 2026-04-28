@@ -137,3 +137,53 @@ def test_record_contract_example_threshold_hint(tmp_path, monkeypatch, capsys):
 
     captured = capsys.readouterr()
     assert "optimize_prompts.py --target contract" in captured.out
+
+
+def test_contract_metric_perfect_score():
+    """score=1.0, rounds=1, no stall, no scope → metric = 0.95."""
+    import dspy
+    from agent.optimization.metrics import contract_metric
+
+    example = dspy.Example(
+        score=1.0,
+        rounds_taken=1,
+        stall_detected=False,
+        write_scope_violations=False,
+        task_type="email",
+    )
+    result = contract_metric(example, dspy.Prediction())
+    # 0.70*1.0 + 0.15*(2/3) + 0.10*1.0 + 0.05*1.0 = 0.70 + 0.10 + 0.10 + 0.05 = 0.95
+    assert abs(result.score - 0.95) < 0.01
+
+
+def test_contract_metric_failed_with_stall():
+    """score=0.0, stall=True, rounds=3 → metric = 0.05."""
+    import dspy
+    from agent.optimization.metrics import contract_metric
+
+    example = dspy.Example(
+        score=0.0,
+        rounds_taken=3,
+        stall_detected=True,
+        write_scope_violations=False,
+        task_type="email",
+    )
+    result = contract_metric(example, dspy.Prediction())
+    # 0.70*0 + 0.15*0 + 0.10*0 + 0.05*1 = 0.05
+    assert abs(result.score - 0.05) < 0.01
+
+
+def test_contract_metric_returns_prediction_with_feedback():
+    """contract_metric returns dspy.Prediction with score and feedback fields."""
+    import dspy
+    from agent.optimization.metrics import contract_metric
+
+    example = dspy.Example(
+        score=1.0, rounds_taken=2, stall_detected=False,
+        write_scope_violations=False, task_type="email",
+    )
+    result = contract_metric(example, dspy.Prediction())
+    assert hasattr(result, "score")
+    assert hasattr(result, "feedback")
+    assert isinstance(result.feedback, str)
+    assert len(result.feedback) > 0

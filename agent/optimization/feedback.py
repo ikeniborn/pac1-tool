@@ -112,3 +112,30 @@ def build_classifier_feedback(example, prediction, score: float) -> str:
 
     return (f"Misclassified: predicted={predicted}, expected={expected}. "
             f"Task text: {task_text!r}.")
+
+
+def build_contract_feedback(example, prediction, score: float) -> str:
+    """Return short feedback for contract_metric."""
+    task_type = getattr(example, "task_type", "default")
+    src_score = float(getattr(example, "score", 0.0))
+    rounds = int(getattr(example, "rounds_taken", 3))
+    stall = bool(getattr(example, "stall_detected", False))
+    scope_bad = bool(getattr(example, "write_scope_violations", False))
+
+    if src_score < 1.0:
+        if stall:
+            return (f"Contract failed (task stalled). Negotiation for {task_type} "
+                    f"did not produce actionable plan steps — reduce ambiguity.")
+        if scope_bad:
+            hint = _TASK_TYPE_HINTS.get(task_type, _TASK_TYPE_HINTS["default"])
+            return (f"Contract failed: write-scope violation for {task_type}. "
+                    f"Evaluator should enforce: {hint}.")
+        return (f"Contract failed for {task_type} after {rounds} round(s). "
+                f"Tighten success criteria or reduce open_questions.")
+
+    if rounds == 1:
+        return f"Excellent: consensus on round 1 for {task_type} — keep concise proposals."
+    if rounds == 2:
+        return f"Good: consensus on round 2 for {task_type}."
+    return (f"Slow convergence: {rounds} rounds needed for {task_type}. "
+            f"Executor should address evaluator objections more directly.")
