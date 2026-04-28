@@ -294,3 +294,37 @@ def test_effective_model_uses_env(monkeypatch):
     assert _effective_model("anthropic/claude-sonnet-4.6") == "openrouter/anthropic/claude-3-5-haiku"
     monkeypatch.delenv("MODEL_CONTRACT", raising=False)
     assert _effective_model("anthropic/claude-sonnet-4.6") == "anthropic/claude-sonnet-4.6"
+
+
+def test_executor_proposal_json5_trailing_comma():
+    """Contract negotiation survives trailing comma in executor JSON."""
+    from unittest.mock import patch
+    import agent.contract_phase as cp
+
+    executor_response = '{"plan_steps": ["discover", "execute"], "expected_outcome": "done", "required_tools": ["read"], "open_questions": [], "agreed": true,}'
+    evaluator_response = '{"success_criteria": ["task done"], "failure_conditions": ["no action"], "required_evidence": [], "objections": [], "counter_proposal": null, "agreed": true}'
+
+    call_count = 0
+    def fake_llm(system, user, model, cfg, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        tok = kwargs.get("token_out", {})
+        if tok is not None:
+            tok["input"] = 10
+            tok["output"] = 10
+        return executor_response if call_count % 2 == 1 else evaluator_response
+
+    with patch("agent.contract_phase.call_llm_raw", side_effect=fake_llm):
+        with patch("agent.contract_phase._load_prompt", return_value="system prompt"):
+            contract, _, _, _ = cp.negotiate_contract(
+                task_text="do the thing",
+                task_type="email",
+                agents_md="",
+                wiki_context="",
+                graph_context="",
+                model="qwen3.5:cloud",
+                cfg={},
+                max_rounds=1,
+            )
+    assert not contract.is_default
+    assert "discover" in contract.plan_steps

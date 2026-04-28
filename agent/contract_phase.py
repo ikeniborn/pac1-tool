@@ -18,6 +18,7 @@ from pydantic import ValidationError
 
 from .contract_models import Contract, ContractRound, EvaluatorResponse, ExecutorProposal
 from .dispatch import call_llm_raw
+from .json_extract import _extract_json_from_text
 
 _DATA = Path(__file__).parent.parent / "data"
 _LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
@@ -180,10 +181,11 @@ def negotiate_contract(
                 print(f"[contract] executor LLM failed round {round_num}")
             return _load_default_contract(task_type), total_in, total_out, rounds_transcript
 
-        raw_executor = _strip_fences(raw_executor)
+        # FIX-401: use multi-level JSON extractor instead of bare json.loads
+        extracted_executor = _extract_json_from_text(raw_executor)
         try:
-            proposal = ExecutorProposal(**json.loads(raw_executor))
-        except (json.JSONDecodeError, ValidationError) as e:
+            proposal = ExecutorProposal(**(extracted_executor or {}))
+        except (ValidationError, TypeError) as e:
             if _LOG_LEVEL == "DEBUG":
                 print(f"[contract] executor parse error round {round_num}: {e}")
             return _load_default_contract(task_type), total_in, total_out, rounds_transcript
@@ -208,10 +210,11 @@ def negotiate_contract(
                 print(f"[contract] evaluator LLM failed round {round_num}")
             return _load_default_contract(task_type), total_in, total_out, rounds_transcript
 
-        raw_evaluator = _strip_fences(raw_evaluator)
+        # FIX-401: use multi-level JSON extractor instead of bare json.loads
+        extracted_evaluator = _extract_json_from_text(raw_evaluator)
         try:
-            response = EvaluatorResponse(**json.loads(raw_evaluator))
-        except (json.JSONDecodeError, ValidationError) as e:
+            response = EvaluatorResponse(**(extracted_evaluator or {}))
+        except (ValidationError, TypeError) as e:
             if _LOG_LEVEL == "DEBUG":
                 print(f"[contract] evaluator parse error round {round_num}: {e}")
             return _load_default_contract(task_type), total_in, total_out, rounds_transcript
