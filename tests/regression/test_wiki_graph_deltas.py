@@ -23,7 +23,7 @@ def test_fence_in_middle():
         '```json\n{"graph_deltas": {"new_rules": [{"text": "use list first"}]}}\n```\n'
         'Trailing paragraph.'
     )
-    markdown, deltas = _split(resp)
+    _, deltas = _split(resp)
     assert isinstance(deltas, dict)
     assert "new_rules" in deltas
 
@@ -31,14 +31,14 @@ def test_fence_in_middle():
 def test_fence_json5_trailing_comma():
     """FIX-403: json5 fallback for trailing comma inside fenced block."""
     resp = '```json\n{"graph_deltas": {"new_insights": [],},}\n```'
-    markdown, deltas = _split(resp)
+    _, deltas = _split(resp)
     assert isinstance(deltas, dict)
 
 
 def test_bare_graph_deltas_marker():
     """FIX-403: no fence, just graph_deltas: {...} in text."""
     resp = 'Some synthesis.\ngraph_deltas: {"new_insights": [{"text": "tip"}]}'
-    markdown, deltas = _split(resp)
+    _, deltas = _split(resp)
     assert isinstance(deltas, dict)
     assert "new_insights" in deltas
 
