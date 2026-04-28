@@ -102,6 +102,7 @@ def negotiate_contract(
     model: str,
     cfg: dict,
     max_rounds: int = 3,
+    vault_date_hint: str = "",
 ) -> tuple[Contract, int, int, list[dict]]:
     """Run contract negotiation. Returns (contract, total_in_tokens, total_out_tokens, rounds_transcript).
 
@@ -109,6 +110,8 @@ def negotiate_contract(
       1. ExecutorAgent proposes/refines plan → ExecutorProposal
       2. EvaluatorAgent responds with criteria/objections → EvaluatorResponse
       3. Both agreed=True → finalize; else continue.
+      4. FIX-406: if evaluator agreed with no objections, accept even if executor
+         did not self-agree — evaluator is the authority on success criteria.
     Fallback to default contract on: max_rounds exceeded, LLM error, parse error.
     """
     executor_system = _load_prompt("executor", task_type)
@@ -130,6 +133,8 @@ def negotiate_contract(
     negotiation_model = _effective_model(model)
 
     context_block = ""
+    if vault_date_hint:
+        context_block += f"\n\nDATE CONTEXT:\n{vault_date_hint}"
     if agents_md:
         context_block += f"\n\nAGENTS.MD:\n{agents_md[:2000]}"
     if wiki_context:
@@ -223,8 +228,12 @@ def negotiate_contract(
                 f"evaluator.agreed={response.agreed} objections={response.objections}"
             )
 
-        # Consensus: both agreed with no objections
-        if proposal.agreed and response.agreed and not response.objections:
+        # FIX-406: partial consensus — evaluator is authority on success criteria.
+        # Accept if evaluator agreed with no objections, even if executor self-doubts.
+        # Full consensus (both agreed) is preferred; evaluator-only is fallback.
+        evaluator_accepts = response.agreed and not response.objections
+        full_consensus = proposal.agreed and evaluator_accepts
+        if full_consensus or evaluator_accepts:
             contract = Contract(
                 plan_steps=proposal.plan_steps,
                 success_criteria=response.success_criteria,
@@ -234,7 +243,8 @@ def negotiate_contract(
                 rounds_taken=round_num,
             )
             if _LOG_LEVEL == "DEBUG":
-                print(f"[contract] consensus reached in {round_num} round(s)")
+                mode = "full consensus" if full_consensus else "evaluator-only consensus"
+                print(f"[contract] {mode} reached in {round_num} round(s)")
             return contract, total_in, total_out, rounds_transcript
 
     # Max rounds exceeded — fallback
