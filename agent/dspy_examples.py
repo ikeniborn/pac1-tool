@@ -18,6 +18,8 @@ _EVAL_EXAMPLES_PATH = _DATA / "dspy_eval_examples.jsonl"
 _SYNTHETIC_PATH = _DATA / "dspy_synthetic.jsonl"
 _THRESHOLD = 30
 _EVAL_THRESHOLD = 20
+_CONTRACT_EXAMPLES_PATH = _DATA / "dspy_contract_examples.jsonl"
+_CONTRACT_THRESHOLD = 30
 
 
 # ---------------------------------------------------------------------------
@@ -251,3 +253,127 @@ def _count_eval_examples() -> int:
         return 0
     with _EVAL_EXAMPLES_PATH.open(encoding="utf-8") as fh:
         return sum(1 for line in fh if line.strip())
+
+
+# ---------------------------------------------------------------------------
+# Write — contract
+# ---------------------------------------------------------------------------
+
+def record_contract_example(
+    task_text: str,
+    task_type: str,
+    rounds: list[dict],
+    final_contract: dict,
+    is_default: bool,
+    rounds_taken: int,
+    score: float,
+    stall_detected: bool,
+    write_scope_violations: bool,
+) -> None:
+    """Append one negotiated contract example to dspy_contract_examples.jsonl.
+
+    Only negotiated contracts are recorded (is_default=False).
+    Prints a hint to run the contract optimizer when count first reaches _CONTRACT_THRESHOLD.
+    """
+    if is_default:
+        return
+    _DATA.mkdir(parents=True, exist_ok=True)
+    entry = {
+        "task_text": task_text,
+        "task_type": task_type,
+        "rounds": rounds,
+        "final_contract": final_contract,
+        "is_default": is_default,
+        "rounds_taken": rounds_taken,
+        "score": score,
+        "stall_detected": stall_detected,
+        "write_scope_violations": write_scope_violations,
+    }
+    with _CONTRACT_EXAMPLES_PATH.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
+    count = sum(1 for _ in _CONTRACT_EXAMPLES_PATH.open(encoding="utf-8"))
+    if count == _CONTRACT_THRESHOLD:
+        print(
+            f"[dspy] {_CONTRACT_THRESHOLD} contract examples collected "
+            "→ run: uv run python scripts/optimize_prompts.py --target contract"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Read — contract
+# ---------------------------------------------------------------------------
+
+def get_contract_trainset(
+    min_score: float = 1.0,
+    expand_rounds: bool = True,
+    role: str = "executor",
+) -> list:
+    """Return DSPy Examples for contract optimization.
+
+    role='executor': input=(task_text, task_type, evaluator_feedback), output=executor_proposal fields
+    role='evaluator': input=(task_text, task_type, executor_proposal), output=evaluator_response fields
+    expand_rounds=True: each round becomes a separate example.
+    """
+    import dspy
+
+    if not _CONTRACT_EXAMPLES_PATH.exists():
+        return []
+
+    examples = []
+    with _CONTRACT_EXAMPLES_PATH.open(encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if float(rec.get("score", 0)) < min_score:
+                continue
+            if rec.get("is_default", True):
+                continue
+
+            labels = {
+                "score": rec.get("score", 0.0),
+                "rounds_taken": rec.get("rounds_taken", 3),
+                "stall_detected": rec.get("stall_detected", False),
+                "write_scope_violations": rec.get("write_scope_violations", False),
+            }
+            rounds = rec.get("rounds", []) if expand_rounds else rec.get("rounds", [])[:1]
+
+            prev_eval_response = ""
+            for rnd in rounds:
+                ep = rnd.get("executor_proposal", {})
+                er = rnd.get("evaluator_response", {})
+
+                if role == "executor":
+                    ex = dspy.Example(
+                        task_text=rec["task_text"],
+                        task_type=rec["task_type"],
+                        evaluator_feedback=prev_eval_response,
+                        plan_steps=ep.get("plan_steps", []),
+                        expected_outcome=ep.get("expected_outcome", ""),
+                        required_tools=ep.get("required_tools", []),
+                        open_questions=ep.get("open_questions", []),
+                        agreed=ep.get("agreed", False),
+                        **labels,
+                    ).with_inputs("task_text", "task_type", "evaluator_feedback")
+                else:  # evaluator
+                    ex = dspy.Example(
+                        task_text=rec["task_text"],
+                        task_type=rec["task_type"],
+                        executor_proposal=json.dumps(ep),
+                        success_criteria=er.get("success_criteria", []),
+                        failure_conditions=er.get("failure_conditions", []),
+                        required_evidence=er.get("required_evidence", []),
+                        objections=er.get("objections", []),
+                        agreed=er.get("agreed", False),
+                        **labels,
+                    ).with_inputs("task_text", "task_type", "executor_proposal")
+
+                examples.append(ex)
+                prev_eval_response = json.dumps(er)
+
+    return examples
