@@ -20,11 +20,6 @@ try:
     _GRAPH_TOP_K = int(os.getenv("WIKI_GRAPH_TOP_K", "5"))
 except ValueError:
     _GRAPH_TOP_K = 5
-# FIX-362: researcher mode master switch. When enabled, run_agent() bypasses
-# the prompt_builder / evaluator / stall / timeout pipeline and delegates to
-# agent.researcher.run_researcher, which drives a bounded outer cycle with
-# reflection, wiki graph retrieval, and success-gated page promotion.
-_RESEARCHER_MODE = os.getenv("RESEARCHER_MODE", "0") == "1"
 try:
     _PROMPT_BUILDER_MAX_TOKENS = int(os.getenv("PROMPT_BUILDER_MAX_TOKENS", "500"))
 except ValueError:
@@ -92,27 +87,6 @@ def run_agent(router: ModelRouter, harness_url: str, task_text: str, task_id: st
     Returns a dict with keys: input_tokens, output_tokens, thinking_tokens, model_used,
     task_type.
     """
-    # FIX-362: Researcher mode short-circuits the full pipeline. It classifies
-    # via the fast regex path (no LLM voting), picks a single model, and runs
-    # an outer cycle with reflection + graph retrieval. Evaluator/stall/timeout
-    # all stay off. Normal mode is unaffected by this branch.
-    if _RESEARCHER_MODE:
-        from .researcher import run_researcher
-        task_type = classify_task(task_text)
-        # FIX-368: MODEL_RESEARCHER follows MODEL_* convention.
-        researcher_model = os.getenv("MODEL_RESEARCHER") or router._select_model(task_type)
-        researcher_cfg = router._adapt_config(
-            router.configs.get(researcher_model, {}), task_type
-        )
-        return run_researcher(
-            harness_url=harness_url,
-            task_text=task_text,
-            task_id=task_id or task_text[:20].replace(" ", "_"),
-            task_type=task_type,
-            model=researcher_model,
-            cfg=researcher_cfg,
-        )
-
     vm = PcmRuntimeClientSync(harness_url)
 
     pre = run_prephase(vm, task_text, "")
