@@ -65,7 +65,7 @@ def contract_metric(example: dspy.Example, prediction, trace=None) -> dspy.Predi
     stall = bool(getattr(example, "stall_detected", False))
     scope_viol = bool(getattr(example, "write_scope_violations", False))
 
-    convergence = (MAX_CONTRACT_ROUNDS - rounds) / MAX_CONTRACT_ROUNDS
+    convergence = max(0.0, (MAX_CONTRACT_ROUNDS - rounds) / MAX_CONTRACT_ROUNDS)
 
     value = (
         0.70 * score
