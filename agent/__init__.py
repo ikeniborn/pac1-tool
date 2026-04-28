@@ -4,7 +4,7 @@ import os
 
 from bitgn.vm.pcm_connect import PcmRuntimeClientSync
 
-from .classifier import ModelRouter, TASK_PREJECT, classify_task
+from .classifier import ModelRouter, TASK_PREJECT
 from .loop import run_loop
 from .prephase import run_prephase
 from .prompt import build_system_prompt
