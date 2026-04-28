@@ -6,4 +6,9 @@ __pycache__
 .cache/.worktrees/
 
 # Runtime data (wiki, dspy examples, compiled programs)
-data/
+# Use data/* (not data/) so negations for subdirs work
+data/*
+!data/prompts/
+!data/prompts/**
+!data/default_contracts/
+!data/default_contracts/**

@@ -1,0 +1,21 @@
+{
+  "plan_steps": [
+    "list or tree the vault to discover structure",
+    "identify the target folder and files from AGENTS.MD",
+    "execute the task using appropriate tools",
+    "report completion with all modified paths"
+  ],
+  "success_criteria": [
+    "task completed as described",
+    "correct vault path used",
+    "no unintended files modified"
+  ],
+  "required_evidence": [],
+  "failure_conditions": [
+    "no action taken",
+    "wrong path modified",
+    "task abandoned due to truncated description"
+  ],
+  "is_default": true,
+  "rounds_taken": 0
+}

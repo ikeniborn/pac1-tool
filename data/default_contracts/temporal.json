@@ -1,0 +1,22 @@
+{
+  "plan_steps": [
+    "list capture folders to discover available artifact dates",
+    "derive ESTIMATED_TODAY using FIX-357 priority: artifact-anchored, then vault-content, then arithmetic",
+    "compute target date window from ESTIMATED_TODAY",
+    "match vault contents against target window",
+    "report result or nearest candidates if exact match absent"
+  ],
+  "success_criteria": [
+    "date arithmetic correct relative to derived ESTIMATED_TODAY",
+    "vault explored before computing target date",
+    "nearest candidates reported if exact match absent"
+  ],
+  "required_evidence": [],
+  "failure_conditions": [
+    "refused after single probe without full vault exploration",
+    "target date computed before vault exploration",
+    "exact-match-only search with no fallback to nearest candidates"
+  ],
+  "is_default": true,
+  "rounds_taken": 0
+}

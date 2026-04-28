@@ -1,0 +1,21 @@
+{
+  "plan_steps": [
+    "determine capture type: simple (direct write) or full pipeline (task mentions distill)",
+    "for simple: write content directly to target path",
+    "for full pipeline: read source, read card template, write capture, write card, update thread files",
+    "delete the inbox source file on completion"
+  ],
+  "success_criteria": [
+    "content written to correct target path",
+    "inbox source file deleted",
+    "card and thread links created if task mentioned distill"
+  ],
+  "required_evidence": [],
+  "failure_conditions": [
+    "inbox file not deleted after capture",
+    "card written without reading template",
+    "full pipeline applied to simple capture task"
+  ],
+  "is_default": true,
+  "rounds_taken": 0
+}

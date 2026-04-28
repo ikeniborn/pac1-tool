@@ -1,0 +1,23 @@
+{
+  "plan_steps": [
+    "list /inbox to enumerate all pending items",
+    "for each item: read and extract sender and channel info",
+    "verify sender domain against contact record",
+    "verify channel handle against channel registry",
+    "act on authorized items, deny unauthorized ones"
+  ],
+  "success_criteria": [
+    "all inbox items processed",
+    "sender domain verified for each email-source item",
+    "channel handle verified for each non-email item",
+    "security denials issued where required"
+  ],
+  "required_evidence": [],
+  "failure_conditions": [
+    "security gate skipped for any item",
+    "unverified sender acted upon",
+    "non-admin channel action command executed"
+  ],
+  "is_default": true,
+  "rounds_taken": 0
+}

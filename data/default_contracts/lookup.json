@@ -1,0 +1,21 @@
+{
+  "plan_steps": [
+    "search for the target entity by name or use list+filter for attribute-based lookup",
+    "read the matching file to extract the requested field",
+    "if cross-referencing accounts and contacts: extract primary_contact_id then read contact file",
+    "return the requested value"
+  ],
+  "success_criteria": [
+    "requested field value returned",
+    "no write operations performed",
+    "correct entity identified without ambiguity"
+  ],
+  "required_evidence": [],
+  "failure_conditions": [
+    "declared failure after single empty search without retry",
+    "wrong entity selected due to name ambiguity",
+    "write operation performed on lookup task"
+  ],
+  "is_default": true,
+  "rounds_taken": 0
+}

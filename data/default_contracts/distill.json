@@ -1,0 +1,20 @@
+{
+  "plan_steps": [
+    "read the source material",
+    "analyze and synthesize key insights",
+    "write the card or note to the appropriate vault path"
+  ],
+  "success_criteria": [
+    "source material read before writing",
+    "output written to correct vault path",
+    "synthesis includes key insights and actionable items"
+  ],
+  "required_evidence": [],
+  "failure_conditions": [
+    "output written without reading source",
+    "output written to wrong path",
+    "no synthesis performed"
+  ],
+  "is_default": true,
+  "rounds_taken": 0
+}

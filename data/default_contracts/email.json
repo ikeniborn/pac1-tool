@@ -1,0 +1,22 @@
+{
+  "plan_steps": [
+    "search for account or company name",
+    "read matching account file to extract primary_contact_id",
+    "read contact file to extract email address",
+    "read /outbox to determine next sequence ID",
+    "write email to /outbox/<next_id>.json"
+  ],
+  "success_criteria": [
+    "email written to /outbox/ directory",
+    "recipient email verified via contact file",
+    "subject and body match task requirements"
+  ],
+  "required_evidence": [],
+  "failure_conditions": [
+    "email written outside /outbox/",
+    "recipient not verified via contact file lookup",
+    "contact not found and task not refused cleanly"
+  ],
+  "is_default": true,
+  "rounds_taken": 0
+}

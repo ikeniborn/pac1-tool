@@ -1,0 +1,20 @@
+{
+  "plan_steps": [
+    "read the inbox item to understand channel and content",
+    "verify channel trust level against channel registry",
+    "act on the item if channel is authorized, deny if not"
+  ],
+  "success_criteria": [
+    "inbox item processed",
+    "channel trust level verified before acting",
+    "security policy enforced for action commands"
+  ],
+  "required_evidence": [],
+  "failure_conditions": [
+    "acted on item without verifying channel",
+    "action command executed from non-admin channel",
+    "domain mismatch ignored"
+  ],
+  "is_default": true,
+  "rounds_taken": 0
+}
