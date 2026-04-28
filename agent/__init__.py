@@ -73,7 +73,7 @@ def write_wiki_fragment(
         print(f"[wiki] fragment write failed: {e}")
 
 
-def run_agent(router: ModelRouter, harness_url: str, task_text: str, task_id: str = "") -> dict:
+def run_agent(router: ModelRouter, harness_url: str, task_text: str) -> dict:
     """Execute a single PAC1 benchmark task and return token usage statistics.
 
     Flow:

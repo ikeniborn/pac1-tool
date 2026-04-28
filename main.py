@@ -289,7 +289,7 @@ def _run_single_task(trial_id: str, task_filter: list, router: ModelRouter) -> t
         print(f"{CLI_BLUE}{trial.instruction}{CLI_CLR}\n{'-' * 80}")
         token_stats: dict = {"input_tokens": 0, "output_tokens": 0}
         try:
-            token_stats = run_agent(router, trial.harness_url, trial.instruction, task_id=task_id)
+            token_stats = run_agent(router, trial.harness_url, trial.instruction)
         except Exception as exc:
             print(exc)
         task_elapsed = time.time() - task_start
