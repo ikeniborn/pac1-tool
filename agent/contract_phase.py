@@ -33,6 +33,36 @@ def _effective_model(caller_model: str) -> str:
     return os.environ.get("MODEL_CONTRACT") or caller_model
 
 
+_executor_predictor = None
+_evaluator_predictor = None
+
+
+def _load_compiled_programs() -> bool:
+    """Load compiled DSPy programs at module startup. Returns True on success, False on fail-open."""
+    global _executor_predictor, _evaluator_predictor
+    if not (_EXECUTOR_PROGRAM_PATH.exists() and _EVALUATOR_PROGRAM_PATH.exists()):
+        return False
+    try:
+        import dspy
+        from .optimization.contract_modules import ExecutorPropose, EvaluatorReview
+        ep = dspy.Predict(ExecutorPropose)
+        ep.load(str(_EXECUTOR_PROGRAM_PATH))
+        evp = dspy.Predict(EvaluatorReview)
+        evp.load(str(_EVALUATOR_PROGRAM_PATH))
+        _executor_predictor = ep
+        _evaluator_predictor = evp
+        if _LOG_LEVEL == "DEBUG":
+            print("[contract] Loaded compiled executor/evaluator programs")
+        return True
+    except Exception as exc:
+        if _LOG_LEVEL == "DEBUG":
+            print(f"[contract] Failed to load compiled programs: {exc}")
+        return False
+
+
+_load_compiled_programs()
+
+
 def _strip_fences(text: str) -> str:
     """Strip markdown code fences from LLM output before JSON parsing."""
     text = text.strip()

@@ -187,3 +187,31 @@ def test_contract_metric_returns_prediction_with_feedback():
     assert hasattr(result, "feedback")
     assert isinstance(result.feedback, str)
     assert len(result.feedback) > 0
+
+
+def test_optimize_contract_target_in_cli_choices():
+    """--target contract is a valid choice in optimize_prompts.py CLI."""
+    import subprocess
+    import sys
+    result = subprocess.run(
+        [sys.executable, "scripts/optimize_prompts.py", "--help"],
+        capture_output=True, text=True,
+        cwd="/home/ikeniborn/Documents/Project/pac1-tool",
+    )
+    assert "contract" in result.stdout
+
+
+def test_load_compiled_programs_fail_open(tmp_path):
+    """_load_compiled_programs returns False when program files are missing."""
+    import agent.contract_phase as cp
+    # No program files in tmp_path → returns False
+    orig_executor = cp._EXECUTOR_PROGRAM_PATH
+    orig_evaluator = cp._EVALUATOR_PROGRAM_PATH
+    cp._EXECUTOR_PROGRAM_PATH = tmp_path / "missing_executor.json"
+    cp._EVALUATOR_PROGRAM_PATH = tmp_path / "missing_evaluator.json"
+    try:
+        result = cp._load_compiled_programs()
+        assert result is False
+    finally:
+        cp._EXECUTOR_PROGRAM_PATH = orig_executor
+        cp._EVALUATOR_PROGRAM_PATH = orig_evaluator

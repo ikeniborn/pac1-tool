@@ -56,18 +56,21 @@ if str(_BASE) not in sys.path:
 import dspy
 
 from agent.optimization.logger import OptimizeLogger
-from agent.optimization.metrics import builder_metric, evaluator_metric, classifier_metric
+from agent.optimization.metrics import builder_metric, evaluator_metric, classifier_metric, contract_metric
 from agent.optimization import select_backend
 from agent.dspy_lm import DispatchLM
-from agent.dspy_examples import get_trainset, get_eval_trainset, get_classifier_trainset
+from agent.dspy_examples import get_trainset, get_eval_trainset, get_classifier_trainset, get_contract_trainset
 from agent.dispatch import anthropic_client as _ant_client, openrouter_client as _or_client
 from agent.prompt_builder import PromptAddendum
 from agent.evaluator import EvaluateCompletion
 from agent.classifier import ClassifyTask
+from agent.optimization.contract_modules import ExecutorPropose, EvaluatorReview
 
 _BUILDER_PROGRAM_PATH = _BASE / "data" / "prompt_builder_program.json"
 _EVAL_PROGRAM_PATH = _BASE / "data" / "evaluator_program.json"
 _CLASSIFIER_PROGRAM_PATH = _BASE / "data" / "classifier_program.json"
+_CONTRACT_EXECUTOR_PROGRAM_PATH = _BASE / "data" / "contract_executor_program.json"
+_CONTRACT_EVALUATOR_PROGRAM_PATH = _BASE / "data" / "contract_evaluator_program.json"
 _OPTIMIZE_LOG_PATH = _BASE / "data" / "optimize_runs.jsonl"
 _OPTIMIZE_ERROR_LOG_PATH = _BASE / "data" / "dspy_errors.jsonl"
 
@@ -570,6 +573,41 @@ def optimize_classifier(model: str, cfg: dict, min_score: float = 0.8, max_per_t
     )
 
 
+def optimize_contract(model: str, cfg: dict) -> None:
+    """Compile ExecutorPropose and EvaluatorReview using contract training examples."""
+    env_override = os.environ.get("OPTIMIZER_CONTRACT")
+    if env_override:
+        os.environ["OPTIMIZER_DEFAULT"] = env_override
+
+    executor_trainset = get_contract_trainset(min_score=1.0, role="executor")
+    evaluator_trainset = get_contract_trainset(min_score=1.0, role="evaluator")
+
+    if not executor_trainset or not evaluator_trainset:
+        print(
+            "[optimize] No contract examples found. "
+            "Run with CONTRACT_ENABLED=1 CONTRACT_COLLECT_DSPY=1 to collect them."
+        )
+        return
+
+    print(
+        f"[optimize] Contract executor trainset: {len(executor_trainset)} examples, "
+        f"evaluator trainset: {len(evaluator_trainset)} examples"
+    )
+
+    _run_target(
+        lambda: dspy.Predict(ExecutorPropose),
+        executor_trainset, contract_metric,
+        _CONTRACT_EXECUTOR_PROGRAM_PATH, "contract/executor",
+        model=model, cfg=cfg, task_max_tokens=800,
+    )
+    _run_target(
+        lambda: dspy.Predict(EvaluatorReview),
+        evaluator_trainset, contract_metric,
+        _CONTRACT_EVALUATOR_PROGRAM_PATH, "contract/evaluator",
+        model=model, cfg=cfg, task_max_tokens=800,
+    )
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
@@ -582,7 +620,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--target",
-        choices=["builder", "evaluator", "classifier", "all"],
+        choices=["builder", "evaluator", "classifier", "contract", "all"],
         default="all",
         help="Which program to optimise (default: all)",
     )
@@ -616,6 +654,9 @@ def main() -> None:
 
         if args.target in ("classifier", "all"):
             optimize_classifier(model, cfg, min_score=args.min_score, max_per_type=args.max_per_type)
+
+        if args.target in ("contract", "all"):
+            optimize_contract(model, cfg)
 
         print("[optimize] Done.")
     except KeyboardInterrupt:
