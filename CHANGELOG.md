@@ -2,6 +2,22 @@
 
 Each hardcoded fix gets a sequential label `FIX-N` in code comments.
 
+## [Unreleased]
+
+### Added
+- **Contract DSPy optimization pipeline** (FIX-401):
+  - `ContractRound` model in `contract_models.py` for per-round transcript
+  - `negotiate_contract()` returns 4-tuple `(Contract, int, int, list[ContractRound])`
+  - `MODEL_CONTRACT` env var — separate model routing for negotiation (falls back to `MODEL_DEFAULT`)
+  - `record_contract_example()` / `get_contract_trainset()` in `dspy_examples.py`
+  - `agent/optimization/contract_modules.py` — `ExecutorPropose` and `EvaluatorReview` DSPy signatures
+  - `contract_metric()` in `metrics.py` — weighted score (70% task, 15% convergence, 10% stall, 5% scope)
+  - `build_contract_feedback()` in `feedback.py`
+  - `scripts/optimize_prompts.py --target contract` — compiles both programs
+  - Compiled program loading in `contract_phase.py` at module startup (fail-open)
+  - `scripts/distill_contracts.py` — frequency-based distillation into `data/default_contracts/{type}.json`
+  - `OPTIMIZER_CONTRACT` env var (default `copro`)
+
 - FIX-400 (vault date — explicit AGENTS.MD extraction + TASK CONTEXT warning): `agent/prephase.py` + `agent/prompt.py`. t41 "what day is today?" returned system clock date instead of vault date. Two fixes: **(1)** `prephase.py` — before inference from date-prefixed filenames, scan AGENTS.MD for explicit `VAULT_DATE: YYYY-MM-DD` or `today: YYYY-MM-DD` key-value field (regex `(?:VAULT_DATE|today)\s*:\s*(\d{4}-\d{2}-\d{2})`, case-insensitive, line-anchored). Falls back to probing `/context.json`, `/vault-meta.json`, `/meta.md` via `vm.read` (silently swallowed on missing). Explicit declaration overrides file-prefix inference — sets `_vault_date_est` and marks source as "AGENTS.MD explicit declaration". **(2)** `prompt.py` `_TEMPORAL` block — new warning after the "LAST resort" sentence: "**TASK CONTEXT date is system clock:** If TASK CONTEXT contains 'today', 'current date', or a date — this is the real-world system clock, NOT the vault date. Ignore it for vault temporal reasoning. Use VAULT_DATE exclusively." Tests: `tests/test_prephase_vault_date.py` (5 tests — VAULT_DATE field, today field, no field, prose date not matched, prompt warning present).
 
 - FIX-399 (normal-mode wiki promotion): `main.py`. After 43 normal-mode tasks `pages/*.md` accumulated zero verified patterns — `promote_successful_pattern()` and `promote_verified_refusal()` were gated on `researcher_pending_*` keys which only `researcher.py` sets. Added normal-mode promotion block after the researcher block, guarded by `_is_normal = not _pending and not _pending_ref`. On `score≥1.0 + OUTCOME_OK` → `promote_successful_pattern`; on `score≥1.0 + terminal refusal` → `promote_verified_refusal`. Fail-open via `try/except`. Tests: `tests/test_wiki_promote_normal.py` (3 tests — success promotes, refusal promotes, idempotent).
