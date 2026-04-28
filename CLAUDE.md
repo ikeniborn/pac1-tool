@@ -37,65 +37,29 @@ Key variables:
 - `EVALUATOR_ENABLED` / `PROMPT_BUILDER_ENABLED` — enable/disable DSPy subsystems
 - `MODEL_DEFAULT`, `MODEL_EMAIL`, `MODEL_LOOKUP`, `MODEL_WIKI`, etc. — per-task-type model routing (`MODEL_WIKI` controls wiki-lint; all support `claude-code/*` prefix for CC tier)
 - `CC_ENABLED=1`, `ICLAUDE_CMD`, `CC_MAX_RETRIES` — Claude Code tier config (see `.env.example`)
-- `RESEARCHER_MODE=1` — альтернативный режим (FIX-362); выключает evaluator/stall/timeout, делегирует в `agent/researcher.py`
 
 `models.json` contains per-model provider settings and per-task-type model assignments.
 
 Task types: `think`, `distill`, `email`, `lookup`, `inbox`, `queue`, `capture`, `crm`, `temporal`, `preject`.
 
-### Researcher mode (FIX-362)
+### Knowledge Graph (`agent/wiki_graph.py`, `data/wiki/graph.json`)
 
-Альтернативный режим для сбора данных и ручного разбора сложных задач. Активируется через `RESEARCHER_MODE=1`, normal mode остаётся нетронутым.
-
-**ВАЖНО**: выставлять `PARALLEL_TASKS=1`. Параллельные задачи все загружают `graph.json`/`pages/` одновременно при старте и не видят паттернов друг друга — знание накапливается только при последовательном исполнении.
-
-Что выключено: evaluator (skeptic-гейт, для исследования неуместен), stall-detector, `TASK_TIMEOUT_S`, DSPy prompt_builder, LLM-voting классификатора (работает только regex fast-path).
-
-Поток: внешний цикл ≤ `RESEARCHER_MAX_CYCLES` (default 10). На каждом цикле — inner `run_loop` (`researcher_mode=True`, `max_steps=RESEARCHER_STEPS_PER_CYCLE`). После inner-loop — reflector.py (1 LLM-вызов) структурирует траекторию в `{outcome, what_worked, what_failed, hypothesis_for_next, key_tool_calls, graph_deltas, goal_shape, final_answer, input_tokens, output_tokens}`. Фрагмент пишется в `data/wiki/fragments/research/<task_type>/` (run_wiki_lint этот путь пропускает). Между циклами строится новый addendum: previous-cycle reflections + top-K узлов из графа + существующие wiki patterns. На cycle ≥ 2 — `graph.json` перечитывается с диска и мержится в in-memory (FIX-366) для подхвата паттернов от sequential-задач.
-
-Wiki policy:
-- **fragments** накапливаются все циклы подряд;
-- **pages** обновляются ТОЛЬКО на верифицированном успехе (`reflection.outcome=="solved"` AND агентский `OUTCOME_OK` AND benchmark `score==1.0`) через `promote_successful_pattern()` → `## Successful pattern: <task_id> (date)` в `pages/<task_type>.md`. Idempotent по `task_id + hash_trajectory`. Ротация > `WIKI_PAGE_MAX_PATTERNS` → `archive/patterns/`. Score-gate делается в `main.py` после `end_trial()` (FIX-363a).
-- **verified refusals** (FIX-366): terminal refusal (`NONE_CLARIFICATION`/`NONE_UNSUPPORTED`/`DENIED_SECURITY`) + `score==1.0` → `promote_verified_refusal()` записывает `## Verified refusal: <task_id> (date)` в тот же `pages/<task_type>.md`. Отдельный маркер `<!-- refusal: task_id:outcome -->`, ротация в `archive/refusals/<page>/`.
-- Повторный negative с той же траекторией → `archive/research_negatives/<task_id>_<hash>.json`, затронутые узлы графа получают `degrade_confidence(-epsilon)`; узлы ниже `WIKI_GRAPH_MIN_CONFIDENCE` → `graph_archive.json`.
-
-Cycle-retry policy (FIX-374): benchmark score недоступен внутри trial'а, поэтому между циклами работают два разных механизма продолжения.
-- **Terminal refusal** (`OUTCOME_NONE_CLARIFICATION`/`NONE_UNSUPPORTED`/`DENIED_SECURITY`) — retry с хинтом `REFUSAL_RETRY: ...` в `hypothesis_for_next` до `RESEARCHER_REFUSAL_MAX_RETRIES` раз (default 3), далее принимаем refusal и short-circuit с `pending_refusal`. Evaluator не вызывается (наблюдаемый false-approve на t11). Cap нужен чтобы агент, сходящийся на refusal, не жёг все `max_cycles` впустую.
-- **Self-OUTCOME_OK** при `RESEARCHER_EVAL_GATED=1` и `cycle < max_cycles` — вызов `evaluate_completion()` как прокси-score. `approved=False` → `EVAL_REJECTED: ...` в `hypothesis_for_next`, `continue`. `approved=True` → short-circuit + `pending_promotion`. Fail-open на любой ошибке evaluator'а.
-- Запись в `pages/` по-прежнему гейчится реальным `score≥1.0` в `main.py`.
-- Env: `RESEARCHER_EVAL_GATED` (default 0), `RESEARCHER_EVAL_SKEPTICISM=high`, `RESEARCHER_EVAL_EFFICIENCY=mid`. Refusal-retry всегда включён в researcher mode, флага нет.
-- DSPy сбор: при `DSPY_COLLECT=1` + `RESEARCHER_EVAL_GATED=1` последний gate-call записывается в `data/dspy_eval_examples.jsonl` с реальным `score` как label (`score==1.0 → yes`, иначе `no`). Особо ценны false-approves (approved + score=0) — учат evaluator ловить неверные self-OUTCOME_OK. Builder-примеры не собираются (addendum строит reflector).
-
-OUTCOME_FLIP_HINT + diversification detector (FIX-375): два симметричных механизма выхода из local minimum reflector'а.
-- **OK-side flip**: в ветке evaluator reject при ≥2 rejection'ах с Jaccard-similarity reason'ов ≥ threshold ИЛИ монотонности последних `K+1` сырых `hypothesis_for_next` — в `hypothesis_for_next` добавляется `OUTCOME_FLIP_HINT: ...consider OUTCOME_NONE_CLARIFICATION/UNSUPPORTED`. Цель: t43-класс (reflector залип на одной интерпретации, evaluator отклоняет с одним и тем же reason).
-- **Refusal last-chance**: после `RESEARCHER_REFUSAL_MAX_RETRIES` exhausted вместо сразу accept — один extra цикл с зеркальным `OUTCOME_FLIP_HINT: ...attempt any plausible interpretation where task IS answerable`. Цель: t11/t19-класс (агент упорно refuse'ит, но задача может быть решаема).
-- Env: `RESEARCHER_FLIP_HINT_ENABLED=1`, `RESEARCHER_FLIP_REASON_SIMILARITY_THRESHOLD=0.5`, `RESEARCHER_FLIP_HYP_MONOTONIC_K=2`, `RESEARCHER_FLIP_HYP_SIMILARITY_THRESHOLD=0.6`, `RESEARCHER_REFUSAL_LAST_CHANCE=1`. Stats: `researcher_flip_hints_injected`.
-
-OK-loop hardening (FIX-375b) — три связанных изменения от наблюдения t43 (15 циклов OUTCOME_OK с одним и тем же final_answer, evaluator не вызывался ни разу из-за reflector.is_solved=False):
-- **(A) evaluator-primary gate**: `_gate_relevant` снимает `reflection.is_solved` из условия — evaluator теперь судит любой `OUTCOME_OK` при `RESEARCHER_EVAL_GATED=1`. Reflector становится контекстом, не блокатором. Evaluator approve при `is_solved=False` → researcher переписывает `reflection.outcome="solved"` для consistency с promotion-блоком.
-- **(B) reflector outcome-history**: `reflect()` принимает `outcome_history: list[str]` (последние 5 циклов), включает блок `PREVIOUS_OUTCOMES (last N cycles): ...` в user_msg с подсказкой «consider whether the task is truly answerable». Раньше reflector видел только текущий цикл изолированно, не замечая 14× повторов.
-- **(C) hard guard**: после `RESEARCHER_OK_LOOP_LIMIT` (default 5) consecutive OUTCOME_OK с identical final_answer (trim+lowercase) — forced short-circuit с `pending_refusal{outcome=OUTCOME_NONE_CLARIFICATION}`. Срабатывает ДО evaluator gate (не тратит LLM-вызовы на повторное rejection). Counter resets когда `agent_outcome != OUTCOME_OK` или final_answer изменился.
-- Stats: `researcher_ok_loop_break: True` (флаг trip'а), `researcher_early_stop="OUTCOME_NONE_CLARIFICATION"`. Pending_refusal записывается через тот же score-gate что и обычный refusal в `main.py`.
-
-Knowledge graph (`agent/wiki_graph.py`, `data/wiki/graph.json`):
 - Узлы: `insight`, `rule`, `pattern`, `antipattern` с `{tags, confidence, uses, last_seen}`
 - Рёбра: `requires`, `conflicts_with`, `generalizes`, `precedes`
 - Retrieval: `retrieve_relevant(graph, task_type, task_text, top_k)` — scoring = tag_overlap + text-token overlap + confidence × log(uses). Вариант `retrieve_relevant_with_ids()` дополнительно возвращает list of injected node ids для post-trial reinforcement.
 - Инспекция: `uv run python scripts/print_graph.py [--all] [--tag email] [--edges]`
 
-Граф наполняется по двум путям (FIX-389):
-- **Researcher mode** (`RESEARCHER_MODE=1`) — reflector извлекает `graph_deltas` из каждой трассы цикла; `merge_updates` + `save_graph` после каждого цикла.
-- **Normal mode** (`RESEARCHER_MODE=0`) — гибрид:
-  - LLM-extractor в `run_wiki_lint`: `_llm_synthesize` возвращает `(markdown, deltas)`. Promt просит модель приложить fenced ```json {graph_deltas: ...}``` после страницы. Аггрегируем deltas по всем категориям → один `merge_updates`/`save_graph` в конце lint. Парсинг fail-open: невалидный JSON → пишем только markdown. Гейт: `WIKI_GRAPH_AUTOBUILD=1`.
-  - Cheap pattern-extractor + confidence feedback в `main.py` после `end_trial()`: `score=1.0` → `bump_uses` на узлы из prompt'а + `add_pattern_node` от `step_facts`; `score=0.0` → `degrade_confidence(epsilon)`. Гейт: `WIKI_GRAPH_FEEDBACK=1`. Не активен на researcher trial'ах.
-- Граф читается в **system prompt** агента (`agent/__init__.py`, до `_inject_addendum`), в **DSPy addendum** (`prompt_builder.py:graph_context` InputField) и в **evaluator** (`evaluator.py:_load_graph_insights`). Все три гейчены `WIKI_GRAPH_ENABLED=1`.
-- `stats["graph_injected_node_ids"]` фиксирует, какие узлы агент видел в этом trial'е — feedback в `main.py` целит ровно по ним.
+Граф наполняется двумя путями (FIX-389):
+- **LLM-extractor** в `run_wiki_lint`: `_llm_synthesize` возвращает `(markdown, deltas)`. Prompt просит модель приложить fenced ```json {graph_deltas: ...}``` после страницы. Агрегируем deltas по всем категориям → один `merge_updates`/`save_graph` в конце lint. Парсинг fail-open: невалидный JSON → пишем только markdown. Гейт: `WIKI_GRAPH_AUTOBUILD=1`.
+- **Pattern-extractor + confidence feedback** в `main.py` после `end_trial()`: `score=1.0` → `bump_uses` на узлы из prompt'а + `add_pattern_node` от `step_facts`; `score=0.0` → `degrade_confidence(epsilon)`. Гейт: `WIKI_GRAPH_FEEDBACK=1`.
+
+Граф читается в **system prompt** агента (`agent/__init__.py`), в **DSPy addendum** (`prompt_builder.py:graph_context` InputField) и в **evaluator** (`evaluator.py:_load_graph_insights`). Все три гейчены `WIKI_GRAPH_ENABLED=1`.
+
+`stats["graph_injected_node_ids"]` фиксирует, какие узлы агент видел в этом trial'е — feedback в `main.py` целит ровно по ним.
 
 После расширения `PromptAddendum` Signature полем `graph_context` (FIX-389) ранее скомпилированные DSPy-программы в `data/prompt_builder_*_program.json` могут падать на отсутствующее поле в few-shot demos. `predictor.load()` обёрнут в try/except (fail-open в default-промпт), но для качества рекомендуется перекомпилировать: `uv run python scripts/optimize_prompts.py --target builder`.
 
-Env-переменные: `RESEARCHER_MODE`, `RESEARCHER_MAX_CYCLES`, `RESEARCHER_STEPS_PER_CYCLE`, `MODEL_RESEARCHER`, `RESEARCHER_LOG_ENABLED`, `RESEARCHER_NEGATIVES_ENABLED`/`RESEARCHER_NEGATIVES_TOP_K` (FIX-370), `RESEARCHER_SHORT_CIRCUIT`/`RESEARCHER_SHORT_CIRCUIT_THRESHOLD` (FIX-371, offline-only), `RESEARCHER_DRIFT_HINTS`/`RESEARCHER_DRIFT_PREFIX_LEN` (FIX-372), `RESEARCHER_EVAL_GATED`/`RESEARCHER_EVAL_SKEPTICISM`/`RESEARCHER_EVAL_EFFICIENCY` (FIX-374), `RESEARCHER_FLIP_HINT_ENABLED`/`RESEARCHER_FLIP_REASON_SIMILARITY_THRESHOLD`/`RESEARCHER_FLIP_HYP_MONOTONIC_K`/`RESEARCHER_FLIP_HYP_SIMILARITY_THRESHOLD`/`RESEARCHER_REFUSAL_LAST_CHANCE` (FIX-375), `RESEARCHER_OK_LOOP_LIMIT` (FIX-375b), `RESEARCHER_EVAL_FAIL_CLOSED`/`RESEARCHER_HINT_FORCING`/`RESEARCHER_HINT_MAX_INJECTIONS`/`RESEARCHER_MIDCYCLE_BREAKOUT`/`RESEARCHER_MIDCYCLE_CHECK_EVERY`/`RESEARCHER_MIDCYCLE_REPEAT_THRESHOLD`/`RESEARCHER_REFLECTOR_DIVERSIFY`/`RESEARCHER_REFLECTOR_PRIOR_WINDOW`/`RESEARCHER_STEPS_ADAPTIVE`/`RESEARCHER_STEPS_MAX`/`RESEARCHER_TOTAL_STEP_BUDGET`/`RESEARCHER_SOFT_STALL`/`RESEARCHER_REFUSAL_DYNAMIC`/`RESEARCHER_REFUSAL_MIN_CYCLES_LEFT`/`RESEARCHER_GRAPH_QUARANTINE`/`RESEARCHER_GRAPH_MIN_CONF`/`RESEARCHER_DRIFT_FULL_TRACE`/`RESEARCHER_DRIFT_LCS_MIN` (FIX-376, все default OFF; FIX-376e — global escape ladder через `RESEARCHER_TOTAL_STEP_BUDGET=180` cumulative cap), `WIKI_GRAPH_ENABLED`, `WIKI_GRAPH_TOP_K`, `WIKI_GRAPH_CONFIDENCE_EPSILON`, `WIKI_GRAPH_MIN_CONFIDENCE`, `WIKI_PAGE_MAX_PATTERNS`, `WIKI_GRAPH_AUTOBUILD`, `WIKI_GRAPH_FEEDBACK` (FIX-389; все в `.env.example`).
-
-CC-tier совместим: reflector и inner-loop используют `dispatch.call_llm_raw`, роутинг по `provider` в `models.json`.
+Env-переменные: `WIKI_GRAPH_ENABLED`, `WIKI_GRAPH_TOP_K`, `WIKI_GRAPH_CONFIDENCE_EPSILON`, `WIKI_GRAPH_MIN_CONFIDENCE`, `WIKI_PAGE_MAX_PATTERNS`, `WIKI_GRAPH_AUTOBUILD`, `WIKI_GRAPH_FEEDBACK` (все в `.env.example`).
 
 ### Task-type registry (FIX-325)
 
@@ -150,7 +114,7 @@ main.py → run_agent()
 
 **DSPy Prompt Optimization**: `prompt_builder.py` generates 3–6 bullet points of task-specific guidance; `evaluator.py` does quality review. Both are compiled via COPRO and stored in `data/`. They fail-open if compiled programs are missing.
 
-**Evaluator consumes researcher knowledge (FIX-367)**: `evaluate_completion()` injects two extra InputFields into `EvaluateCompletion`: `reference_patterns` (content of `data/wiki/pages/<task_type>.md` — Successful patterns + Verified refusals score-gated promoted by researcher) and `graph_insights` (top-K relevant nodes via `wiki_graph.retrieve_relevant`). Wiki/graph are ADVISORY — on conflict with hardcoded INBOX/ENTITY rules the hardcoded rules win. Env-gates: `EVALUATOR_WIKI_ENABLED`, `EVALUATOR_WIKI_MAX_CHARS`, `EVALUATOR_GRAPH_TOP_K` (graph additionally gated behind `WIKI_GRAPH_ENABLED`). After growing researcher corpus recompile per-type evaluator programs: `uv run python scripts/optimize_prompts.py --target evaluator`.
+**Evaluator uses wiki knowledge (FIX-367)**: `evaluate_completion()` injects two extra InputFields into `EvaluateCompletion`: `reference_patterns` (content of `data/wiki/pages/<task_type>.md` — Successful patterns + Verified refusals, score-gated) and `graph_insights` (top-K relevant nodes via `wiki_graph.retrieve_relevant`). Wiki/graph are ADVISORY — on conflict with hardcoded INBOX/ENTITY rules the hardcoded rules win. Env-gates: `EVALUATOR_WIKI_ENABLED`, `EVALUATOR_WIKI_MAX_CHARS`, `EVALUATOR_GRAPH_TOP_K` (graph additionally gated behind `WIKI_GRAPH_ENABLED`). Recompile per-type evaluator programs after wiki pages grow: `uv run python scripts/optimize_prompts.py --target evaluator`.
 
 **Stall Detection** (`stall.py`): Detects same-tool loops (3×), repeated path errors (2×), exploration stalls (6+ steps without write/delete). Adaptive hints escalate at 12+ steps.
 
