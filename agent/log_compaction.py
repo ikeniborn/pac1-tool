@@ -181,13 +181,39 @@ def build_digest(facts: "list[_StepFact]") -> str:
 # Log compaction (sliding window)
 # ---------------------------------------------------------------------------
 
-def _compact_log(log: list, max_tool_pairs: int = 7, preserve_prefix: list | None = None,
-                 step_facts: "list[_StepFact] | None" = None) -> list:
-    """Keep preserved prefix + last N assistant/tool message pairs.
-    Older pairs are replaced with a single summary message.
-    If step_facts provided, uses build_digest() instead of 'Actions taken:'."""
+def _compact_log(
+    log: list,
+    preserve_prefix: list | None = None,
+    step_facts: "list[_StepFact] | None" = None,
+    *,
+    token_limit: int,
+    compact_threshold_pct: float = 0.70,
+) -> list:
+    """Lazy sliding-window log compaction.
+
+    Triggers only when estimated token fill exceeds compact_threshold_pct of
+    token_limit. Pairs kept are chosen dynamically by fill level:
+      70-85% -> 6 pairs, 85-95% -> 4 pairs, 95%+ -> 3 pairs.
+    Read facts in digest are deduplicated and stored as metadata only.
+    """
     prefix_len = len(preserve_prefix) if preserve_prefix else 0
     tail = log[prefix_len:]
+
+    # Lazy trigger: skip compaction when there is plenty of room
+    estimated = _estimate_tokens(log)
+    threshold = int(token_limit * compact_threshold_pct)
+    if estimated < threshold:
+        return log
+
+    # Dynamic pairs based on fill level
+    fill = estimated / token_limit
+    if fill >= 0.95:
+        max_tool_pairs = 3
+    elif fill >= 0.85:
+        max_tool_pairs = 4
+    else:
+        max_tool_pairs = 6
+
     max_msgs = max_tool_pairs * 2
 
     if len(tail) <= max_msgs:
@@ -210,16 +236,10 @@ def _compact_log(log: list, max_tool_pairs: int = 7, preserve_prefix: list | Non
     if confirmed_ops:
         parts.append("Confirmed ops (already done, do NOT redo):\n" + "\n".join(f"  {op}" for op in confirmed_ops))
 
-    # Use ALL accumulated step facts as the complete state digest.
-    # Always use the full step_facts list — never slice by old_step_count, because:
-    # 1. Extra injected messages (auto-lists, stall hints, JSON retries) shift len(old)//2
-    # 2. After a previous compaction the old summary message itself lands in `old`, skewing the count
-    # 3. step_facts is the authoritative ground truth regardless of how many compactions occurred
     if step_facts:
         parts.append(build_digest(step_facts))
-        print(f"\x1B[33m[compact] Compacted {len(old)} msgs into digest ({len(step_facts)} facts)\x1B[0m")
+        print(f"\x1B[33m[compact] Compacted {len(old)} msgs into digest ({len(step_facts)} facts, fill={fill:.0%})\x1B[0m")
     else:
-        # Fallback: plain text summary from assistant messages (legacy behaviour)
         summary_parts = []
         for msg in old:
             if msg.get("role") == "assistant" and msg.get("content"):
