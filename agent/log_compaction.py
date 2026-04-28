@@ -17,28 +17,17 @@ from dataclasses import dataclass, field as dc_field
 # Tool result compaction for log history
 # ---------------------------------------------------------------------------
 
-_MAX_READ_HISTORY = 4000  # chars of file content kept in history (model saw full text already)  # FIX-147
-
-
 def _compact_tool_result(action_name: str, txt: str) -> str:
     """Compact tool result before storing in log history.
-    The model already received the full result in the current step's user message;
-    history only needs a reference-quality summary to avoid token accumulation."""
+    Read results are preserved in full — file content may contain the answer.
+    List and search results are normalized to a compact format."""
     if txt.startswith("WRITTEN:") or txt.startswith("DELETED:") or \
             txt.startswith("CREATED DIR:") or txt.startswith("MOVED:") or \
             txt.startswith("ERROR") or txt.startswith("VAULT STRUCTURE:"):
         return txt  # already compact or important verbatim
 
     if action_name == "Req_Read":
-        try:
-            d = json.loads(txt)
-            content = d.get("content", "")
-            path = d.get("path", "")
-            if len(content) > _MAX_READ_HISTORY:
-                return f"{path}: {content[:_MAX_READ_HISTORY]}...[+{len(content) - _MAX_READ_HISTORY} chars]"
-        except (json.JSONDecodeError, ValueError):
-            pass
-        return txt[:_MAX_READ_HISTORY + 30] + ("..." if len(txt) > _MAX_READ_HISTORY + 30 else "")
+        return txt  # full file content preserved in log history
 
     if action_name == "Req_List":
         try:
@@ -99,32 +88,10 @@ def _extract_fact(action_name: str, action, result_txt: str) -> "_StepFact | Non
         try:
             d = json.loads(result_txt)
             content = d.get("content", "").replace("\n", " ").strip()
-            if "accounts/" in path:
-                # [FIX-244] Structured digest for account files: extract key lookup fields
-                # instead of char-truncating. Truncation at 250 cuts off `account_manager`
-                # mid-value, causing agent to hallucinate manager names from partial data.
-                try:
-                    acct = json.loads(d.get("content", ""))
-                    summary = json.dumps(
-                        {
-                            "name": acct.get("name", ""),
-                            "account_manager": acct.get("account_manager", ""),
-                            "status": acct.get("status", ""),
-                            "industry": acct.get("industry", ""),
-                        },
-                        ensure_ascii=False,
-                    )
-                    return _StepFact("read", path, summary)
-                except (json.JSONDecodeError, ValueError):
-                    return _StepFact("read", path, content[:250])
-            elif "inbox/" in path:
-                _limit = 1000  # FIX-258: evaluator needs full message for cross-account check
-            else:
-                _limit = 500
-            return _StepFact("read", path, content[:_limit])
+            return _StepFact("read", path, content)
         except (json.JSONDecodeError, ValueError):
             pass
-        return _StepFact("read", path, result_txt[:300].replace("\n", " "))
+        return _StepFact("read", path, result_txt.replace("\n", " "))
 
     if action_name == "Req_List":
         try:
