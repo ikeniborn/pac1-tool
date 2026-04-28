@@ -13,6 +13,11 @@ import json
 from dataclasses import dataclass, field as dc_field
 
 
+def _estimate_tokens(log: list) -> int:
+    """Estimate token count for a message log (3 chars/token, conservative for mixed languages)."""
+    return sum(len(str(m.get("content", ""))) for m in log) // 3
+
+
 # ---------------------------------------------------------------------------
 # Tool result compaction for log history
 # ---------------------------------------------------------------------------
@@ -131,7 +136,18 @@ def _extract_fact(action_name: str, action, result_txt: str) -> "_StepFact | Non
 
 
 def build_digest(facts: "list[_StepFact]") -> str:
-    """Build compact state digest from accumulated step facts."""
+    """Build compact state digest from accumulated step facts.
+
+    Read facts are deduplicated by path (latest wins) and emitted as metadata
+    only — no content. This keeps the digest compact regardless of file sizes.
+    Agent re-reads if it needs the content again.
+    """
+    # FIX-409: Deduplicate reads: last read of each path wins
+    latest_reads: dict[str, "_StepFact"] = {}
+    for f in facts:
+        if f.kind == "read":
+            latest_reads[f.path] = f
+
     sections: dict[str, list[str]] = {
         "LISTED": [], "READ": [], "FOUND": [],
         "DONE": [],
@@ -142,7 +158,9 @@ def build_digest(facts: "list[_StepFact]") -> str:
         if f.kind == "list":
             sections["LISTED"].append(f"  {f.path}: {f.summary}")
         elif f.kind == "read":
-            sections["READ"].append(f"  {f.path}: {f.summary}")
+            if latest_reads.get(f.path) is f:  # FIX-409: emit only the latest read per path
+                char_count = len(f.summary)
+                sections["READ"].append(f"  {f.path}: (read, {char_count} chars)")
         elif f.kind == "search":
             sections["FOUND"].append(f"  {f.summary}")
         elif f.kind in ("write", "delete", "move", "mkdir"):
