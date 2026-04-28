@@ -1,6 +1,5 @@
 """Tests for contract distillation script."""
 import json
-import pytest
 from pathlib import Path
 
 
