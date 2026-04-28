@@ -12,3 +12,7 @@ data/*
 !data/prompts/**
 !data/default_contracts/
 !data/default_contracts/**
+!data/wiki/pages/
+!data/wiki/pages/**
+!data/wiki/graph.json
+!data/task_types.json
