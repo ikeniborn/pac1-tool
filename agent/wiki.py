@@ -809,32 +809,47 @@ def _llm_synthesize(
 
 
 def _split_markdown_and_deltas(response: str) -> tuple[str, dict]:
-    """FIX-389: extract a trailing ```json {...} ``` fence from the synthesis
-    response. Returns (markdown_without_fence, parsed_deltas). On any failure
-    returns (response, {}) — fail-open.
+    """FIX-403: extract graph_deltas from synthesis response.
 
-    FIX-390: log fence-parse outcome to diagnose LLM compliance (CC tier
-    opus-4.7 occasionally omits the fence)."""
+    Search order:
+    1. Any ```json ... ``` fenced block containing graph_deltas key (any position).
+    2. Bare `graph_deltas: {...}` marker in response text.
+    3. Fail-open: return (response, {}).
+
+    Tries json.loads first, json5 as fallback (trailing commas / single quotes).
+    """
     if not _GRAPH_AUTOBUILD:
         return response, {}
     import json as _json
-    matches = list(_JSON_FENCE_RE.finditer(response))
-    if not matches:
-        print("[wiki-graph] fence: missing — LLM did not emit ```json block")
-        return response, {}
-    last = matches[-1]
-    raw = last.group(1)
-    try:
-        parsed = _json.loads(raw)
-    except Exception as e:
-        print(f"[wiki-graph] fence: invalid JSON ({e}) — fail-open")
-        return response, {}
-    deltas = parsed.get("graph_deltas") if isinstance(parsed, dict) else None
-    if not isinstance(deltas, dict):
-        print("[wiki-graph] fence: parsed but no graph_deltas dict — fail-open")
-        return response, {}
-    markdown = (response[:last.start()] + response[last.end():]).strip()
-    return markdown, deltas
+
+    def _parse(raw: str) -> dict | None:
+        try:
+            return _json.loads(raw)
+        except Exception:
+            pass
+        try:
+            from agent.json_extract import _try_json5
+            return _try_json5(raw)
+        except Exception:
+            return None
+
+    # 1. Fenced ```json ... ``` block — search any position
+    for m in _JSON_FENCE_RE.finditer(response):
+        parsed = _parse(m.group(1))
+        if isinstance(parsed, dict) and isinstance(parsed.get("graph_deltas"), dict):
+            markdown = (response[:m.start()] + response[m.end():]).strip()
+            return markdown, parsed["graph_deltas"]
+
+    # 2. Bare graph_deltas: {...} marker (no fence)
+    bare = re.search(r'"?graph_deltas"?\s*:\s*(\{.*?\})\s*$', response, re.DOTALL)
+    if bare:
+        parsed = _parse(bare.group(1))
+        if isinstance(parsed, dict):
+            print("[wiki-graph] fence: found bare graph_deltas marker")
+            return response, parsed
+
+    print("[wiki-graph] fence: missing — LLM did not emit ```json block")
+    return response, {}
 
 
 def _concat_merge(existing: str, new_entries: list[str]) -> str:
