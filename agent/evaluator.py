@@ -26,7 +26,6 @@ from .dspy_lm import DispatchLM
 _WIKI_EVAL_ENABLED = os.environ.get("EVALUATOR_WIKI_ENABLED", "1") == "1"
 _GRAPH_EVAL_ENABLED = os.environ.get("WIKI_GRAPH_ENABLED", "1") == "1"
 _GRAPH_EVAL_TOP_K = int(os.environ.get("EVALUATOR_GRAPH_TOP_K", "5"))
-_WIKI_EVAL_MAX_CHARS = int(os.environ.get("EVALUATOR_WIKI_MAX_CHARS", "4000"))
 
 # ---------------------------------------------------------------------------
 # Hard-gate: verbatim preservation of quoted task values in writes
@@ -343,21 +342,16 @@ def _build_eval_prompt(
 # FIX-367: researcher wiki + knowledge graph context builders
 # ---------------------------------------------------------------------------
 
-def _load_reference_patterns(task_type: str, max_chars: int) -> str:
+def _load_reference_patterns(task_type: str) -> str:
     """Load researcher-promoted patterns (Successful + Verified refusal) for task_type.
 
-    Returns the page content truncated to max_chars. Fail-open → '' on any error.
+    Fail-open → '' on any error.
     """
     if not _WIKI_EVAL_ENABLED:
         return ""
     try:
         from .wiki import load_wiki_patterns
-        raw = load_wiki_patterns(task_type)
-        if not raw:
-            return ""
-        if len(raw) > max_chars:
-            raw = raw[:max_chars] + "\n[... truncated]"
-        return raw
+        return load_wiki_patterns(task_type) or ""
     except Exception as exc:
         print(f"{CLI_YELLOW}[evaluator] wiki load failed ({exc}) — skipping patterns{CLI_CLR}")
         return ""
@@ -463,7 +457,7 @@ def evaluate_completion(
             print(f"{CLI_YELLOW}[evaluator] failed to load program ({exc}), using defaults{CLI_CLR}")
 
     # FIX-367: inject researcher-accumulated wiki patterns + graph insights.
-    ref_patterns = _load_reference_patterns(task_type, _WIKI_EVAL_MAX_CHARS) or "(none)"
+    ref_patterns = _load_reference_patterns(task_type) or "(none)"
     graph_insights = _load_graph_insights(task_type, task_text, _GRAPH_EVAL_TOP_K) or "(none)"
 
     lm = DispatchLM(model, cfg, max_tokens=max_tok)

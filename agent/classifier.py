@@ -207,12 +207,12 @@ def _classify_task_llm_once(task_text: str, model: str, model_config: dict,
             _cls_max_tok = int(os.environ.get("CLASSIFIER_MAX_TOKENS", 256))
             _lm = DispatchLM(model, _cls_cfg, max_tokens=_cls_max_tok, json_mode=False)
             with dspy.context(lm=_lm):
-                pred = _prog(task_text=task_text[:300], vault_hint=vault_hint or "")
+                pred = _prog(task_text=task_text, vault_hint=vault_hint or "")
             detected = (pred.task_type or "").strip().lower()
             # FIX-324: retry once when model returns empty string (truncated CoT)
             if not detected:
                 with dspy.context(lm=_lm):
-                    pred = _prog(task_text=task_text[:300], vault_hint=vault_hint or "")
+                    pred = _prog(task_text=task_text, vault_hint=vault_hint or "")
                 detected = (pred.task_type or "").strip().lower()
             if detected in VALID_TYPES:
                 print(f"[MODEL_ROUTER] DSPy classifier: '{detected}'")
@@ -223,9 +223,9 @@ def _classify_task_llm_once(task_text: str, model: str, model_config: dict,
             print(f"[MODEL_ROUTER] DSPy classifier returned invalid type '{detected}', falling back to LLM")
         except Exception as exc:
             print(f"[MODEL_ROUTER] DSPy classifier failed ({exc}), falling back to LLM")
-    user_msg = f"Task: {task_text[:150]}"
+    user_msg = f"Task: {task_text}"
     if vault_hint:
-        user_msg += f"\nContext: {vault_hint[:800]}"
+        user_msg += f"\nContext: {vault_hint}"
     try:
         raw = call_llm_raw(_CLASSIFY_SYSTEM, user_msg, model, _cls_cfg,
                            max_tokens=_cls_cfg["max_completion_tokens"],

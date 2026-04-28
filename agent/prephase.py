@@ -9,18 +9,6 @@ from .dispatch import CLI_BLUE, CLI_CLR, CLI_GREEN, CLI_YELLOW
 
 _LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
 
-_AGENTS_MD_BUDGET = 8000  # FIX-209: increased from 2500; full AGENTS.MD eliminates non-determinism (audit 3.3)
-
-
-def _filter_agents_md(content: str, task_text: str) -> tuple[str, bool]:
-    """Include full AGENTS.MD up to budget; deterministic truncation if over.
-
-    Previous word-overlap heuristic removed — it caused non-deterministic section
-    selection based on task phrasing (audit 3.3).
-    """
-    if len(content) <= _AGENTS_MD_BUDGET:
-        return content, False
-    return content[:_AGENTS_MD_BUDGET] + f"\n[...truncated — full AGENTS.MD is {len(content)} chars]", True
 
 
 @dataclass
@@ -379,13 +367,10 @@ def run_prephase(
     if _vault_date_hint:
         prephase_parts.append(_vault_date_hint)
     if agents_md_content:
-        agents_md_injected, was_filtered = _filter_agents_md(agents_md_content, task_text)
-        if was_filtered:
-            print(f"{CLI_YELLOW}[prephase] AGENTS.MD filtered: {len(agents_md_content)} → {len(agents_md_injected)} chars{CLI_CLR}")
         if _LOG_LEVEL == "DEBUG":
             print(f"{CLI_BLUE}[prephase] AGENTS.MD content:\n{agents_md_content}{CLI_CLR}")
         prephase_parts.append(
-            f"\n{agents_md_path} CONTENT (source of truth for vault semantics):\n{agents_md_injected}"
+            f"\n{agents_md_path} CONTENT (source of truth for vault semantics):\n{agents_md_content}"
         )
     if docs_content_parts:
         prephase_parts.append(

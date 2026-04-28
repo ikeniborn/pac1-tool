@@ -40,7 +40,7 @@ from .evaluator import (  # FIX-218
     check_quoted_values_verbatim,
     evaluate_completion,
 )
-from .evaluator import _GRAPH_EVAL_TOP_K, _WIKI_EVAL_MAX_CHARS
+from .evaluator import _GRAPH_EVAL_TOP_K
 from .tracer import get_task_tracer  # П3: replay tracer (no-op when TRACE_ENABLED=0)
 from .security import (  # FIX-203/206/214/215/250/321
     _normalize_for_injection,
@@ -2208,7 +2208,7 @@ def _run_step(
             "done_ops": "\n".join(f"- {op}" for op in _eval_done_ops) or "(none)",
             "completed_steps": _steps_str or "(none)",
             "skepticism_level": _EVAL_SKEPTICISM,
-            "reference_patterns": _load_reference_patterns(task_type, _WIKI_EVAL_MAX_CHARS) or "(none)",
+            "reference_patterns": _load_reference_patterns(task_type) or "(none)",
             "graph_insights": _load_graph_insights(task_type, st.task_text, _GRAPH_EVAL_TOP_K) or "(none)",
         }
         _tracer.emit("evaluator_call", st.step_count, {
