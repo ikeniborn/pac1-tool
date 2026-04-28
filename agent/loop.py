@@ -958,7 +958,7 @@ def _run_pre_route(
         # Include vault context so classifier knows what's supported
         _vault_ctx = ""
         if pre.agents_md_content:
-            _vault_ctx = f"\nVault context (AGENTS.MD):\n{pre.agents_md_content[:600]}"
+            _vault_ctx = f"\nVault context (AGENTS.MD):\n{pre.agents_md_content[:2000]}"
         _type_ctx = f"\nClassifier task type: {task_type}" if task_type and task_type != "default" else ""
         # FIX-326: security-only router prompt — viability is handled by classifier
         _route_system = (
@@ -1952,11 +1952,9 @@ def _run_step(
     """Execute one agent loop step.  # FIX-195
     Returns True if task is complete (report_completion received or fatal error)."""
 
-    # --- Task timeout check ---
-    # FIX-362: researcher mode has no wall-clock deadline — outer orchestrator
-    # bounds work by RESEARCHER_MAX_CYCLES × RESEARCHER_STEPS_PER_CYCLE instead.
+    # Task timeout check
     elapsed_task = time.time() - task_start
-    if not st.researcher_mode and elapsed_task > TASK_TIMEOUT_S:
+    if elapsed_task > TASK_TIMEOUT_S:
         print(f"{CLI_RED}[TIMEOUT] Task exceeded {TASK_TIMEOUT_S}s ({elapsed_task:.0f}s elapsed), stopping{CLI_CLR}")
         try:
             vm.answer(AnswerRequest(
