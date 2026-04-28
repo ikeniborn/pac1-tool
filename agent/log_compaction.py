@@ -199,10 +199,13 @@ def _compact_log(
     prefix_len = len(preserve_prefix) if preserve_prefix else 0
     tail = log[prefix_len:]
 
+    if token_limit <= 0:
+        return log
+
     # Lazy trigger: skip compaction when there is plenty of room
     estimated = _estimate_tokens(log)
     threshold = int(token_limit * compact_threshold_pct)
-    if estimated < threshold:
+    if compact_threshold_pct > 0.0 and estimated < threshold:
         return log
 
     # Dynamic pairs based on fill level
