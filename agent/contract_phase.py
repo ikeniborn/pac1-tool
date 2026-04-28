@@ -134,13 +134,17 @@ def negotiate_contract(
 
     context_block = ""
     if vault_date_hint:
-        context_block += f"\n\nDATE CONTEXT:\n{vault_date_hint}"
+        # Neutral date anchor — executor uses this as lower bound, not literal today.
+        context_block += (
+            f"\n\nDATE CONTEXT:\nVAULT_DATE_LOWER_BOUND: {vault_date_hint}"
+            f"\n(Real benchmark today ≥ this date; use it as anchor to derive ESTIMATED_TODAY.)"
+        )
     if agents_md:
         context_block += f"\n\nAGENTS.MD:\n{agents_md}"
     if wiki_context:
-        context_block += f"\n\nWIKI CONTEXT:\n{wiki_context[:1000]}"
+        context_block += f"\n\nWIKI CONTEXT:\n{wiki_context}"
     if graph_context:
-        context_block += f"\n\nKNOWLEDGE GRAPH:\n{graph_context[:500]}"
+        context_block += f"\n\nKNOWLEDGE GRAPH:\n{graph_context}"
 
     # FIX-393: build per-role cfg overrides with Pydantic-derived JSON schemas
     # so CC tier enforces structured output via --json-schema.

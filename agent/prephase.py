@@ -34,8 +34,8 @@ class PrephaseResult:
     inbox_files: list = field(default_factory=list)
     # Vault tree text from step 1 — passed to prompt_builder for task-specific guidance.
     vault_tree_text: str = ""
-    # FIX-406: vault date hint for contract negotiation context.
-    vault_date_hint: str = ""
+    # FIX-406: inferred vault date (YYYY-MM-DD) for contract negotiation.
+    vault_date_est: str = ""
 
 
 def _format_tree_entry(entry, prefix: str = "", is_last: bool = True) -> list[str]:
@@ -437,5 +437,5 @@ def run_prephase(
         agents_md_path=agents_md_path,
         inbox_files=sorted(inbox_files, key=lambda x: x[0]),
         vault_tree_text=tree_txt,
-        vault_date_hint=_vault_date_hint,
+        vault_date_est=_vault_date_est,
     )
