@@ -65,7 +65,7 @@ def test_build_digest_read_different_paths_both_present():
 def _make_log(n_pairs: int, msg_size: int = 10) -> list:
     """Build a log with n assistant+user message pairs of given size."""
     msgs = []
-    for i in range(n_pairs):
+    for _ in range(n_pairs):
         msgs.append({"role": "assistant", "content": "a" * msg_size})
         msgs.append({"role": "user", "content": "b" * msg_size})
     return msgs
