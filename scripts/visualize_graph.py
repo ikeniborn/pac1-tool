@@ -111,6 +111,19 @@ body { font-family: system-ui, sans-serif; background: #0d1117; color: #c9d1d9; 
 #legend { position: absolute; bottom: 16px; right: 16px; background: #161b22cc; border: 1px solid #30363d; border-radius: 6px; padding: 10px 14px; font-size: 12px; line-height: 1.8; }
 #legend span { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
 #stats { font-size: 12px; color: #8b949e; margin-left: auto; }
+div.vis-tooltip {
+  max-width: 280px;
+  white-space: normal !important;
+  word-break: break-word;
+  line-height: 1.6;
+  padding: 8px 10px !important;
+  background: #161b22 !important;
+  border: 1px solid #30363d !important;
+  color: #c9d1d9 !important;
+  border-radius: 6px !important;
+  font-size: 12px !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4) !important;
+}
 </style>
 </head>
 <body>
@@ -124,9 +137,16 @@ body { font-family: system-ui, sans-serif; background: #0d1117; color: #c9d1d9; 
     <input type="range" id="conf-slider" min="0" max="1" step="0.05" value="0">
   </label>
   <input type="text" id="search" placeholder="&crarr; поиск по тексту&hellip;">
+  <label style="gap:6px">repulsion <span id="repulsion-val">8k</span>
+    <input type="range" id="repulsion-slider" min="2000" max="30000" step="1000" value="8000" style="width:90px">
+  </label>
+  <label style="gap:6px">spacing <span id="spacing-val">120</span>
+    <input type="range" id="spacing-slider" min="30" max="400" step="10" value="120" style="width:80px">
+  </label>
   <button id="btn-physics" class="active" onclick="setLayout('physics')">Physics</button>
   <button id="btn-hierarchical" onclick="setLayout('hierarchical')">Hierarchical</button>
   <button id="btn-circular" onclick="setLayout('circular')">Circular</button>
+  <button onclick="resetView()" title="Сбросить вид">&#8635; Reset</button>
   <span id="stats"></span>
 </div>
 <div id="graph"></div>
@@ -195,7 +215,11 @@ function render() {
   document.getElementById('stats').textContent = nodes.length + ' узлов · ' + edges.length + ' рёбер';
 
   const container = document.getElementById('graph');
-  const nodeSet = new vis.DataSet(nodes);
+  const nodeSet = new vis.DataSet(nodes.map(n => {
+    const el = document.createElement('div');
+    el.innerHTML = n.title || '';
+    return { ...n, title: el };
+  }));
   const edgeSet = new vis.DataSet(edges.map(e => ({
     ...e, arrows: 'to', color: { color: '#444c56' }, font: { color: '#8b949e', size: 10 }
   })));
@@ -213,7 +237,15 @@ function graphHeight() {
   return (window.innerHeight - document.getElementById('toolbar').offsetHeight) + 'px';
 }
 
+function getPhysicsParams() {
+  return {
+    repulsion: parseInt(document.getElementById('repulsion-slider').value),
+    spacing:   parseInt(document.getElementById('spacing-slider').value),
+  };
+}
+
 function buildOptions() {
+  const { repulsion, spacing } = getPhysicsParams();
   const base = {
     nodes: { shape: 'dot', font: { color: '#c9d1d9', size: 11 }, borderWidth: 0 },
     edges: { smooth: { type: 'continuous' } },
@@ -223,14 +255,18 @@ function buildOptions() {
   };
   if (currentLayout === 'hierarchical') {
     return { ...base,
-      layout: { improvedLayout: false, hierarchical: { direction: 'UD', sortMethod: 'directed', levelSeparation: 120 } },
+      layout: { improvedLayout: false, hierarchical: { direction: 'UD', sortMethod: 'directed', levelSeparation: spacing } },
       physics: { enabled: false } };
   }
   if (currentLayout === 'circular') {
     return { ...base, layout: { improvedLayout: false, randomSeed: 42 }, physics: { enabled: false } };
   }
   return { ...base,
-    physics: { solver: 'barnesHut', barnesHut: { gravitationalConstant: -8000, springLength: 120 } } };
+    physics: { solver: 'barnesHut', barnesHut: { gravitationalConstant: -repulsion, springLength: spacing } } };
+}
+
+function resetView() {
+  if (network) network.fit({ animation: { duration: 400, easingFunction: 'easeInOutQuad' } });
 }
 
 function setLayout(layout) {
@@ -259,6 +295,20 @@ function setLayout(layout) {
 document.getElementById('conf-slider').addEventListener('input', e => {
   document.getElementById('conf-val').textContent = parseFloat(e.target.value).toFixed(2);
   render();
+});
+document.getElementById('repulsion-slider').addEventListener('input', e => {
+  const v = parseInt(e.target.value);
+  document.getElementById('repulsion-val').textContent = v >= 1000 ? Math.round(v/1000) + 'k' : v;
+  if (network && currentLayout === 'physics') {
+    network.setOptions({ physics: { barnesHut: { gravitationalConstant: -v } } });
+  }
+});
+document.getElementById('spacing-slider').addEventListener('input', e => {
+  const v = parseInt(e.target.value);
+  document.getElementById('spacing-val').textContent = v;
+  if (network && currentLayout === 'physics') {
+    network.setOptions({ physics: { barnesHut: { springLength: v } } });
+  }
 });
 document.getElementById('search').addEventListener('input', render);
 
