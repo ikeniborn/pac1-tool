@@ -391,7 +391,7 @@ def test_constraint_checklist_in_evaluator_prompt(mock_llm):
     """Constraint checklist appears in the evaluator's user prompt when wiki has constraints."""
     captured_calls = []
 
-    def capture(system, user_msg, model, cfg, **kwargs):
+    def capture(_system, user_msg, _model, _cfg, **kwargs):
         captured_calls.append(user_msg)
         # Alternate: first call = executor, second = evaluator
         if len(captured_calls) == 1:
