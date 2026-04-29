@@ -68,23 +68,19 @@ def test_consensus_on_round_2(mock_llm):
     assert contract.is_default is False
 
 
+@patch("agent.contract_phase._extract_json_from_text")
 @patch("agent.contract_phase.call_llm_raw")
-def test_fallback_on_max_rounds(mock_llm):
-    """Never agree → uses partial contract from last round (non-default)."""
-    mock_llm.side_effect = [
-        _make_executor_json(agreed=False),
-        _make_evaluator_json(agreed=False, objections=["not satisfied"]),
-        _make_executor_json(agreed=False),
-        _make_evaluator_json(agreed=False, objections=["still not satisfied"]),
-    ]
+def test_fallback_on_max_rounds_empty_transcript(mock_llm, mock_extract):
+    """All parse attempts exhausted every round → empty transcript → default contract."""
+    mock_llm.return_value = "not json"
+    mock_extract.return_value = None  # parse always fails
     from agent.contract_phase import negotiate_contract
-    contract, _, _, _rounds = negotiate_contract(
+    contract, _, _, rounds = negotiate_contract(
         task_text="task", task_type="default", agents_md="", wiki_context="",
-        graph_context="", model="m", cfg={}, max_rounds=2,
+        graph_context="", model="m", cfg={}, max_rounds=1,
     )
-    assert contract.is_default is False  # partial fallback, not generic default
-    assert contract.rounds_taken == 2
-    assert mock_llm.call_count == 4  # both rounds fully executed
+    assert contract.is_default is True
+    assert rounds == []
 
 
 @patch("agent.contract_phase.call_llm_raw")
