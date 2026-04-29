@@ -290,6 +290,44 @@ def test_vault_tree_injected_into_llm_prompt(mock_llm):
         assert "01_capture" in user_msg, f"vault_tree missing from prompt: {user_msg[:200]}"
 
 
+@patch("agent.contract_phase.call_llm_raw")
+def test_parse_retry_succeeds_on_third_attempt(mock_llm):
+    """Executor parse fails twice then succeeds — contract finalized, not default."""
+    bad_executor = "not json"
+    good_executor = _make_executor_json(agreed=True)
+    good_evaluator = _make_evaluator_json(agreed=True)
+    # Round 1: executor fails 2x, succeeds 3rd; then evaluator succeeds
+    mock_llm.side_effect = [
+        bad_executor, bad_executor, good_executor,
+        good_evaluator,
+    ]
+    from agent.contract_phase import negotiate_contract
+    contract, _, _, _ = negotiate_contract(
+        task_text="task", task_type="default", agents_md="", wiki_context="",
+        graph_context="", model="m", cfg={}, max_rounds=2,
+    )
+    assert contract.is_default is False, "Should finalize after retry success"
+
+
+@patch("agent.contract_phase.call_llm_raw")
+def test_parse_retry_exhausted_continues_to_next_round(mock_llm):
+    """Executor parse fails 3x on round 1 → skips round, tries round 2 which succeeds."""
+    bad_executor = "not json"
+    good_executor = _make_executor_json(agreed=True)
+    good_evaluator = _make_evaluator_json(agreed=True)
+    # Round 1: executor fails 3x (exhausted); Round 2: both succeed
+    mock_llm.side_effect = [
+        bad_executor, bad_executor, bad_executor,
+        good_executor, good_evaluator,
+    ]
+    from agent.contract_phase import negotiate_contract
+    contract, _, _, _ = negotiate_contract(
+        task_text="task", task_type="default", agents_md="", wiki_context="",
+        graph_context="", model="m", cfg={}, max_rounds=2,
+    )
+    assert contract.is_default is False, "Round 2 should succeed after round 1 retry exhaustion"
+
+
 def test_executor_proposal_json5_trailing_comma():
     """Contract negotiation survives trailing comma in executor JSON."""
     from unittest.mock import patch

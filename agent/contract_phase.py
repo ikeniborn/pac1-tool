@@ -162,6 +162,7 @@ def negotiate_contract(
     total_in = total_out = 0
     last_evaluator_response = ""
     rounds_transcript: list[dict] = []
+    _PARSE_RETRIES = 3
 
     for round_num in range(1, max_rounds + 1):
         # --- Executor turn ---
@@ -183,14 +184,29 @@ def negotiate_contract(
                 print(f"[contract] executor LLM failed round {round_num}")
             return _load_default_contract(task_type), total_in, total_out, rounds_transcript
 
-        # FIX-401: use multi-level JSON extractor instead of bare json.loads
-        extracted_executor = _extract_json_from_text(raw_executor)
-        try:
-            proposal = ExecutorProposal(**(extracted_executor or {}))
-        except (ValidationError, TypeError) as e:
+        # FIX-407: retry parse up to _PARSE_RETRIES before skipping round
+        proposal = None
+        for _retry in range(_PARSE_RETRIES):
+            extracted_executor = _extract_json_from_text(raw_executor)
+            try:
+                proposal = ExecutorProposal(**(extracted_executor or {}))
+                break
+            except (ValidationError, TypeError) as e:
+                if _LOG_LEVEL == "DEBUG":
+                    print(f"[contract] executor parse error round {round_num} attempt {_retry + 1}: {e}")
+                if _retry < _PARSE_RETRIES - 1:
+                    _retry_tok: dict = {}
+                    raw_executor = call_llm_raw(
+                        executor_system, executor_user, negotiation_model, executor_cfg,
+                        max_tokens=800, token_out=_retry_tok,
+                    ) or raw_executor
+                    total_in += _retry_tok.get("input", 0)
+                    total_out += _retry_tok.get("output", 0)
+
+        if proposal is None:
             if _LOG_LEVEL == "DEBUG":
-                print(f"[contract] executor parse error round {round_num}: {e}")
-            return _load_default_contract(task_type), total_in, total_out, rounds_transcript
+                print(f"[contract] executor parse exhausted round {round_num} — skipping round")
+            continue
 
         # --- Evaluator turn ---
         evaluator_user = (
@@ -212,14 +228,29 @@ def negotiate_contract(
                 print(f"[contract] evaluator LLM failed round {round_num}")
             return _load_default_contract(task_type), total_in, total_out, rounds_transcript
 
-        # FIX-401: use multi-level JSON extractor instead of bare json.loads
-        extracted_evaluator = _extract_json_from_text(raw_evaluator)
-        try:
-            response = EvaluatorResponse(**(extracted_evaluator or {}))
-        except (ValidationError, TypeError) as e:
+        # FIX-407: retry parse up to _PARSE_RETRIES before skipping round
+        response = None
+        for _retry in range(_PARSE_RETRIES):
+            extracted_evaluator = _extract_json_from_text(raw_evaluator)
+            try:
+                response = EvaluatorResponse(**(extracted_evaluator or {}))
+                break
+            except (ValidationError, TypeError) as e:
+                if _LOG_LEVEL == "DEBUG":
+                    print(f"[contract] evaluator parse error round {round_num} attempt {_retry + 1}: {e}")
+                if _retry < _PARSE_RETRIES - 1:
+                    _retry_tok2: dict = {}
+                    raw_evaluator = call_llm_raw(
+                        evaluator_system, evaluator_user, negotiation_model, evaluator_cfg,
+                        max_tokens=800, token_out=_retry_tok2,
+                    ) or raw_evaluator
+                    total_in += _retry_tok2.get("input", 0)
+                    total_out += _retry_tok2.get("output", 0)
+
+        if response is None:
             if _LOG_LEVEL == "DEBUG":
-                print(f"[contract] evaluator parse error round {round_num}: {e}")
-            return _load_default_contract(task_type), total_in, total_out, rounds_transcript
+                print(f"[contract] evaluator parse exhausted round {round_num} — skipping round")
+            continue
 
         rounds_transcript.append(ContractRound(
             round_num=round_num,
