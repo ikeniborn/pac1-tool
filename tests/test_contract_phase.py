@@ -34,7 +34,7 @@ def test_consensus_on_round_1(mock_llm):
         _make_evaluator_json(agreed=True),
     ]
     from agent.contract_phase import negotiate_contract
-    contract, in_tok, out_tok, _rounds = negotiate_contract(
+    contract, _, _, _ = negotiate_contract(
         task_text="Write email to bob@x.com",
         task_type="email",
         agents_md="",
@@ -60,7 +60,7 @@ def test_consensus_on_round_2(mock_llm):
         _make_evaluator_json(agreed=True),
     ]
     from agent.contract_phase import negotiate_contract
-    contract, _, _, _rounds = negotiate_contract(
+    contract, _, _, _ = negotiate_contract(
         task_text="task", task_type="default", agents_md="", wiki_context="",
         graph_context="", model="m", cfg={}, max_rounds=3,
     )
@@ -88,7 +88,7 @@ def test_fallback_on_llm_error(mock_llm):
     """LLM returns None (all tiers failed) → falls back to default contract."""
     mock_llm.return_value = None
     from agent.contract_phase import negotiate_contract
-    contract, _, _, _rounds = negotiate_contract(
+    contract, _, _, _ = negotiate_contract(
         task_text="task", task_type="default", agents_md="", wiki_context="",
         graph_context="", model="m", cfg={}, max_rounds=3,
     )
@@ -100,7 +100,7 @@ def test_fallback_on_invalid_json(mock_llm):
     """LLM returns malformed JSON → falls back to default contract."""
     mock_llm.return_value = "not json at all"
     from agent.contract_phase import negotiate_contract
-    contract, _, _, _rounds = negotiate_contract(
+    contract, _, _, _ = negotiate_contract(
         task_text="task", task_type="default", agents_md="", wiki_context="",
         graph_context="", model="m", cfg={}, max_rounds=3,
     )
@@ -112,7 +112,7 @@ def test_token_counting(mock_llm):
     """in_tok and out_tok are populated from LLM calls."""
     call_count = 0
 
-    def side_effect(system, user_msg, model, cfg, max_tokens=800, token_out=None, **kwargs):
+    def side_effect(_system, _user_msg, _model, _cfg, max_tokens=800, token_out=None, **_kwargs):
         nonlocal call_count
         if token_out is not None:
             token_out["input"] = 100
@@ -124,7 +124,7 @@ def test_token_counting(mock_llm):
 
     mock_llm.side_effect = side_effect
     from agent.contract_phase import negotiate_contract
-    contract, in_tok, out_tok, _rounds = negotiate_contract(
+    contract, in_tok, out_tok, _ = negotiate_contract(
         task_text="task", task_type="default", agents_md="", wiki_context="",
         graph_context="", model="m", cfg={}, max_rounds=3,
     )
@@ -144,7 +144,7 @@ def test_consensus_with_fenced_json(mock_llm):
         f"```json\n{evaluator_json}\n```",
     ]
     from agent.contract_phase import negotiate_contract
-    contract, _, _, _rounds = negotiate_contract(
+    contract, _, _, _ = negotiate_contract(
         task_text="Send email",
         task_type="email",
         agents_md="",
@@ -201,7 +201,7 @@ def test_cc_tier_skips_negotiation_no_llm_calls(mock_llm):
     """CC tier model → immediate default contract, zero LLM calls."""
     from agent.contract_phase import negotiate_contract
 
-    contract, in_tok, out_tok, rounds = negotiate_contract(
+    contract, in_tok, out_tok, _ = negotiate_contract(
         task_text="Write email to bob@x.com",
         task_type="email",
         agents_md="",
@@ -232,7 +232,7 @@ def test_negotiate_returns_rounds_transcript(mock_llm):
         model="test-model", cfg={}, max_rounds=3,
     )
     assert len(result) == 4
-    contract, in_tok, out_tok, rounds = result
+    _, _, _, rounds = result
     assert len(rounds) == 1
     assert rounds[0]["round_num"] == 1
     assert "plan_steps" in rounds[0]["executor_proposal"]
