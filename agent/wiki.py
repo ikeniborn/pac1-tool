@@ -319,6 +319,42 @@ def load_wiki_patterns(task_type: str, include_negatives: bool = True) -> str:
     return "\n\n".join(parts)
 
 
+def load_contract_constraints(task_type: str) -> list[dict]:
+    """FIX-415: Parse ## Contract constraints section from a wiki page.
+
+    Returns list of {id: str, rule: str} dicts. Fail-open → [].
+    """
+    page_name = _TYPE_TO_PAGE.get(task_type, task_type)
+    content = _read_page(page_name)
+    if not content:
+        return []
+
+    # Find the ## Contract constraints section
+    section_match = re.search(
+        r"^## Contract constraints\s*\n(.*?)(?=^## |\Z)",
+        content,
+        re.MULTILINE | re.DOTALL,
+    )
+    if not section_match:
+        return []
+
+    section = section_match.group(1)
+    constraints: list[dict] = []
+
+    # Each constraint starts with <!-- constraint: <id> -->
+    # followed by **ID:** line and **Rule:** line
+    for block in re.split(r"<!--\s*constraint:\s*\S+\s*-->", section):
+        id_match = re.search(r"\*\*ID:\*\*\s*(\S+)", block)
+        rule_match = re.search(r"\*\*Rule:\*\*\s*(.+?)(?=\n\n|\n\*\*|\Z)", block, re.DOTALL)
+        if id_match and rule_match:
+            constraints.append({
+                "id": id_match.group(1).strip(),
+                "rule": re.sub(r"\s+", " ", rule_match.group(1)).strip(),
+            })
+
+    return constraints
+
+
 def _load_dead_ends(task_type: str) -> str:
     """FIX-410: load last 5 error fragments and format as KNOWN DEAD ENDS block.
 
