@@ -30,3 +30,7 @@ package = false
 dev = [
     "pytest>=9.0.3",
 ]
+viz = [
+    "fastapi>=0.111",
+    "uvicorn>=0.29",
+]
