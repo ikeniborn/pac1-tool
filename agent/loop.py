@@ -148,6 +148,7 @@ from .log_compaction import (
     build_digest,
     _compact_log,
 )
+from .contract_monitor import check_step as _contract_check_step
 
 
 @dataclass
@@ -218,6 +219,7 @@ class _LoopState:
     step_count: int = 0
     llm_call_count: int = 0
     contract: "Any" = None  # FIX-392
+    contract_monitor_warnings: int = 0  # cap: 3 per task
 
 
 # _extract_fact, build_digest, _compact_log — imported from agent/log_compaction.py above
@@ -1952,6 +1954,7 @@ def _run_step(
     """Execute one agent loop step.  # FIX-195
     Returns True if task is complete (report_completion received or fatal error)."""
 
+    _cm_warning = None
     # Task timeout check
     elapsed_task = time.time() - task_start
     if elapsed_task > TASK_TIMEOUT_S:
@@ -2284,6 +2287,14 @@ def _run_step(
             # Preserve full content of successful writes for hard-gate checks
             if isinstance(job.function, Req_Write) and job.function.content:
                 st.successful_writes.append((job.function.path, job.function.content))
+            # Contract monitor: check last op against plan, cap 3 warnings per task
+            if (st.contract is not None and not st.contract.is_default
+                    and st.contract_monitor_warnings < 3):
+                _cm_warning = _contract_check_step(
+                    st.contract, st.done_ops, st.step_count
+                )
+                if _cm_warning:
+                    st.contract_monitor_warnings += 1
         else:
             st.steps_since_write += 1
     except ConnectError as exc:
@@ -2362,7 +2373,10 @@ def _run_step(
 
     # Compact tool result for log history (model saw full output already)
     _history_txt = _compact_tool_result(action_name, txt)
-    st.log.append({"role": "user", "content": f"Result of {action_name}: {_history_txt}"})
+    _content = f"Result of {action_name}: {_history_txt}"
+    if _cm_warning:
+        _content += f"\n{_cm_warning}"
+    st.log.append({"role": "user", "content": _content})
 
     return False
 
