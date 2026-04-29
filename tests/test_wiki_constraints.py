@@ -1,6 +1,5 @@
 # tests/test_wiki_constraints.py
 import textwrap
-from pathlib import Path
 from unittest.mock import patch
 
 
