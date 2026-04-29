@@ -219,6 +219,8 @@ class EvaluateCompletion(dspy.Signature):
     - `graph_insights` contains top-K tagged insights/rules/antipatterns from the knowledge graph
       scored by relevance to this task. Use antipatterns ([AVOID]) as rejection evidence;
       use rules/insights as approval support when the trajectory follows them.
+    - `contract_context` contains failure_conditions from the pre-agreed executor/evaluator
+      contract. If any failure condition is triggered by done_ops or agent_message, reject.
     - Wiki/graph context is ADVISORY. When it conflicts with the hardcoded INBOX RULES
       above, the hardcoded rules win (they encode benchmark-level safety invariants).
 
@@ -240,6 +242,9 @@ class EvaluateCompletion(dspy.Signature):
     )
     graph_insights: str = dspy.InputField(
         desc="Top-K relevant insights/rules/antipatterns from knowledge graph. '(none)' if empty."
+    )
+    contract_context: str = dspy.InputField(
+        desc="Pre-agreed failure_conditions from contract negotiation. '(none)' if no contract."
     )
 
     approved_str: str = dspy.OutputField(desc="'yes' or 'no'")
@@ -460,6 +465,10 @@ def evaluate_completion(
     ref_patterns = _load_reference_patterns(task_type) or "(none)"
     graph_insights = _load_graph_insights(task_type, task_text, _GRAPH_EVAL_TOP_K) or "(none)"
 
+    _contract_ctx = "(none)"
+    if contract is not None and not contract.is_default and contract.failure_conditions:
+        _contract_ctx = "\n".join(f"- {fc}" for fc in contract.failure_conditions)
+
     lm = DispatchLM(model, cfg, max_tokens=max_tok)
     try:
         with dspy.context(lm=lm, adapter=dspy.JSONAdapter()):
@@ -473,6 +482,7 @@ def evaluate_completion(
                 skepticism_level=skepticism,
                 reference_patterns=ref_patterns,
                 graph_insights=graph_insights,
+                contract_context=_contract_ctx,
             )
 
         approved_str_clean = (result.approved_str or "").strip().lower()
