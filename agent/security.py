@@ -90,9 +90,25 @@ _WRITE_PAYLOAD_INJECTION_PATTERNS = [
     re.compile(r'^\s*TRUSTED\s+PATCH\s*:', re.IGNORECASE | re.MULTILINE),
 ]
 
+# FIX-415: vault policy files may use security terminology legitimately.
+# Content read from these paths is exempt from write-payload injection scanning.
+_TRUSTED_POLICY_PATHS = (
+    "/docs/channels/",
+    "/docs/process-",
+    "/docs/automation.md",
+    "/docs/task-completion.md",
+    "/docs/inbox-",
+)
 
-def _check_write_payload_injection(content: str) -> bool:
-    """FIX-321: Return True if write content contains embedded command injection."""
+
+def _check_write_payload_injection(content: str, source_path: str | None = None) -> bool:
+    """FIX-321: Return True if write content contains embedded command injection.
+
+    FIX-415: source_path from trusted policy paths (docs/channels/, docs/process-*, etc.)
+    is exempt — channel registry and workflow docs legitimately use security terminology.
+    """
+    if source_path and any(source_path.startswith(p) for p in _TRUSTED_POLICY_PATHS):
+        return False
     _norm = _normalize_for_injection(content)
     return any(p.search(_norm) for p in _WRITE_PAYLOAD_INJECTION_PATTERNS)
 
