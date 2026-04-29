@@ -209,20 +209,25 @@ function render() {
   }
 }
 
+function graphHeight() {
+  return (window.innerHeight - document.getElementById('toolbar').offsetHeight) + 'px';
+}
+
 function buildOptions() {
   const base = {
     nodes: { shape: 'dot', font: { color: '#c9d1d9', size: 11 }, borderWidth: 0 },
     edges: { smooth: { type: 'continuous' } },
     interaction: { hover: true, tooltipDelay: 150, zoomView: true },
-    height: '100%',
+    layout: { improvedLayout: false },
+    height: graphHeight(),
   };
   if (currentLayout === 'hierarchical') {
     return { ...base,
-      layout: { hierarchical: { direction: 'UD', sortMethod: 'directed', levelSeparation: 120 } },
+      layout: { improvedLayout: false, hierarchical: { direction: 'UD', sortMethod: 'directed', levelSeparation: 120 } },
       physics: { enabled: false } };
   }
   if (currentLayout === 'circular') {
-    return { ...base, layout: { randomSeed: 42 }, physics: { enabled: false } };
+    return { ...base, layout: { improvedLayout: false, randomSeed: 42 }, physics: { enabled: false } };
   }
   return { ...base,
     physics: { solver: 'barnesHut', barnesHut: { gravitationalConstant: -8000, springLength: 120 } } };
