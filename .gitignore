@@ -19,3 +19,5 @@ data/wiki/fragments/
 !data/wiki/pages/**
 !data/wiki/graph.json
 !data/task_types.json
+.playwright-mcp
+.superpowers
