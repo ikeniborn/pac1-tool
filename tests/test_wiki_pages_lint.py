@@ -1,7 +1,6 @@
 """Tests for FIX-412: _run_pages_lint_pass — pages → graph."""
 import json
 from unittest.mock import patch, MagicMock
-from pathlib import Path
 from agent.wiki import _run_pages_lint_pass
 from agent.wiki_graph import Graph
 
