@@ -363,7 +363,9 @@ def _render_top(g: Graph, top: list[tuple[float, str, dict]]) -> str:
     if not top:
         return ""
     lines = ["## KNOWLEDGE GRAPH (relevant)"]
+    top_ids: set[str] = set()
     for _, nid, node in top:
+        top_ids.add(nid)
         ntype = node.get("type", "node")
         uses = node.get("uses", 1)
         conf = node.get("confidence", _DEFAULT_CONFIDENCE)
@@ -384,8 +386,6 @@ def _render_top(g: Graph, top: list[tuple[float, str, dict]]) -> str:
             lines.append(f"- [AVOID] {text} (conf={conf:.2f})")
         else:
             lines.append(f"- [{ntype}] {text} (conf={conf:.2f}, uses={uses})")
-
-    top_ids = {nid for _, nid, _ in top}
     for e in g.edges:
         if e.get("from") in top_ids and e.get("rel") == "requires":
             target = g.nodes.get(e.get("to"))
