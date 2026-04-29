@@ -345,7 +345,7 @@ def load_contract_constraints(task_type: str) -> list[dict]:
     # followed by **ID:** line and **Rule:** line
     for block in re.split(r"<!--\s*constraint:\s*\S+\s*-->", section):
         id_match = re.search(r"\*\*ID:\*\*\s*(\S+)", block)
-        rule_match = re.search(r"\*\*Rule:\*\*\s*(.+?)(?=\n\n|\n\*\*|\Z)", block, re.DOTALL)
+        rule_match = re.search(r"\*\*Rule:\*\*\s*(.*?)(?=\n\n|\n\*\*|\Z)", block, re.DOTALL)
         if id_match and rule_match:
             constraints.append({
                 "id": id_match.group(1).strip(),

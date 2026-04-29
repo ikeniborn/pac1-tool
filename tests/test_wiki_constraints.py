@@ -79,3 +79,23 @@ def test_unknown_task_type_returns_empty(tmp_path):
     with patch("agent.wiki._PAGES_DIR", tmp_path):
         result = fn("unknown_type_xyz")
     assert result == []
+
+
+def test_skip_malformed_blocks(tmp_path):
+    """Blocks without ID or Rule are skipped; valid blocks are returned."""
+    page = tmp_path / "queue.md"
+    page.write_text(textwrap.dedent("""\
+        ## Contract constraints
+
+        <!-- constraint: missing_id -->
+        **Rule:** Only rule, no ID.
+
+        <!-- constraint: has_both -->
+        **ID:** has_both
+        **Rule:** Valid.
+    """))
+    fn = _load()
+    with patch("agent.wiki._PAGES_DIR", tmp_path):
+        result = fn("queue")
+    assert len(result) == 1
+    assert result[0]["id"] == "has_both"
