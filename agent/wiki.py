@@ -41,6 +41,8 @@ _LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
 # FIX-389: gate the normal-mode graph autobuild path; orthogonal to
 # WIKI_GRAPH_ENABLED (read-side).
 _GRAPH_AUTOBUILD = os.environ.get("WIKI_GRAPH_AUTOBUILD", "1") == "1"
+# FIX-413: ingest archived error fragments as antipattern nodes (no LLM).
+_GRAPH_ERRORS_INGEST = os.environ.get("WIKI_GRAPH_ERRORS_INGEST", "0") == "1"
 
 # FIX-410: dead-end injection from error fragments at agent startup.
 _WIKI_NEGATIVES_ENABLED = os.environ.get("WIKI_NEGATIVES_ENABLED", "1") == "1"
@@ -351,6 +353,56 @@ def _load_dead_ends(task_type: str) -> str:
         entries.pop(0)
 
     return (header + "\n" + "\n".join(entries)) if entries else ""
+
+
+def _ingest_error_fragments(category: str, n: int = 10) -> list[dict]:
+    """FIX-413: parse archived error fragments into antipattern dicts without LLM.
+
+    Reads last N files from archive/errors/{category}/ by mtime (newest first).
+    Returns a list of {"text": ..., "tags": [...], "confidence": 0.4} dicts
+    suitable for merge_updates(g, {"antipatterns": items}).
+    """
+    archive_dir = _ARCHIVE_DIR / "errors" / category
+    if not archive_dir.exists():
+        return []
+    try:
+        frags = sorted(
+            archive_dir.glob("*.md"),
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
+        )[:n]
+    except OSError:
+        return []
+
+    items: list[dict] = []
+    for frag_path in frags:
+        try:
+            text = frag_path.read_text(encoding="utf-8")
+
+            # Try structured dead-end block (FIX-410 format).
+            dead_m = re.search(
+                r"^## Dead end: \S+\nOutcome: \S+\nWhat failed:\n(.*?)(?=\n## |\Z)",
+                text, re.MULTILINE | re.DOTALL,
+            )
+            if dead_m:
+                lines = dead_m.group(1).strip().splitlines()
+                first = re.sub(r"^-\s*", "", lines[0]).strip() if lines else ""
+                apt_text = first[:120]
+            else:
+                # Legacy: outcome + first stall description.
+                outcome_m = re.search(r"^outcome: (\S+)", text, re.MULTILINE)
+                stall_m = re.search(r"- stall:.*?→ (.{10,80})", text)
+                outcome = outcome_m.group(1) if outcome_m else "OUTCOME_FAIL"
+                stall = stall_m.group(1).strip() if stall_m else ""
+                apt_text = f"{outcome}: {stall[:80]}" if stall else outcome
+
+            apt_text = _scrub_entity(apt_text.strip())
+            if apt_text and len(apt_text) > 10:
+                items.append({"text": apt_text, "tags": [category], "confidence": 0.4})
+        except Exception:
+            continue
+
+    return items
 
 
 _ENTITY_PATTERNS = [
