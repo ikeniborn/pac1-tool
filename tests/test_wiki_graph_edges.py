@@ -40,3 +40,37 @@ def test_no_duplicate_deterministic_edges():
     merge_updates(g, updates)
     conflicts = [e for e in g.edges if e["rel"] == "conflicts_with"]
     assert len(conflicts) == 1, f"duplicate edges: {g.edges}"
+
+
+def test_text_reference_edge_resolved():
+    """LLM may emit edges with text refs instead of node IDs — must resolve."""
+    g = Graph()
+    updates = {
+        "new_rules":    [{"text": "read before write", "tags": ["email"]}],
+        "antipatterns": [{"text": "avoid reading twice", "tags": ["email"]}],
+        "edges": [
+            {
+                "from": "avoid reading twice",
+                "rel": "conflicts_with",
+                "to": "read before write",
+            }
+        ],
+    }
+    merge_updates(g, updates)
+    assert len(g.edges) >= 1
+    rels = {e["rel"] for e in g.edges}
+    assert "conflicts_with" in rels
+
+
+def test_invalid_text_reference_edge_silently_dropped():
+    """Edge referencing non-existent text is silently ignored (fail-open)."""
+    g = Graph()
+    updates = {
+        "new_rules": [{"text": "read before write", "tags": ["email"]}],
+        "edges": [
+            {"from": "this node does not exist", "rel": "requires", "to": "read before write"}
+        ],
+    }
+    merge_updates(g, updates)
+    assert len(g.nodes) == 1
+    assert g.edges == []

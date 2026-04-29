@@ -59,11 +59,13 @@ _GRAPH_INSTRUCTION_SUFFIX = (
     "{\"graph_deltas\": {\n"
     "  \"new_insights\": [{\"text\": \"<≤120 chars>\", \"tags\": [\"<category>\"], \"confidence\": 0.5}],\n"
     "  \"new_rules\":     [{\"text\": \"<≤120 chars>\", \"tags\": [\"<category>\"]}],\n"
-    "  \"antipatterns\":  [{\"text\": \"<≤120 chars>\", \"tags\": [\"<category>\"]}]\n"
+    "  \"antipatterns\":  [{\"text\": \"<≤120 chars>\", \"tags\": [\"<category>\"]}],\n"
+    "  \"edges\":         [{\"from\": \"<text of node A>\", \"rel\": \"requires|conflicts_with|generalizes|precedes\", \"to\": \"<text of node B>\"}]\n"
     "}}\n"
     "```\n"
     "Rules: 1-line text only; max 6 items per array; do not duplicate items "
-    "already on the existing page; if nothing worth recording, output empty arrays."
+    "already on the existing page; if nothing worth recording, output empty arrays. "
+    "Edges: reference nodes by their exact text; only emit edges between nodes in this delta."
 )
 
 # Task type → wiki page name mapping (FIX-325: driven by data/task_types.json).
