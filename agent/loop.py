@@ -2290,11 +2290,14 @@ def _run_step(
             # Contract monitor: check last op against plan, cap 3 warnings per task
             if (st.contract is not None and not st.contract.is_default
                     and st.contract_monitor_warnings < 3):
-                _cm_warning = _contract_check_step(
-                    st.contract, st.done_ops, st.step_count
-                )
-                if _cm_warning:
-                    st.contract_monitor_warnings += 1
+                try:
+                    _cm_warning = _contract_check_step(
+                        st.contract, st.done_ops, st.step_count
+                    )
+                    if _cm_warning:
+                        st.contract_monitor_warnings += 1
+                except Exception:
+                    pass
         else:
             st.steps_since_write += 1
     except ConnectError as exc:
