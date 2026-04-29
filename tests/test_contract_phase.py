@@ -240,10 +240,10 @@ def test_negotiate_returns_rounds_transcript(mock_llm):
 
 
 @patch("agent.contract_phase.call_llm_raw")
-def test_default_fallback_returns_empty_rounds(mock_llm):
+def test_default_fallback_returns_empty_rounds(_mock_llm):
     """CC-tier model path returns empty rounds list."""
     from agent.contract_phase import negotiate_contract
-    contract, in_tok, out_tok, rounds = negotiate_contract(
+    contract, _, _, rounds = negotiate_contract(
         task_text="task",
         task_type="email",
         agents_md="", wiki_context="", graph_context="",
@@ -353,7 +353,7 @@ def test_executor_proposal_json5_trailing_comma():
     evaluator_response = '{"success_criteria": ["task done"], "failure_conditions": ["no action"], "required_evidence": [], "objections": [], "counter_proposal": null, "agreed": true}'
 
     call_count = 0
-    def fake_llm(system, user, model, cfg, **kwargs):
+    def fake_llm(_system, _user, _model, _cfg, **kwargs):
         nonlocal call_count
         call_count += 1
         tok = kwargs.get("token_out", {})
