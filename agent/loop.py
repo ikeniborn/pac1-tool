@@ -1832,6 +1832,28 @@ def _pre_dispatch(
             "Report OUTCOME_DENIED_SECURITY immediately. Zero mutations."
         )
 
+    # FIX-415: evaluator-only mutation gate — block out-of-scope mutations
+    # when contract was reached without executor agreement.
+    if (
+        st.contract is not None
+        and st.contract.evaluator_only
+        and isinstance(job.function, (Req_Write, Req_Delete, Req_MkDir, Req_Move))
+    ):
+        path = ""
+        if hasattr(job.function, "path") and job.function.path:
+            path = job.function.path
+        elif hasattr(job.function, "from_name") and job.function.from_name:
+            path = job.function.from_name
+        scope = st.contract.mutation_scope
+        if not scope or path not in scope:
+            _gate_msg = (
+                f"[contract-gate] FIX-415: evaluator-only contract — mutation to '{path}' "
+                f"is outside agreed scope {scope or '[]'}. "
+                "Proceed read-only or return OUTCOME_NONE_CLARIFICATION if task requires this write."
+            )
+            print(f"{CLI_YELLOW}{_gate_msg}{CLI_CLR}")
+            return _gate_msg
+
     # Guard: TASK_LOOKUP read-only — mutations not allowed for lookup tasks
     if task_type == TASK_LOOKUP and isinstance(job.function, (Req_Write, Req_Delete, Req_MkDir, Req_Move)):
         print(f"{CLI_YELLOW}[lookup] Blocked mutation {action_name} — lookup tasks are read-only{CLI_CLR}")
