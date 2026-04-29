@@ -70,7 +70,7 @@ def test_consensus_on_round_2(mock_llm):
 
 @patch("agent.contract_phase.call_llm_raw")
 def test_fallback_on_max_rounds(mock_llm):
-    """Never agree → falls back to default contract after max_rounds exhausted."""
+    """Never agree → uses partial contract from last round (non-default)."""
     mock_llm.side_effect = [
         _make_executor_json(agreed=False),
         _make_evaluator_json(agreed=False, objections=["not satisfied"]),
@@ -82,7 +82,8 @@ def test_fallback_on_max_rounds(mock_llm):
         task_text="task", task_type="default", agents_md="", wiki_context="",
         graph_context="", model="m", cfg={}, max_rounds=2,
     )
-    assert contract.is_default is True
+    assert contract.is_default is False  # partial fallback, not generic default
+    assert contract.rounds_taken == 2
     assert mock_llm.call_count == 4  # both rounds fully executed
 
 
@@ -326,6 +327,25 @@ def test_parse_retry_exhausted_continues_to_next_round(mock_llm):
         graph_context="", model="m", cfg={}, max_rounds=2,
     )
     assert contract.is_default is False, "Round 2 should succeed after round 1 retry exhaustion"
+
+
+@patch("agent.contract_phase.call_llm_raw")
+def test_partial_fallback_from_last_round(mock_llm):
+    """max_rounds exceeded but transcript non-empty → non-default contract from last round."""
+    mock_llm.side_effect = [
+        _make_executor_json(agreed=False),
+        _make_evaluator_json(agreed=False, objections=["not satisfied"]),
+        _make_executor_json(agreed=False),
+        _make_evaluator_json(agreed=False, objections=["still not"]),
+    ]
+    from agent.contract_phase import negotiate_contract
+    contract, _, _, _ = negotiate_contract(
+        task_text="task", task_type="default", agents_md="", wiki_context="",
+        graph_context="", model="m", cfg={}, max_rounds=2,
+    )
+    assert contract.is_default is False, "Should use partial contract from last round"
+    assert contract.rounds_taken == 2
+    assert contract.plan_steps == ["list /", "write /out/1.json"]
 
 
 def test_executor_proposal_json5_trailing_comma():

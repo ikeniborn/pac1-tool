@@ -285,7 +285,22 @@ def negotiate_contract(
                 print(f"[contract] {mode} reached in {round_num} round(s)")
             return contract, total_in, total_out, rounds_transcript
 
-    # Max rounds exceeded — fallback
+    # Max rounds exceeded — use partial contract from last round if available
     if _LOG_LEVEL == "DEBUG":
-        print(f"[contract] max_rounds={max_rounds} exceeded — using default contract")
+        print(
+            f"[contract] max_rounds={max_rounds} exceeded — "
+            f"{'using partial from last round' if rounds_transcript else 'using default contract'}"
+        )
+    if rounds_transcript:
+        last = rounds_transcript[-1]
+        ep = last["executor_proposal"]
+        er = last["evaluator_response"]
+        return Contract(
+            plan_steps=ep.get("plan_steps", []),
+            success_criteria=er.get("success_criteria", []),
+            required_evidence=er.get("required_evidence", []),
+            failure_conditions=er.get("failure_conditions", []),
+            is_default=False,
+            rounds_taken=max_rounds,
+        ), total_in, total_out, rounds_transcript
     return _load_default_contract(task_type), total_in, total_out, rounds_transcript
