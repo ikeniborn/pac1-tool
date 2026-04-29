@@ -70,6 +70,23 @@ _GRAPH_INSTRUCTION_SUFFIX = (
     "Edges: reference nodes by their exact text; only emit edges between nodes in this delta."
 )
 
+_PAGES_GRAPH_PROMPT = (
+    "You are indexing a wiki page into a knowledge graph.\n"
+    "From the Markdown page below, extract concrete insights, rules, and antipatterns.\n"
+    "Focus on ## Successful pattern:, ## Verified refusal:, key rules, and pitfall sections.\n"
+    "Do NOT rewrite or summarize the page.\n"
+    "Output ONLY a fenced JSON block:\n"
+    "```json\n"
+    "{\"graph_deltas\": {\n"
+    "  \"new_insights\": [{\"text\": \"<≤120 chars>\", \"tags\": [\"<category>\"], \"confidence\": 0.7}],\n"
+    "  \"new_rules\":    [{\"text\": \"<≤120 chars>\", \"tags\": [\"<category>\"]}],\n"
+    "  \"antipatterns\": [{\"text\": \"<≤120 chars>\", \"tags\": [\"<category>\"]}],\n"
+    "  \"edges\":        [{\"from\": \"<text of A>\", \"rel\": \"requires|conflicts_with\", \"to\": \"<text of B>\"}]\n"
+    "}}\n"
+    "```\n"
+    "Rules: 1-line text only; max 8 items per array; confidence=0.7 for verified patterns."
+)
+
 # Task type → wiki page name mapping (FIX-325: driven by data/task_types.json).
 # 'think' is not a registered task type but a legacy synthesis-prompt bucket;
 # keep it pinned in the map so wiki-lint for 'think' fragments still resolves.
@@ -1031,3 +1048,74 @@ def _sanitize_synthesized_page(content: str) -> str:
     content = _scrub_entity(content)
     content = re.sub(r"\n{3,}", "\n\n", content)
     return content.strip() + "\n"
+
+
+def _run_pages_lint_pass(graph_module, graph_state, model: str, cfg: dict) -> None:
+    """FIX-412: extract graph_deltas from compiled wiki pages.
+
+    Pages contain verified/promoted patterns — confidence=0.7 (above fragment default 0.6).
+    Adds 'wiki_page' tag so nodes from this pass can be identified.
+    Called at end of run_wiki_lint when graph_module is available.
+    """
+    if not _GRAPH_AUTOBUILD:
+        return
+    if not _PAGES_DIR.exists():
+        return
+    pages = [p for p in sorted(_PAGES_DIR.glob("*.md")) if p.is_file()]
+    if not pages:
+        return
+
+    n_touched = 0
+    for page_path in pages:
+        category = page_path.stem
+        try:
+            content = page_path.read_text(encoding="utf-8")
+            if not content.strip():
+                continue
+            if not model:
+                continue
+
+            user_msg = (
+                f"{_PAGES_GRAPH_PROMPT}\n\n"
+                f"PAGE ({category}):\n{content[:6000]}"
+            )
+            try:
+                from . import dispatch as _dispatch
+                response = _dispatch.call_llm_raw(
+                    system="You are a knowledge graph curator. Output only the JSON fence block.",
+                    user_msg=user_msg,
+                    model=model,
+                    cfg=cfg,
+                    max_tokens=1000,
+                    plain_text=True,
+                )
+            except Exception as exc:
+                print(f"[wiki-graph] pages-lint '{category}' LLM failed ({exc}), skipping")
+                continue
+
+            if not response:
+                continue
+            _, deltas = _split_markdown_and_deltas(response)
+            if not deltas:
+                continue
+
+            _stamp_category_tag(deltas, category)
+            for key in ("new_insights", "new_rules", "antipatterns"):
+                for item in (deltas.get(key) or []):
+                    if isinstance(item, dict):
+                        tags = item.get("tags") or []
+                        if "wiki_page" not in tags:
+                            item["tags"] = [*tags, "wiki_page"]
+
+            try:
+                touched = graph_module.merge_updates(graph_state, deltas)
+                graph_module.save_graph(graph_state)
+                n_touched += len(touched)
+                print(f"[wiki-graph] pages-lint '{category}': touched {len(touched)} nodes")
+            except Exception as exc:
+                print(f"[wiki-graph] pages-lint '{category}' merge failed ({exc})")
+        except Exception as exc:
+            print(f"[wiki-graph] pages-lint '{category}' error ({exc}), skipping")
+
+    if n_touched:
+        print(f"[wiki-graph] pages-lint total: {n_touched} node touches")
