@@ -1,12 +1,13 @@
 # agent/contract_models.py
 from __future__ import annotations
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ExecutorProposal(BaseModel):
     plan_steps: list[str]
     expected_outcome: str
     required_tools: list[str]
+    planned_mutations: list[str] = Field(default_factory=list)  # FIX-415: explicit write/delete paths
     open_questions: list[str]
     agreed: bool
 
@@ -25,6 +26,9 @@ class Contract(BaseModel):
     success_criteria: list[str]
     required_evidence: list[str]
     failure_conditions: list[str]
+    mutation_scope: list[str] = Field(default_factory=list)       # FIX-415: validated allowed paths
+    forbidden_mutations: list[str] = Field(default_factory=list)  # FIX-415: blocked paths from constraints
+    evaluator_only: bool = False                                   # FIX-415: True when evaluator-only consensus
     is_default: bool
     rounds_taken: int
 

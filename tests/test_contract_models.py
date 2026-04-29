@@ -124,3 +124,74 @@ def test_contract_injected_into_system_prompt():
     assert "list /outbox" in block
     assert "file written" in block
     assert "/outbox/1.json" in block
+
+
+def test_executor_proposal_planned_mutations_default():
+    """planned_mutations defaults to empty list."""
+    p = ExecutorProposal(
+        plan_steps=["list /", "write /outbox/1.json"],
+        expected_outcome="email written",
+        required_tools=["list", "write"],
+        open_questions=[],
+        agreed=False,
+    )
+    assert p.planned_mutations == []
+
+
+def test_executor_proposal_planned_mutations_explicit():
+    """planned_mutations accepts a list of path strings."""
+    p = ExecutorProposal(
+        plan_steps=["write /outbox/1.json"],
+        expected_outcome="email written",
+        required_tools=["write"],
+        planned_mutations=["/outbox/1.json"],
+        open_questions=[],
+        agreed=True,
+    )
+    assert "/outbox/1.json" in p.planned_mutations
+
+
+def test_contract_new_fields_defaults():
+    """New Contract fields default to safe values."""
+    c = Contract(
+        plan_steps=["step 1"],
+        success_criteria=["ok"],
+        required_evidence=[],
+        failure_conditions=[],
+        is_default=False,
+        rounds_taken=1,
+    )
+    assert c.mutation_scope == []
+    assert c.forbidden_mutations == []
+    assert c.evaluator_only is False
+
+
+def test_contract_evaluator_only_flag():
+    """evaluator_only=True is preserved through model."""
+    c = Contract(
+        plan_steps=["read /inbox/msg.txt"],
+        success_criteria=["no mutation"],
+        required_evidence=[],
+        failure_conditions=[],
+        is_default=False,
+        rounds_taken=3,
+        evaluator_only=True,
+        mutation_scope=[],
+    )
+    assert c.evaluator_only is True
+    assert c.mutation_scope == []
+
+
+def test_contract_mutation_scope_nonempty():
+    """mutation_scope list is preserved through model."""
+    c = Contract(
+        plan_steps=["write /outbox/1.json"],
+        success_criteria=["outbox written"],
+        required_evidence=["/outbox/1.json"],
+        failure_conditions=[],
+        is_default=False,
+        rounds_taken=1,
+        mutation_scope=["/outbox/1.json"],
+        evaluator_only=True,
+    )
+    assert "/outbox/1.json" in c.mutation_scope
