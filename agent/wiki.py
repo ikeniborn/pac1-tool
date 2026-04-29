@@ -1081,7 +1081,7 @@ def _run_pages_lint_pass(graph_module, graph_state, model: str, cfg: dict) -> No
     Adds 'wiki_page' tag so nodes from this pass can be identified.
     Called at end of run_wiki_lint when graph_module is available.
     """
-    if not _GRAPH_AUTOBUILD:
+    if not _GRAPH_AUTOBUILD or not model:
         return
     if not _PAGES_DIR.exists():
         return
@@ -1095,8 +1095,6 @@ def _run_pages_lint_pass(graph_module, graph_state, model: str, cfg: dict) -> No
         try:
             content = page_path.read_text(encoding="utf-8")
             if not content.strip():
-                continue
-            if not model:
                 continue
 
             user_msg = (
