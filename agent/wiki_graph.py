@@ -142,12 +142,17 @@ def merge_updates(g: Graph, updates: dict) -> list[str]:
           "antipatterns":  [{"text": str, "tags": [str]}],
           "reused_patterns": [str],   # existing node ids to bump uses
           "edges":         [{"from": str, "rel": str, "to": str}],
+                            # "from"/"to" may be node IDs or node text (FIX-411)
         }
 
     Returns the list of node ids that were touched (new or bumped).
     """
     touched: list[str] = []
     today = time.strftime("%Y-%m-%d")
+
+    # FIX-411: track batch nodes by type for deterministic edge building
+    batch_antipatterns: list[str] = []
+    batch_rules: list[str] = []
 
     def _upsert(kind: str, prefix: str, item: dict) -> str:
         text = (item.get("text") or "").strip()
@@ -159,11 +164,9 @@ def merge_updates(g: Graph, updates: dict) -> list[str]:
             n = g.nodes[nid]
             n["uses"] = int(n.get("uses", 0)) + 1
             n["last_seen"] = today
-            # widen tags
             existing_tags = set(n.get("tags", []))
             existing_tags.update(tags)
             n["tags"] = sorted(existing_tags)
-            # confidence reinforcement (bounded)
             conf = float(n.get("confidence", _DEFAULT_CONFIDENCE))
             n["confidence"] = min(1.0, conf + 0.02)
         else:
@@ -185,10 +188,12 @@ def merge_updates(g: Graph, updates: dict) -> list[str]:
         nid = _upsert("rule", "r", item)
         if nid:
             touched.append(nid)
+            batch_rules.append(nid)
     for item in updates.get("antipatterns", []) or []:
         nid = _upsert("antipattern", "a", item)
         if nid:
             touched.append(nid)
+            batch_antipatterns.append(nid)
 
     for reused_id in updates.get("reused_patterns", []) or []:
         if reused_id in g.nodes:
@@ -197,13 +202,43 @@ def merge_updates(g: Graph, updates: dict) -> list[str]:
             n["last_seen"] = today
             touched.append(reused_id)
 
-    # Dedup edges: (from, rel, to) triple.
+    # FIX-411: edge handling — supports both node-ID and text references.
+    # Build text→nid lookup so LLM can reference nodes by their text.
+    text_to_nid = {
+        _normalize(n["text"]): nid
+        for nid, n in g.nodes.items()
+        if n.get("text")
+    }
+
     existing_edges = {(e.get("from"), e.get("rel"), e.get("to")) for e in g.edges}
+
+    def _resolve_nid(ref: str) -> str:
+        if ref in g.nodes:
+            return ref
+        return text_to_nid.get(_normalize(ref), "")
+
     for e in updates.get("edges", []) or []:
-        key = (e.get("from"), e.get("rel"), e.get("to"))
-        if all(key) and key not in existing_edges and key[0] in g.nodes and key[2] in g.nodes:
-            g.edges.append({"from": key[0], "rel": key[1], "to": key[2]})
+        from_nid = _resolve_nid(e.get("from") or "")
+        to_nid = _resolve_nid(e.get("to") or "")
+        rel = e.get("rel") or ""
+        if not (from_nid and rel and to_nid):
+            continue
+        key = (from_nid, rel, to_nid)
+        if key not in existing_edges:
+            g.edges.append({"from": from_nid, "rel": rel, "to": to_nid})
             existing_edges.add(key)
+
+    # FIX-411: deterministic edges — antipattern →conflicts_with→ rule when tags overlap.
+    # Only within the current batch to avoid O(n²) over the entire graph.
+    for apt_nid in batch_antipatterns:
+        apt_tags = set(g.nodes[apt_nid].get("tags", []))
+        for rule_nid in batch_rules:
+            rule_tags = set(g.nodes[rule_nid].get("tags", []))
+            if apt_tags & rule_tags:
+                key = (apt_nid, "conflicts_with", rule_nid)
+                if key not in existing_edges:
+                    g.edges.append({"from": apt_nid, "rel": "conflicts_with", "to": rule_nid})
+                    existing_edges.add(key)
 
     return touched
 
