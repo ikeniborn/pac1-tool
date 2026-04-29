@@ -344,6 +344,117 @@ def test_partial_fallback_from_last_round(mock_llm):
     assert contract.plan_steps == ["list /", "write /out/1.json"]
 
 
+@patch("agent.contract_phase.call_llm_raw")
+def test_evaluator_only_consensus_sets_flag(mock_llm):
+    """Evaluator-only consensus (executor.agreed=False) → contract.evaluator_only=True."""
+    mock_llm.side_effect = [
+        _make_executor_json(agreed=False, steps=["read /inbox/msg.txt", "report"]),
+        _make_evaluator_json(agreed=True),
+    ]
+    from agent.contract_phase import negotiate_contract
+    contract, _, _, _ = negotiate_contract(
+        task_text="Review inbox",
+        task_type="inbox",
+        agents_md="",
+        wiki_context="",
+        graph_context="",
+        model="test-model",
+        cfg={},
+        max_rounds=3,
+    )
+    assert contract.evaluator_only is True
+
+
+@patch("agent.contract_phase.call_llm_raw")
+def test_full_consensus_evaluator_only_false(mock_llm):
+    """Full consensus (both agreed=True) → evaluator_only=False."""
+    mock_llm.side_effect = [
+        _make_executor_json(agreed=True),
+        _make_evaluator_json(agreed=True),
+    ]
+    from agent.contract_phase import negotiate_contract
+    contract, _, _, _ = negotiate_contract(
+        task_text="Write email",
+        task_type="email",
+        agents_md="",
+        wiki_context="",
+        graph_context="",
+        model="test-model",
+        cfg={},
+        max_rounds=3,
+    )
+    assert contract.evaluator_only is False
+
+
+@patch("agent.contract_phase.call_llm_raw")
+def test_constraint_checklist_in_evaluator_prompt(mock_llm):
+    """Constraint checklist appears in the evaluator's user prompt when wiki has constraints."""
+    captured_calls = []
+
+    def capture(system, user_msg, model, cfg, **kwargs):
+        captured_calls.append(user_msg)
+        # Alternate: first call = executor, second = evaluator
+        if len(captured_calls) == 1:
+            return _make_executor_json(agreed=True)
+        return _make_evaluator_json(agreed=True)
+
+    mock_llm.side_effect = capture
+
+    with patch("agent.contract_phase._load_contract_constraints") as mock_constraints:
+        mock_constraints.return_value = [
+            {"id": "no_vault_docs_write", "rule": "Plan MUST NOT write result.txt."},
+        ]
+        from agent.contract_phase import negotiate_contract
+        negotiate_contract(
+            task_text="Process queue",
+            task_type="queue",
+            agents_md="",
+            wiki_context="some wiki",
+            graph_context="",
+            model="test-model",
+            cfg={},
+            max_rounds=1,
+        )
+
+    assert len(captured_calls) >= 2, "Expected at least executor + evaluator calls"
+    evaluator_prompt = captured_calls[1]
+    assert "no_vault_docs_write" in evaluator_prompt
+    assert "result.txt" in evaluator_prompt
+
+
+@patch("agent.contract_phase.call_llm_raw")
+def test_evaluator_only_mutation_scope_empty_when_forbidden_path(mock_llm):
+    """Evaluator-only consensus with planned_mutations containing result.txt → mutation_scope=[]."""
+    executor_json = json.dumps({
+        "plan_steps": ["read /docs/task-completion.md", "write /result.txt"],
+        "expected_outcome": "done",
+        "required_tools": ["read", "write"],
+        "planned_mutations": ["/result.txt"],
+        "open_questions": [],
+        "agreed": False,
+    })
+    mock_llm.side_effect = [executor_json, _make_evaluator_json(agreed=True)]
+
+    with patch("agent.contract_phase._load_contract_constraints") as mock_constraints:
+        mock_constraints.return_value = [
+            {"id": "no_vault_docs_write", "rule": "Plan MUST NOT write result.txt."},
+        ]
+        from agent.contract_phase import negotiate_contract
+        contract, _, _, _ = negotiate_contract(
+            task_text="Do task",
+            task_type="queue",
+            agents_md="",
+            wiki_context="",
+            graph_context="",
+            model="test-model",
+            cfg={},
+            max_rounds=1,
+        )
+
+    assert contract.evaluator_only is True
+    assert contract.mutation_scope == []
+
+
 def test_executor_proposal_json5_trailing_comma():
     """Contract negotiation survives trailing comma in executor JSON."""
     from unittest.mock import patch

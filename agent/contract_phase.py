@@ -18,6 +18,7 @@ from pydantic import ValidationError
 from .contract_models import Contract, ContractRound, EvaluatorResponse, ExecutorProposal
 from .dispatch import call_llm_raw
 from .json_extract import _extract_json_from_text
+from .wiki import load_contract_constraints as _load_contract_constraints
 
 _DATA = Path(__file__).parent.parent / "data"
 _LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
@@ -149,6 +150,15 @@ def negotiate_contract(
     if vault_tree:
         context_block += f"\n\nVAULT STRUCTURE:\n{vault_tree}"
 
+    # FIX-415: load wiki contract constraints for evaluator checklist
+    _constraints = _load_contract_constraints(task_type)
+    _constraint_checklist = ""
+    if _constraints:
+        _lines = ["CONSTRAINT CHECKLIST (verify planned_mutations against these before agreeing):"]
+        for _c in _constraints:
+            _lines.append(f"- {_c['id']}: {_c['rule']}")
+        _constraint_checklist = "\n".join(_lines)
+
     # FIX-393: build per-role cfg overrides with Pydantic-derived JSON schemas
     # so CC tier enforces structured output via --json-schema.
     _base_cc_opts = cfg.get("cc_options")
@@ -214,6 +224,8 @@ def negotiate_contract(
             f"EXECUTOR PROPOSAL (round {round_num}):\n{raw_executor}\n\n"
             "Review the plan and respond with your criteria as JSON."
         )
+        if _constraint_checklist:
+            evaluator_user += f"\n\n{_constraint_checklist}"
 
         evaluator_tok: dict = {}
         raw_evaluator = call_llm_raw(
@@ -267,16 +279,32 @@ def negotiate_contract(
             )
 
         # FIX-406: partial consensus — evaluator is authority on success criteria.
-        # Accept if evaluator agreed with no objections, even if executor self-doubts.
-        # Full consensus (both agreed) is preferred; evaluator-only is fallback.
+        # FIX-415: track evaluator-only flag and filter mutation_scope on forbidden paths.
         evaluator_accepts = response.agreed and not response.objections
         full_consensus = proposal.agreed and evaluator_accepts
         if full_consensus or evaluator_accepts:
+            _evaluator_only = not full_consensus
+
+            # FIX-415: build mutation_scope from proposal.planned_mutations.
+            # On evaluator-only consensus, block mutations matching forbidden constraint keywords.
+            _planned = list(proposal.planned_mutations)
+            _forbidden_keywords = {"result.txt", ".disposition.json"}
+            if _evaluator_only:
+                _allowed = [
+                    p for p in _planned
+                    if not any(kw in p for kw in _forbidden_keywords)
+                ]
+            else:
+                _allowed = _planned
+
             contract = Contract(
                 plan_steps=proposal.plan_steps,
                 success_criteria=response.success_criteria,
                 required_evidence=response.required_evidence,
                 failure_conditions=response.failure_conditions,
+                mutation_scope=_allowed,
+                forbidden_mutations=[p for p in _planned if p not in _allowed],
+                evaluator_only=_evaluator_only,
                 is_default=False,
                 rounds_taken=round_num,
             )
@@ -300,6 +328,9 @@ def negotiate_contract(
             success_criteria=er.get("success_criteria", []),
             required_evidence=er.get("required_evidence", []),
             failure_conditions=er.get("failure_conditions", []),
+            mutation_scope=[],
+            forbidden_mutations=[],
+            evaluator_only=True,
             is_default=False,
             rounds_taken=max_rounds,
         ), total_in, total_out, rounds_transcript
