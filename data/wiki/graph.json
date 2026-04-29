@@ -167,8 +167,8 @@
         "crm"
       ],
       "text": "Follow-up date regression requires dual writes to both account and reminder files",
-      "confidence": 0.77,
-      "uses": 2,
+      "confidence": 0.74,
+      "uses": 3,
       "last_seen": "2026-04-29"
     },
     "n_db6e135071": {
@@ -177,8 +177,8 @@
         "crm"
       ],
       "text": "Use audit file as verification target, not as template for writes",
-      "confidence": 0.67,
-      "uses": 2,
+      "confidence": 0.64,
+      "uses": 3,
       "last_seen": "2026-04-29"
     },
     "n_26440544d9": {
@@ -197,8 +197,8 @@
         "crm"
       ],
       "text": "Always locate and update both account and reminder records for follow-up date changes",
-      "confidence": 0.57,
-      "uses": 2,
+      "confidence": 0.54,
+      "uses": 3,
       "last_seen": "2026-04-29"
     },
     "r_0aa98e857c": {
@@ -207,8 +207,8 @@
         "crm"
       ],
       "text": "Verify both files post-write before considering the regression fixed",
-      "confidence": 0.62,
-      "uses": 2,
+      "confidence": 0.59,
+      "uses": 3,
       "last_seen": "2026-04-29"
     },
     "a_e96712b304": {
@@ -227,7 +227,7 @@
         "crm"
       ],
       "text": "Updating only one of two related files leaves stale data",
-      "confidence": 0.55,
+      "confidence": 0.5,
       "uses": 1,
       "last_seen": "2026-04-29"
     },
@@ -238,8 +238,8 @@
         "workflow"
       ],
       "text": "Invoice creation: read schema README first, write file, verify with read",
-      "confidence": 0.96,
-      "uses": 4,
+      "confidence": 0.99,
+      "uses": 9,
       "last_seen": "2026-04-29"
     },
     "n_c20998c28d": {
@@ -250,7 +250,7 @@
       ],
       "text": "Prefix regression fix: audit for context, lane configs for ownership, historical records for established prefix, fix downstream emitter",
       "confidence": 1.0,
-      "uses": 5,
+      "uses": 11,
       "last_seen": "2026-04-29"
     },
     "n_eb337d3ac8": {
@@ -260,8 +260,8 @@
         "default"
       ],
       "text": "Do not continue listing after completing deletions; unnecessary listing triggers stall",
-      "confidence": 0.81,
-      "uses": 4,
+      "confidence": 0.86,
+      "uses": 9,
       "last_seen": "2026-04-29"
     },
     "r_61854fe234": {
@@ -271,8 +271,8 @@
         "workflow"
       ],
       "text": "Always read README/schema files before creating structured records",
-      "confidence": 0.66,
-      "uses": 4,
+      "confidence": 0.67,
+      "uses": 7,
       "last_seen": "2026-04-29"
     },
     "r_3b720db049": {
@@ -282,8 +282,8 @@
         "workflow"
       ],
       "text": "Determine established prefixes from historical records, not planning files",
-      "confidence": 0.64,
-      "uses": 3,
+      "confidence": 0.63,
+      "uses": 5,
       "last_seen": "2026-04-29"
     },
     "r_5908079781": {
@@ -293,8 +293,8 @@
         "workflow"
       ],
       "text": "Fix the downstream emitter lane for prefix regressions, not shadow lanes",
-      "confidence": 0.62,
-      "uses": 2,
+      "confidence": 0.64,
+      "uses": 3,
       "last_seen": "2026-04-29"
     },
     "a_52af6f85c6": {
@@ -389,7 +389,7 @@
       ],
       "text": "Account files contain primary_contact_id linking to contact file with email",
       "confidence": 1.0,
-      "uses": 10,
+      "uses": 17,
       "last_seen": "2026-04-29"
     },
     "n_6fa88df3bb": {
@@ -399,8 +399,8 @@
         "workflow"
       ],
       "text": "Two email paths: account→contact→outbox OR direct contact→outbox",
-      "confidence": 0.89,
-      "uses": 8,
+      "confidence": 0.96,
+      "uses": 14,
       "last_seen": "2026-04-29"
     },
     "r_91ece98799": {
@@ -410,8 +410,8 @@
         "mandatory"
       ],
       "text": "ALWAYS read /contacts/ file immediately before writing outbox",
-      "confidence": 0.67,
-      "uses": 7,
+      "confidence": 0.74,
+      "uses": 13,
       "last_seen": "2026-04-29"
     },
     "r_381298c7a9": {
@@ -421,8 +421,8 @@
         "refusal"
       ],
       "text": "If contact not found after search, refuse with OUTCOME_NONE_CLARIFICATION",
-      "confidence": 0.67,
-      "uses": 7,
+      "confidence": 0.74,
+      "uses": 13,
       "last_seen": "2026-04-29"
     },
     "a_eb225478b7": {
@@ -503,8 +503,8 @@
         "names"
       ],
       "text": "Name order reversal is a common failure mode; try swapped tokens on no-match",
-      "confidence": 0.76,
-      "uses": 4,
+      "confidence": 0.75,
+      "uses": 6,
       "last_seen": "2026-04-29"
     },
     "n_ae6a8f62ea": {
@@ -597,8 +597,8 @@
         "inbox"
       ],
       "text": "Email inbox msgs lack Channel: line; Discord msgs have Channel: Discord and Handle: fields",
-      "confidence": 0.76,
-      "uses": 4,
+      "confidence": 0.82,
+      "uses": 7,
       "last_seen": "2026-04-29"
     },
     "n_3f13347de3": {
@@ -608,8 +608,8 @@
         "outbox"
       ],
       "text": "Sequence IDs for outbox writes come from reading outbox/seq.json before composing",
-      "confidence": 0.66,
-      "uses": 4,
+      "confidence": 0.72,
+      "uses": 7,
       "last_seen": "2026-04-29"
     },
     "r_55903581b6": {
@@ -652,8 +652,8 @@
         "lookup"
       ],
       "text": "search locates account file directly, avoiding list+iterate overhead",
-      "confidence": 0.9,
-      "uses": 6,
+      "confidence": 0.91,
+      "uses": 9,
       "last_seen": "2026-04-29"
     },
     "n_a0b0e1cf6f": {
@@ -663,8 +663,8 @@
         "reference-chain"
       ],
       "text": "primary_contact_id points to /contacts/cont_N.json for external contact data",
-      "confidence": 0.88,
-      "uses": 5,
+      "confidence": 0.89,
+      "uses": 8,
       "last_seen": "2026-04-29"
     },
     "n_f7dccec634": {
@@ -674,8 +674,8 @@
         "reference-chain"
       ],
       "text": "account_manager points to /contacts/mgr_N.json for internal staff, not cont_ files",
-      "confidence": 0.78,
-      "uses": 5,
+      "confidence": 0.77,
+      "uses": 7,
       "last_seen": "2026-04-29"
     },
     "r_74962debef": {
@@ -685,8 +685,8 @@
         "lookup"
       ],
       "text": "use search with account name keywords before listing and iterating accounts",
-      "confidence": 0.52,
-      "uses": 2,
+      "confidence": 0.54,
+      "uses": 3,
       "last_seen": "2026-04-29"
     },
     "r_fca25f1b6e": {
@@ -696,8 +696,8 @@
         "reference-chain"
       ],
       "text": "follow primary_contact_id to /contacts/cont_N.json; account_manager to /contacts/mgr_N.json",
-      "confidence": 0.64,
-      "uses": 3,
+      "confidence": 0.66,
+      "uses": 4,
       "last_seen": "2026-04-29"
     },
     "a_be871a7ab2": {
@@ -729,8 +729,8 @@
         "reference-chain"
       ],
       "text": "confusing mgr_ manager records with cont_ contact records for email lookups",
-      "confidence": 0.68,
-      "uses": 5,
+      "confidence": 0.67,
+      "uses": 7,
       "last_seen": "2026-04-29"
     },
     "n_f8f299c962": {
@@ -761,8 +761,8 @@
         "queue"
       ],
       "text": "Stall warnings trigger after ~6-9 reads without any write operation",
-      "confidence": 0.82,
-      "uses": 7,
+      "confidence": 0.72,
+      "uses": 12,
       "last_seen": "2026-04-29"
     },
     "n_889e67ea39": {
@@ -771,8 +771,8 @@
         "queue"
       ],
       "text": "Discord handle 'valid' status insufficient for action commands; requires 'admin' privilege",
-      "confidence": 0.87,
-      "uses": 7,
+      "confidence": 0.77,
+      "uses": 12,
       "last_seen": "2026-04-29"
     },
     "n_228d262f6e": {
@@ -781,8 +781,8 @@
         "queue"
       ],
       "text": "Channel registry path /docs/channels/Discord.txt requires correct casing (capital D)",
-      "confidence": 0.87,
-      "uses": 7,
+      "confidence": 0.77,
+      "uses": 12,
       "last_seen": "2026-04-29"
     },
     "r_2faab6fa3c": {
@@ -791,8 +791,8 @@
         "queue"
       ],
       "text": "Filter invoices by content.account_id ONLY; filename prefix is not account_id",
-      "confidence": 0.57,
-      "uses": 7,
+      "confidence": 0.47,
+      "uses": 12,
       "last_seen": "2026-04-29"
     },
     "r_d09bf1ae9e": {
@@ -801,8 +801,8 @@
         "queue"
       ],
       "text": "Account resolution: body-named company > sender-domain > contact > account_id",
-      "confidence": 0.57,
-      "uses": 7,
+      "confidence": 0.47,
+      "uses": 12,
       "last_seen": "2026-04-29"
     },
     "r_c478215469": {
@@ -929,8 +929,8 @@
       "task_ids": [
         "t04"
       ],
-      "confidence": 0.88,
-      "uses": 5,
+      "confidence": 0.975,
+      "uses": 11,
       "last_seen": "2026-04-29"
     },
     "p_default_cf3f4f8a4216": {
@@ -1159,8 +1159,8 @@
       "task_ids": [
         "t19"
       ],
-      "confidence": 0.8,
-      "uses": 1,
+      "confidence": 0.86,
+      "uses": 4,
       "last_seen": "2026-04-29"
     },
     "p_queue_1b3d2af191ed": {
@@ -1279,8 +1279,8 @@
       "task_ids": [
         "t25"
       ],
-      "confidence": 0.8,
-      "uses": 1,
+      "confidence": 0.86,
+      "uses": 4,
       "last_seen": "2026-04-29"
     },
     "p_queue_58f386d1436d": {
@@ -1649,8 +1649,8 @@
         "workflow"
       ],
       "text": "Delete is the stop condition for inbox workflows; no reads after deletion",
-      "confidence": 0.9,
-      "uses": 1,
+      "confidence": 1.0,
+      "uses": 7,
       "last_seen": "2026-04-29"
     },
     "n_112af1c73a": {
@@ -1672,8 +1672,8 @@
         "workflow"
       ],
       "text": "After delete operations, stop immediately; do not re-read or re-list",
-      "confidence": 0.6,
-      "uses": 1,
+      "confidence": 0.62,
+      "uses": 2,
       "last_seen": "2026-04-29"
     },
     "r_11550e9307": {
@@ -2489,6 +2489,522 @@
       "confidence": 0.6,
       "uses": 1,
       "last_seen": "2026-04-29"
+    },
+    "p_default_668ca6ee301b": {
+      "type": "pattern",
+      "tags": [
+        "default"
+      ],
+      "text": "pattern:default:668ca6ee301b",
+      "trajectory": [
+        "read(/my-invoices/README.MD)",
+        "list(/my-invoices)",
+        "write(/my-invoices/SR-13.json)",
+        "read(/my-invoices/SR-13.json)"
+      ],
+      "task_ids": [
+        "t10"
+      ],
+      "confidence": 0.8,
+      "uses": 1,
+      "last_seen": "2026-04-29"
+    },
+    "p_default_56410e0ac633": {
+      "type": "pattern",
+      "tags": [
+        "default"
+      ],
+      "text": "pattern:default:56410e0ac633",
+      "trajectory": [
+        "list(/02_distill/cards)",
+        "list(/02_distill/threads)",
+        "delete(/02_distill/cards/2026-02-10__how-i-use-claude-code.md)",
+        "delete(/02_distill/cards/2026-02-15__openai-harness-engineering.md)",
+        "delete(/02_distill/cards/2026-03-06__anthropic-biology-of-llms.md)",
+        "delete(/02_distill/cards/2026-03-17__intercom-claude-code-platform.md)",
+        "delete(/02_distill/cards/2026-03-23__hn-structured-outputs-practical-notes.md)",
+        "delete(/02_distill/threads/2026-03-23__agent-platforms-and-runtime.md)",
+        "delete(/02_distill/threads/2026-03-23__ai-engineering-foundations.md)"
+      ],
+      "task_ids": [
+        "t01"
+      ],
+      "confidence": 0.8,
+      "uses": 1,
+      "last_seen": "2026-04-29"
+    },
+    "p_lookup_e5ff93abae2c": {
+      "type": "pattern",
+      "tags": [
+        "lookup"
+      ],
+      "text": "pattern:lookup:e5ff93abae2c",
+      "trajectory": [
+        "search()",
+        "search()",
+        "read(/contacts/mgr_003.json)"
+      ],
+      "task_ids": [
+        "t16"
+      ],
+      "confidence": 0.8,
+      "uses": 1,
+      "last_seen": "2026-04-29"
+    },
+    "p_email_8f50442c9bc5": {
+      "type": "pattern",
+      "tags": [
+        "email"
+      ],
+      "text": "pattern:email:8f50442c9bc5",
+      "trajectory": [
+        "search()",
+        "search()",
+        "list(/contacts)",
+        "search()",
+        "search()",
+        "search()",
+        "stall()",
+        "search()",
+        "stall()",
+        "stall()",
+        "search()",
+        "stall()",
+        "stall()"
+      ],
+      "task_ids": [
+        "t12"
+      ],
+      "confidence": 0.8,
+      "uses": 1,
+      "last_seen": "2026-04-29"
+    },
+    "p_email_e5892dba994c": {
+      "type": "pattern",
+      "tags": [
+        "email"
+      ],
+      "text": "pattern:email:e5892dba994c",
+      "trajectory": [
+        "search()",
+        "read(/contacts/cont_002.json)",
+        "read(/outbox/seq.json)",
+        "write(/outbox/84628.json)",
+        "read(/outbox/84628.json)",
+        "read(/contacts/cont_002.json)",
+        "read(/outbox/seq.json)"
+      ],
+      "task_ids": [
+        "t17"
+      ],
+      "confidence": 0.8,
+      "uses": 1,
+      "last_seen": "2026-04-29"
+    },
+    "p_email_3ed30fcb7ff6": {
+      "type": "pattern",
+      "tags": [
+        "email"
+      ],
+      "text": "pattern:email:3ed30fcb7ff6",
+      "trajectory": [
+        "search()",
+        "read(/accounts/acct_009.json)",
+        "read(/contacts/cont_009.json)",
+        "read(/outbox/seq.json)",
+        "write(/outbox/84933.json)",
+        "read(/outbox/84933.json)",
+        "read(/accounts/acct_009.json)",
+        "read(/contacts/cont_009.json)",
+        "read(/outbox/seq.json)",
+        "read(/outbox/84933.json)",
+        "read(/accounts/acct_009.json)",
+        "stall()"
+      ],
+      "task_ids": [
+        "t14"
+      ],
+      "confidence": 0.8,
+      "uses": 1,
+      "last_seen": "2026-04-29"
+    },
+    "p_email_78351f3b3aca": {
+      "type": "pattern",
+      "tags": [
+        "email"
+      ],
+      "text": "pattern:email:78351f3b3aca",
+      "trajectory": [
+        "read(/90_memory/soul.md)",
+        "read(/90_memory/agent_initiatives.md)",
+        "search(?)",
+        "search()",
+        "list(/)",
+        "search()",
+        "stall()",
+        "stall()",
+        "stall()",
+        "stall()",
+        "search()",
+        "stall()",
+        "stall()",
+        "list(/contacts)",
+        "list(/contacts)",
+        "stall()"
+      ],
+      "task_ids": [
+        "t04"
+      ],
+      "confidence": 0.8,
+      "uses": 1,
+      "last_seen": "2026-04-29"
+    },
+    "p_queue_53b5c7eab833": {
+      "type": "pattern",
+      "tags": [
+        "queue"
+      ],
+      "text": "pattern:queue:53b5c7eab833",
+      "trajectory": [
+        "list(/inbox)",
+        "read(/inbox/msg_001.txt)",
+        "search()",
+        "read(/contacts/cont_001.json)",
+        "list(/inbox)"
+      ],
+      "task_ids": [
+        "t22"
+      ],
+      "confidence": 0.8,
+      "uses": 1,
+      "last_seen": "2026-04-29"
+    },
+    "p_default_40b00e529e52": {
+      "type": "pattern",
+      "tags": [
+        "default"
+      ],
+      "text": "pattern:default:40b00e529e52",
+      "trajectory": [
+        "read(/00_inbox/2026-03-23__hn-reports-of-codes-death.md)",
+        "list(/02_distill/threads)",
+        "write(/01_capture/influential/2026-03-23__hn-reports-of-codes-death.md)",
+        "write(/02_distill/cards/2026-03-23__hn-reports-of-codes-death.md)",
+        "read(/02_distill/threads/2026-03-23__agent-platforms-and-runtime.md)",
+        "write(/02_distill/threads/2026-03-23__agent-platforms-and-runtime.md)",
+        "read(/02_distill/threads/2026-03-23__ai-engineering-foundations.md)",
+        "write(/02_distill/threads/2026-03-23__ai-engineering-foundations.md)",
+        "delete(/00_inbox/2026-03-23__hn-reports-of-codes-death.md)",
+        "list(/01_capture/influential)",
+        "read(/02_distill/cards/2026-03-23__hn-reports-of-codes-death.md)",
+        "read(/02_distill/threads/2026-03-23__agent-platforms-and-runtime.md)",
+        "read(/02_distill/threads/2026-03-23__ai-engineering-foundations.md)",
+        "list(/01_capture/influential)",
+        "list(/02_distill/cards)",
+        "stall()",
+        "stall()",
+        "read(/01_capture/influential/2026-03-23__hn-reports-of-codes-death.md)",
+        "stall()",
+        "stall()",
+        "read(/02_distill/threads/2026-03-23__agent-platforms-and-runtime.md)",
+        "stall()",
+        "stall()",
+        "read(/01_capture/influential/2026-03-23__hn-reports-of-codes-death.md)",
+        "stall()"
+      ],
+      "task_ids": [
+        "t03"
+      ],
+      "confidence": 0.8,
+      "uses": 1,
+      "last_seen": "2026-04-29"
+    },
+    "p_queue_ae727e009ed7": {
+      "type": "pattern",
+      "tags": [
+        "queue"
+      ],
+      "text": "pattern:queue:ae727e009ed7",
+      "trajectory": [
+        "list(/inbox)",
+        "read(/inbox/inbox.md)",
+        "read(/docs/process-inbox.md)"
+      ],
+      "task_ids": [
+        "t21"
+      ],
+      "confidence": 0.8,
+      "uses": 1,
+      "last_seen": "2026-04-29"
+    },
+    "p_email_1ca0c0b4cc89": {
+      "type": "pattern",
+      "tags": [
+        "email"
+      ],
+      "text": "pattern:email:1ca0c0b4cc89",
+      "trajectory": [
+        "search()",
+        "search()",
+        "read(/accounts/acct_009.json)",
+        "read(/contacts/cont_009.json)",
+        "read(/outbox/seq.json)",
+        "write(/outbox/84573.json)",
+        "read(/outbox/84573.json)",
+        "read(/accounts/acct_009.json)",
+        "read(/contacts/cont_009.json)",
+        "read(/outbox/seq.json)",
+        "read(/outbox/84573.json)"
+      ],
+      "task_ids": [
+        "t26"
+      ],
+      "confidence": 0.8,
+      "uses": 1,
+      "last_seen": "2026-04-29"
+    },
+    "p_inbox_07d21bb35d2f": {
+      "type": "pattern",
+      "tags": [
+        "inbox"
+      ],
+      "text": "pattern:inbox:07d21bb35d2f",
+      "trajectory": [
+        "list(/inbox)",
+        "read(/inbox/msg_001.txt)",
+        "search()",
+        "read(/contacts/cont_006.json)",
+        "read(/accounts/acct_006.json)",
+        "read(/docs/inbox-msg-processing.md)",
+        "stall()",
+        "read(/inbox/msg_001.txt)",
+        "stall()",
+        "search()",
+        "stall()",
+        "read(/contacts/cont_006.json)",
+        "stall()",
+        "list(/accounts)",
+        "stall()",
+        "search()",
+        "stall()",
+        "read(/accounts/acct_003.json)",
+        "stall()",
+        "stall()",
+        "read(/inbox/msg_001.txt)",
+        "stall()"
+      ],
+      "task_ids": [
+        "t20"
+      ],
+      "confidence": 0.8,
+      "uses": 1,
+      "last_seen": "2026-04-29"
+    },
+    "p_inbox_2a432e36cd64": {
+      "type": "pattern",
+      "tags": [
+        "inbox"
+      ],
+      "text": "pattern:inbox:2a432e36cd64",
+      "trajectory": [
+        "list(/inbox)",
+        "read(/inbox/msg_001.txt)",
+        "read(/docs/channels/otp.txt)"
+      ],
+      "task_ids": [
+        "t28"
+      ],
+      "confidence": 0.8,
+      "uses": 1,
+      "last_seen": "2026-04-29"
+    },
+    "p_queue_0eb91054fbf6": {
+      "type": "pattern",
+      "tags": [
+        "queue"
+      ],
+      "text": "pattern:queue:0eb91054fbf6",
+      "trajectory": [
+        "list(/inbox)",
+        "read(/inbox/msg_001.txt)",
+        "read(/docs/channels/Discord.txt)",
+        "list(/inbox)",
+        "read(/inbox/msg_001.txt)",
+        "read(/docs/channels/Discord.txt)",
+        "stall()",
+        "stall()"
+      ],
+      "task_ids": [
+        "t27"
+      ],
+      "confidence": 0.8,
+      "uses": 1,
+      "last_seen": "2026-04-29"
+    },
+    "p_lookup_7350191d3a97": {
+      "type": "pattern",
+      "tags": [
+        "lookup"
+      ],
+      "text": "pattern:lookup:7350191d3a97",
+      "trajectory": [
+        "search()",
+        "read(/accounts/acct_008.json)"
+      ],
+      "task_ids": [
+        "t34"
+      ],
+      "confidence": 0.8,
+      "uses": 1,
+      "last_seen": "2026-04-29"
+    },
+    "p_queue_50e9a830e528": {
+      "type": "pattern",
+      "tags": [
+        "queue"
+      ],
+      "text": "pattern:queue:50e9a830e528",
+      "trajectory": [
+        "list(/inbox)",
+        "read(/outbox/seq.json)",
+        "read(/inbox/msg_001.txt)",
+        "search()",
+        "read(/contacts/cont_009.json)",
+        "read(/accounts/acct_009.json)",
+        "stall()",
+        "write(/outbox/84135.json)",
+        "read(/inbox/msg_002.txt)",
+        "read(/docs/channels/Discord.txt)",
+        "read(/inbox/msg_003.txt)",
+        "read(/inbox/msg_004.txt)",
+        "search()",
+        "search()",
+        "stall()",
+        "read(/inbox/msg_005.txt)",
+        "stall()",
+        "stall()",
+        "read(/contacts/cont_009.json)",
+        "stall()",
+        "read(/my-invoices/INV-009-07.json)",
+        "stall()",
+        "stall()",
+        "read(/accounts/acct_009.json)",
+        "stall()",
+        "stall()",
+        "stall()"
+      ],
+      "task_ids": [
+        "t23"
+      ],
+      "confidence": 0.8,
+      "uses": 1,
+      "last_seen": "2026-04-29"
+    },
+    "p_lookup_7e5591822a8d": {
+      "type": "pattern",
+      "tags": [
+        "lookup"
+      ],
+      "text": "pattern:lookup:7e5591822a8d",
+      "trajectory": [
+        "search()",
+        "search()",
+        "read(/accounts/acct_005.json)",
+        "read(/contacts/cont_005.json)"
+      ],
+      "task_ids": [
+        "t38"
+      ],
+      "confidence": 0.8,
+      "uses": 1,
+      "last_seen": "2026-04-29"
+    },
+    "p_queue_9adb65ff9e55": {
+      "type": "pattern",
+      "tags": [
+        "queue"
+      ],
+      "text": "pattern:queue:9adb65ff9e55",
+      "trajectory": [
+        "list(/inbox)",
+        "read(/inbox/msg_001.txt)",
+        "read(/docs/channels/Discord.txt)",
+        "read(/docs/channels/otp.txt)",
+        "list(/inbox)",
+        "read(/inbox/msg_001.txt)",
+        "stall()",
+        "read(/docs/channels/otp.txt)",
+        "stall()",
+        "read(/docs/channels/Discord.txt)",
+        "stall()",
+        "stall()"
+      ],
+      "task_ids": [
+        "t29"
+      ],
+      "confidence": 0.8,
+      "uses": 1,
+      "last_seen": "2026-04-29"
+    },
+    "p_crm_42bdabfd1607": {
+      "type": "pattern",
+      "tags": [
+        "crm"
+      ],
+      "text": "pattern:crm:42bdabfd1607",
+      "trajectory": [
+        "read(/docs/follow-up-audit.json)",
+        "read(/accounts/acct_001.json)",
+        "search()",
+        "search()",
+        "read(/reminders/rem_001.json)",
+        "write(/accounts/acct_001.json)",
+        "write(/reminders/rem_001.json)",
+        "read(/accounts/acct_001.json)",
+        "read(/reminders/rem_001.json)",
+        "read(/docs/follow-up-audit.json)",
+        "read(/accounts/acct_001.json)",
+        "read(/reminders/rem_001.json)",
+        "read(/docs/follow-up-audit.json)",
+        "stall()"
+      ],
+      "task_ids": [
+        "t32"
+      ],
+      "confidence": 0.8,
+      "uses": 1,
+      "last_seen": "2026-04-29"
+    },
+    "p_default_923860fb4450": {
+      "type": "pattern",
+      "tags": [
+        "default"
+      ],
+      "text": "pattern:default:923860fb4450",
+      "trajectory": [
+        "read(/docs/purchase-id-workflow.md)",
+        "read(/purchases/audit.json)",
+        "read(/processing/README.MD)",
+        "read(/processing/lane_a.json)",
+        "read(/processing/lane_b.json)",
+        "read(/purchases/100000.json)",
+        "stall()",
+        "read(/purchases/100001.json)",
+        "stall()",
+        "read(/processing/cleanup-plan.json)",
+        "stall()",
+        "write(/processing/lane_a.json)",
+        "read(/processing/lane_a.json)",
+        "read(/processing/lane_a.json)",
+        "read(/purchases/100000.json)",
+        "read(/processing/lane_a.json)"
+      ],
+      "task_ids": [
+        "t31"
+      ],
+      "confidence": 0.8,
+      "uses": 1,
+      "last_seen": "2026-04-29"
     }
   },
   "edges": [
@@ -3091,6 +3607,506 @@
       "from": "p_queue_9c75206ea163",
       "rel": "requires",
       "to": "r_d09bf1ae9e"
+    },
+    {
+      "from": "p_default_668ca6ee301b",
+      "rel": "requires",
+      "to": "n_58d5d0d8d3"
+    },
+    {
+      "from": "p_default_668ca6ee301b",
+      "rel": "requires",
+      "to": "n_c20998c28d"
+    },
+    {
+      "from": "p_default_668ca6ee301b",
+      "rel": "requires",
+      "to": "n_eb337d3ac8"
+    },
+    {
+      "from": "p_default_668ca6ee301b",
+      "rel": "requires",
+      "to": "r_61854fe234"
+    },
+    {
+      "from": "p_default_668ca6ee301b",
+      "rel": "requires",
+      "to": "r_3b720db049"
+    },
+    {
+      "from": "p_default_56410e0ac633",
+      "rel": "requires",
+      "to": "n_eb337d3ac8"
+    },
+    {
+      "from": "p_default_56410e0ac633",
+      "rel": "requires",
+      "to": "n_c20998c28d"
+    },
+    {
+      "from": "p_default_56410e0ac633",
+      "rel": "requires",
+      "to": "n_58d5d0d8d3"
+    },
+    {
+      "from": "p_default_56410e0ac633",
+      "rel": "requires",
+      "to": "r_e276bb4dc2"
+    },
+    {
+      "from": "p_default_56410e0ac633",
+      "rel": "requires",
+      "to": "r_3b720db049"
+    },
+    {
+      "from": "p_lookup_e5ff93abae2c",
+      "rel": "requires",
+      "to": "n_ab93c1f89a"
+    },
+    {
+      "from": "p_lookup_e5ff93abae2c",
+      "rel": "requires",
+      "to": "a_e28c7cbc52"
+    },
+    {
+      "from": "p_lookup_e5ff93abae2c",
+      "rel": "requires",
+      "to": "n_a0b0e1cf6f"
+    },
+    {
+      "from": "p_lookup_e5ff93abae2c",
+      "rel": "requires",
+      "to": "n_f7dccec634"
+    },
+    {
+      "from": "p_lookup_e5ff93abae2c",
+      "rel": "requires",
+      "to": "n_ac7b8e14c5"
+    },
+    {
+      "from": "p_email_8f50442c9bc5",
+      "rel": "requires",
+      "to": "n_6864a56e5c"
+    },
+    {
+      "from": "p_email_8f50442c9bc5",
+      "rel": "requires",
+      "to": "n_6fa88df3bb"
+    },
+    {
+      "from": "p_email_8f50442c9bc5",
+      "rel": "requires",
+      "to": "p_email_2c12812c830d"
+    },
+    {
+      "from": "p_email_8f50442c9bc5",
+      "rel": "requires",
+      "to": "r_91ece98799"
+    },
+    {
+      "from": "p_email_8f50442c9bc5",
+      "rel": "requires",
+      "to": "r_381298c7a9"
+    },
+    {
+      "from": "p_email_e5892dba994c",
+      "rel": "requires",
+      "to": "n_6864a56e5c"
+    },
+    {
+      "from": "p_email_e5892dba994c",
+      "rel": "requires",
+      "to": "n_6fa88df3bb"
+    },
+    {
+      "from": "p_email_e5892dba994c",
+      "rel": "requires",
+      "to": "p_email_2c12812c830d"
+    },
+    {
+      "from": "p_email_e5892dba994c",
+      "rel": "requires",
+      "to": "r_91ece98799"
+    },
+    {
+      "from": "p_email_e5892dba994c",
+      "rel": "requires",
+      "to": "r_381298c7a9"
+    },
+    {
+      "from": "p_email_3ed30fcb7ff6",
+      "rel": "requires",
+      "to": "n_6864a56e5c"
+    },
+    {
+      "from": "p_email_3ed30fcb7ff6",
+      "rel": "requires",
+      "to": "n_6fa88df3bb"
+    },
+    {
+      "from": "p_email_3ed30fcb7ff6",
+      "rel": "requires",
+      "to": "p_email_2c12812c830d"
+    },
+    {
+      "from": "p_email_3ed30fcb7ff6",
+      "rel": "requires",
+      "to": "r_91ece98799"
+    },
+    {
+      "from": "p_email_3ed30fcb7ff6",
+      "rel": "requires",
+      "to": "r_381298c7a9"
+    },
+    {
+      "from": "p_email_78351f3b3aca",
+      "rel": "requires",
+      "to": "n_6864a56e5c"
+    },
+    {
+      "from": "p_email_78351f3b3aca",
+      "rel": "requires",
+      "to": "n_6fa88df3bb"
+    },
+    {
+      "from": "p_email_78351f3b3aca",
+      "rel": "requires",
+      "to": "p_email_2c12812c830d"
+    },
+    {
+      "from": "p_email_78351f3b3aca",
+      "rel": "requires",
+      "to": "r_91ece98799"
+    },
+    {
+      "from": "p_email_78351f3b3aca",
+      "rel": "requires",
+      "to": "r_381298c7a9"
+    },
+    {
+      "from": "p_queue_53b5c7eab833",
+      "rel": "requires",
+      "to": "n_889e67ea39"
+    },
+    {
+      "from": "p_queue_53b5c7eab833",
+      "rel": "requires",
+      "to": "n_228d262f6e"
+    },
+    {
+      "from": "p_queue_53b5c7eab833",
+      "rel": "requires",
+      "to": "n_973fb9937f"
+    },
+    {
+      "from": "p_queue_53b5c7eab833",
+      "rel": "requires",
+      "to": "r_2faab6fa3c"
+    },
+    {
+      "from": "p_queue_53b5c7eab833",
+      "rel": "requires",
+      "to": "r_d09bf1ae9e"
+    },
+    {
+      "from": "p_default_40b00e529e52",
+      "rel": "requires",
+      "to": "n_58d5d0d8d3"
+    },
+    {
+      "from": "p_default_40b00e529e52",
+      "rel": "requires",
+      "to": "n_c20998c28d"
+    },
+    {
+      "from": "p_default_40b00e529e52",
+      "rel": "requires",
+      "to": "n_4dcc3459e2"
+    },
+    {
+      "from": "p_default_40b00e529e52",
+      "rel": "requires",
+      "to": "n_eb337d3ac8"
+    },
+    {
+      "from": "p_default_40b00e529e52",
+      "rel": "requires",
+      "to": "r_61854fe234"
+    },
+    {
+      "from": "p_queue_ae727e009ed7",
+      "rel": "requires",
+      "to": "n_889e67ea39"
+    },
+    {
+      "from": "p_queue_ae727e009ed7",
+      "rel": "requires",
+      "to": "n_228d262f6e"
+    },
+    {
+      "from": "p_queue_ae727e009ed7",
+      "rel": "requires",
+      "to": "n_973fb9937f"
+    },
+    {
+      "from": "p_queue_ae727e009ed7",
+      "rel": "requires",
+      "to": "r_2faab6fa3c"
+    },
+    {
+      "from": "p_queue_ae727e009ed7",
+      "rel": "requires",
+      "to": "r_d09bf1ae9e"
+    },
+    {
+      "from": "p_email_1ca0c0b4cc89",
+      "rel": "requires",
+      "to": "n_6864a56e5c"
+    },
+    {
+      "from": "p_email_1ca0c0b4cc89",
+      "rel": "requires",
+      "to": "n_6fa88df3bb"
+    },
+    {
+      "from": "p_email_1ca0c0b4cc89",
+      "rel": "requires",
+      "to": "p_email_2c12812c830d"
+    },
+    {
+      "from": "p_email_1ca0c0b4cc89",
+      "rel": "requires",
+      "to": "r_91ece98799"
+    },
+    {
+      "from": "p_email_1ca0c0b4cc89",
+      "rel": "requires",
+      "to": "r_381298c7a9"
+    },
+    {
+      "from": "p_inbox_07d21bb35d2f",
+      "rel": "requires",
+      "to": "n_6494857f77"
+    },
+    {
+      "from": "p_inbox_07d21bb35d2f",
+      "rel": "requires",
+      "to": "n_4dcc3459e2"
+    },
+    {
+      "from": "p_inbox_07d21bb35d2f",
+      "rel": "requires",
+      "to": "p_inbox_b04684c9ad83"
+    },
+    {
+      "from": "p_inbox_07d21bb35d2f",
+      "rel": "requires",
+      "to": "p_inbox_a516944293ab"
+    },
+    {
+      "from": "p_inbox_07d21bb35d2f",
+      "rel": "requires",
+      "to": "n_3f13347de3"
+    },
+    {
+      "from": "p_inbox_2a432e36cd64",
+      "rel": "requires",
+      "to": "n_4dcc3459e2"
+    },
+    {
+      "from": "p_inbox_2a432e36cd64",
+      "rel": "requires",
+      "to": "n_6494857f77"
+    },
+    {
+      "from": "p_inbox_2a432e36cd64",
+      "rel": "requires",
+      "to": "p_inbox_b04684c9ad83"
+    },
+    {
+      "from": "p_inbox_2a432e36cd64",
+      "rel": "requires",
+      "to": "p_inbox_a516944293ab"
+    },
+    {
+      "from": "p_inbox_2a432e36cd64",
+      "rel": "requires",
+      "to": "n_3f13347de3"
+    },
+    {
+      "from": "p_queue_0eb91054fbf6",
+      "rel": "requires",
+      "to": "n_889e67ea39"
+    },
+    {
+      "from": "p_queue_0eb91054fbf6",
+      "rel": "requires",
+      "to": "n_228d262f6e"
+    },
+    {
+      "from": "p_queue_0eb91054fbf6",
+      "rel": "requires",
+      "to": "n_973fb9937f"
+    },
+    {
+      "from": "p_queue_0eb91054fbf6",
+      "rel": "requires",
+      "to": "r_2faab6fa3c"
+    },
+    {
+      "from": "p_queue_0eb91054fbf6",
+      "rel": "requires",
+      "to": "r_d09bf1ae9e"
+    },
+    {
+      "from": "p_lookup_7350191d3a97",
+      "rel": "requires",
+      "to": "n_ab93c1f89a"
+    },
+    {
+      "from": "p_lookup_7350191d3a97",
+      "rel": "requires",
+      "to": "n_f7dccec634"
+    },
+    {
+      "from": "p_lookup_7350191d3a97",
+      "rel": "requires",
+      "to": "n_ac7b8e14c5"
+    },
+    {
+      "from": "p_lookup_7350191d3a97",
+      "rel": "requires",
+      "to": "n_a0b0e1cf6f"
+    },
+    {
+      "from": "p_lookup_7350191d3a97",
+      "rel": "requires",
+      "to": "r_74962debef"
+    },
+    {
+      "from": "p_queue_50e9a830e528",
+      "rel": "requires",
+      "to": "n_889e67ea39"
+    },
+    {
+      "from": "p_queue_50e9a830e528",
+      "rel": "requires",
+      "to": "n_228d262f6e"
+    },
+    {
+      "from": "p_queue_50e9a830e528",
+      "rel": "requires",
+      "to": "n_973fb9937f"
+    },
+    {
+      "from": "p_queue_50e9a830e528",
+      "rel": "requires",
+      "to": "r_2faab6fa3c"
+    },
+    {
+      "from": "p_queue_50e9a830e528",
+      "rel": "requires",
+      "to": "r_d09bf1ae9e"
+    },
+    {
+      "from": "p_lookup_7e5591822a8d",
+      "rel": "requires",
+      "to": "n_a0b0e1cf6f"
+    },
+    {
+      "from": "p_lookup_7e5591822a8d",
+      "rel": "requires",
+      "to": "n_6864a56e5c"
+    },
+    {
+      "from": "p_lookup_7e5591822a8d",
+      "rel": "requires",
+      "to": "n_ab93c1f89a"
+    },
+    {
+      "from": "p_lookup_7e5591822a8d",
+      "rel": "requires",
+      "to": "r_fca25f1b6e"
+    },
+    {
+      "from": "p_lookup_7e5591822a8d",
+      "rel": "requires",
+      "to": "a_e28c7cbc52"
+    },
+    {
+      "from": "p_queue_9adb65ff9e55",
+      "rel": "requires",
+      "to": "n_889e67ea39"
+    },
+    {
+      "from": "p_queue_9adb65ff9e55",
+      "rel": "requires",
+      "to": "n_228d262f6e"
+    },
+    {
+      "from": "p_queue_9adb65ff9e55",
+      "rel": "requires",
+      "to": "n_973fb9937f"
+    },
+    {
+      "from": "p_queue_9adb65ff9e55",
+      "rel": "requires",
+      "to": "r_2faab6fa3c"
+    },
+    {
+      "from": "p_queue_9adb65ff9e55",
+      "rel": "requires",
+      "to": "r_d09bf1ae9e"
+    },
+    {
+      "from": "p_crm_42bdabfd1607",
+      "rel": "requires",
+      "to": "n_5b3f74a911"
+    },
+    {
+      "from": "p_crm_42bdabfd1607",
+      "rel": "requires",
+      "to": "n_c20998c28d"
+    },
+    {
+      "from": "p_crm_42bdabfd1607",
+      "rel": "requires",
+      "to": "r_40b8cf0be5"
+    },
+    {
+      "from": "p_crm_42bdabfd1607",
+      "rel": "requires",
+      "to": "n_db6e135071"
+    },
+    {
+      "from": "p_crm_42bdabfd1607",
+      "rel": "requires",
+      "to": "r_0aa98e857c"
+    },
+    {
+      "from": "p_default_923860fb4450",
+      "rel": "requires",
+      "to": "n_c20998c28d"
+    },
+    {
+      "from": "p_default_923860fb4450",
+      "rel": "requires",
+      "to": "n_eb337d3ac8"
+    },
+    {
+      "from": "p_default_923860fb4450",
+      "rel": "requires",
+      "to": "r_5908079781"
+    },
+    {
+      "from": "p_default_923860fb4450",
+      "rel": "requires",
+      "to": "n_58d5d0d8d3"
+    },
+    {
+      "from": "p_default_923860fb4450",
+      "rel": "requires",
+      "to": "n_4dcc3459e2"
     }
   ]
 }

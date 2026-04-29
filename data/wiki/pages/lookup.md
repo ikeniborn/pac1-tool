@@ -149,3 +149,54 @@
 **Outcome:** Agent correctly declined to guess; flagged for clarification.
 
 **Probes:** search → list(/01_capture) → list(/01_capture/influential) → search
+
+## Successful pattern: t16 (2026-04-29)
+<!-- researcher: t16:e5ff93abae2c -->
+
+**Goal shape:** What is the email address of Barth Florian? Return only the email
+
+**Final answer:** <email>
+
+**Trajectory:**
+1. search
+2. search
+3. read(/contacts/<file>)
+
+**Key insights:**
+- (none)
+
+**Applies when:** lookup
+
+## Successful pattern: t34 (2026-04-29)
+<!-- researcher: t34:7350191d3a97 -->
+
+**Goal shape:** What is the exact legal name of the German tax advisory account Helios account? Answer with the exac
+
+**Final answer:** Helios Tax Group GmbH
+
+**Trajectory:**
+1. search
+2. read(/accounts/<file>)
+
+**Key insights:**
+- (none)
+
+**Applies when:** lookup
+
+## Successful pattern: t38 (2026-04-29)
+<!-- researcher: t38:7e5591822a8d -->
+
+**Goal shape:** What is the email of the primary contact for the Austrian grid-modernization energy customer account
+
+**Final answer:** <email>
+
+**Trajectory:**
+1. search
+2. search
+3. read(/accounts/<file>)
+4. read(/contacts/<file>)
+
+**Key insights:**
+- (none)
+
+**Applies when:** lookup

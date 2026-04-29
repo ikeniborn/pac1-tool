@@ -122,3 +122,116 @@ Skipping step 1-2 for any reason (time pressure, "I know this person already", r
 - Once account found, standard Account→Contact→Outbox sequence applies
 
 **Optimization:** Batch attribute keywords into fewer searches rather than searching each term separately.
+
+## Verified refusal: t12 (2026-04-29)
+<!-- refusal: t12:OUTCOME_NONE_CLARIFICATION -->
+
+**Goal shape:** Send short follow-up email to Alex Meyer about next steps on the expansion. Keep the diff focused.
+
+**Outcome:** OUTCOME_NONE_CLARIFICATION
+
+**Why refuse:** Cannot complete: Contact 'Alex Meyer' does not exist in the vault. Performed exhaustive search (10+ attempts) across /contacts, full vault, and /01_notes for 'Alex Meyer', 'Alex', and 'Meyer' — all re
+
+**Probes before refusal:**
+1. search
+2. search
+3. list(/contacts)
+4. search
+5. search
+6. search
+
+**Applies when:** email
+
+## Successful pattern: t17 (2026-04-29)
+<!-- researcher: t17:e5892dba994c -->
+
+**Goal shape:** Email reminder to Albers Ralf at Acme Robotics with subject "Checking in" and about "Checking whethe
+
+**Final answer:** Email reminder sent to Ralf Albers at Acme Robotics with subject 'Checking in' and body 'Checking whether now is a good time to pick up the next step.' All 4 required evidence items provided in ground
+
+**Trajectory:**
+1. search
+2. read(/contacts/<file>)
+3. read(/outbox/<file>)
+4. write(/outbox/<file>)
+5. read(/outbox/<file>)
+6. read(/contacts/<file>)
+7. read(/outbox/<file>)
+
+**Key insights:**
+- (none)
+
+**Applies when:** email
+
+## Successful pattern: t14 (2026-04-29)
+<!-- researcher: t14:3ed30fcb7ff6 -->
+
+**Goal shape:** Send email to Aperture AI Labs with subject "Security review follow-up" and body "Checking in on the
+
+**Final answer:** Email queued to Aperture AI Labs (Jonas Schneider) with subject 'Security review follow-up' and body 'Checking in on the open security review. Happy to answer questions and align on next steps.'
+
+**Trajectory:**
+1. search
+2. read(/accounts/<file>)
+3. read(/contacts/<file>)
+4. read(/outbox/<file>)
+5. write(/outbox/<file>)
+6. read(/outbox/<file>)
+7. read(/accounts/<file>)
+8. read(/contacts/<file>)
+9. read(/outbox/<file>)
+10. read(/outbox/<file>)
+11. read(/accounts/<file>)
+12. stall
+
+**Key insights:**
+- (none)
+
+**Applies when:** email
+
+## Verified refusal: t04 (2026-04-29)
+<!-- refusal: t04:OUTCOME_NONE_CLARIFICATION -->
+
+**Goal shape:** Email Maya a brief update on whichever initiative matters most.
+
+**Outcome:** OUTCOME_NONE_CLARIFICATION
+
+**Why refuse:** Cannot complete: vault lacks required infrastructure. After exhaustive verification:
+
+1. /contacts/ directory does not exist - confirmed via list at steps 4 and 8
+2. /outbox/ directory does not exist
+
+**Probes before refusal:**
+1. read(/90_memory/soul.md)
+2. read(/90_memory/agent_initiatives.md)
+3. search(?)
+4. search
+5. list(/)
+6. search
+
+**Applies when:** email
+
+## Successful pattern: t26 (2026-04-29)
+<!-- researcher: t26:1ca0c0b4cc89 -->
+
+**Goal shape:** email to aperture ai labs with subject "Security review follow-up" and body "Checking in on the open
+
+**Final answer:** Email queued to Aperture AI Labs (Leon Kooistra) with subject 'Security review follow-up' and body 'Checking in on the open security review. Happy to answer questions and align on next steps.'
+
+**Trajectory:**
+1. search
+2. search
+3. read(/accounts/<file>)
+4. read(/contacts/<file>)
+5. read(/outbox/<file>)
+6. write(/outbox/<file>)
+7. read(/outbox/<file>)
+8. read(/accounts/<file>)
+9. read(/contacts/<file>)
+10. read(/outbox/<file>)
+11. read(/outbox/<file>)
+
+**Key insights:**
+- (none)
+
+**Applies when:** email

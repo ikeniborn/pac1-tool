@@ -97,3 +97,31 @@
 - All fields preserved across both writes — no field loss
 
 **Applies when:** crm
+
+## Successful pattern: t32 (2026-04-29)
+<!-- researcher: t32:42bdabfd1607 -->
+
+**Goal shape:** Nordlicht Health asked to move the next follow-up to <date>. Fix the follow-up date regression a
+
+**Final answer:** Follow-up date regression fixed. Nordlicht Health (<account>) next_follow_up_on updated from <date> → <date>. Reminder (rem_001) due_on updated from <date> → <date>. All other fields pr
+
+**Trajectory:**
+1. read(/docs/follow-up-audit.json)
+2. read(/accounts/<file>)
+3. search
+4. search
+5. read(/reminders/rem_001.json)
+6. write(/accounts/<file>)
+7. write(/reminders/rem_001.json)
+8. read(/accounts/<file>)
+9. read(/reminders/rem_001.json)
+10. read(/docs/follow-up-audit.json)
+11. read(/accounts/<file>)
+12. read(/reminders/rem_001.json)
+13. read(/docs/follow-up-audit.json)
+14. stall
+
+**Key insights:**
+- (none)
+
+**Applies when:** crm

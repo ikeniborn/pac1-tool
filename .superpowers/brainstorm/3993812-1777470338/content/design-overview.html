@@ -1,0 +1,67 @@
+<h2>Дизайн: scripts/visualize_graph.py</h2>
+<p class="subtitle">FastAPI + vis.js · один файл · uv run python scripts/visualize_graph.py</p>
+
+<div class="section">
+  <h3>Архитектура</h3>
+  <div style="background:#0d1117;border-radius:8px;padding:16px;font-family:monospace;font-size:12px;color:#c9d1d9;line-height:1.8">
+    <div style="color:#58a6ff">scripts/visualize_graph.py</div>
+    <div style="color:#7ee787;margin-left:16px">├─ FastAPI app</div>
+    <div style="color:#8b949e;margin-left:32px">GET /           → HTML-страница с vis.js</div>
+    <div style="color:#8b949e;margin-left:32px">GET /api/graph  → JSON {nodes, edges}</div>
+    <div style="color:#7ee787;margin-left:16px">└─ uvicorn.run(host=0.0.0.0, port=8765)</div>
+    <div style="margin-top:8px;color:#58a6ff">Запуск:</div>
+    <div style="margin-left:16px;color:#f0f6fc">uv run python scripts/visualize_graph.py</div>
+    <div style="margin-left:16px;color:#8b949e">→ открывает http://localhost:8765</div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>API: GET /api/graph</h3>
+  <div style="background:#0d1117;border-radius:8px;padding:16px;font-family:monospace;font-size:12px;color:#c9d1d9;line-height:1.8">
+    <div style="color:#8b949e">Параметры (опционально):</div>
+    <div style="margin-left:16px">?tag=email        <span style="color:#8b949e">— фильтр по тегу</span></div>
+    <div style="margin-left:16px">?type=rule        <span style="color:#8b949e">— фильтр по типу узла</span></div>
+    <div style="margin-left:16px">?min_confidence=0.7 <span style="color:#8b949e">— порог уверенности</span></div>
+    <div style="margin-top:8px;color:#8b949e">Ответ: {nodes: [...], edges: [...]}</div>
+    <div style="color:#8b949e">Узел: {id, label, title(tooltip), color, size, opacity}</div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Визуальное кодирование</h3>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px">
+    <div style="background:#0d1117;border-radius:6px;padding:12px">
+      <div style="color:#8b949e;font-size:11px;text-transform:uppercase;margin-bottom:6px">Цвет по типу</div>
+      <div><span style="color:#3b82f6">●</span> insight — синий</div>
+      <div><span style="color:#22c55e">●</span> rule — зелёный</div>
+      <div><span style="color:#ef4444">●</span> antipattern — красный</div>
+      <div><span style="color:#f59e0b">●</span> pattern — оранжевый</div>
+    </div>
+    <div style="background:#0d1117;border-radius:6px;padding:12px">
+      <div style="color:#8b949e;font-size:11px;text-transform:uppercase;margin-bottom:6px">Размер и яркость</div>
+      <div>Радиус = 10 + log(uses+1) × 8</div>
+      <div>Opacity = 0.4 + confidence × 0.6</div>
+      <div style="margin-top:6px;color:#8b949e">Hover-tooltip: type, tags, text,</div>
+      <div style="color:#8b949e">confidence, uses, last_seen</div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>UI-панель управления</h3>
+  <div style="background:#0d1117;border-radius:8px;padding:16px;font-size:13px;color:#c9d1d9;line-height:2">
+    <div>🎛️ <b>Чекбоксы типов</b> — insight / rule / antipattern / pattern</div>
+    <div>🔍 <b>Поиск по тексту</b> — фильтрует узлы на лету</div>
+    <div>📊 <b>Слайдер confidence</b> — скрывает узлы ниже порога</div>
+    <div>🔄 <b>Кнопки layout</b> — forceAtlas2 / hierarchical / circular</div>
+    <div>📌 <b>Drag узлов</b> — vis.js из коробки</div>
+    <div>🔎 <b>Zoom/pan</b> — колесо мыши / drag фона</div>
+  </div>
+</div>
+
+<div style="margin-top:16px;padding:12px;background:#111;border-radius:6px;border-left:3px solid #22c55e;font-size:13px">
+  <b style="color:#22c55e">Зависимости:</b> добавить <code>fastapi</code> и <code>uvicorn</code> в <code>pyproject.toml</code> (optional group <code>viz</code>).
+  Запуск: <code>uv run python scripts/visualize_graph.py</code>
+</div>
+
+<p class="subtitle" style="margin-top:16px">Дизайн выглядит правильно? Или что-то добавить/убрать?</p>
