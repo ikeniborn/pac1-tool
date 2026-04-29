@@ -883,6 +883,30 @@ def run_wiki_lint(model: str = "", cfg: dict | None = None) -> None:
             f"[wiki-graph] run total: {n_total_items} delta items, {n_total_touched} node touches"
         )
 
+    # FIX-412: pages lint pass — extract graph_deltas from compiled pages.
+    if graph_module is not None and graph_state is not None:
+        try:
+            _run_pages_lint_pass(graph_module, graph_state, model, cfg)
+        except Exception as _plp_exc:
+            print(f"[wiki-graph] pages-lint pass failed ({_plp_exc})")
+
+    # FIX-413: error fragment ingest — antipattern nodes from archive/errors/.
+    if graph_module is not None and graph_state is not None and _GRAPH_ERRORS_INGEST:
+        _errors_dir = _ARCHIVE_DIR / "errors"
+        _error_cats = (
+            [c.name for c in _errors_dir.iterdir() if c.is_dir()]
+            if _errors_dir.exists() else []
+        )
+        for _ec in _error_cats:
+            _items = _ingest_error_fragments(_ec)
+            if _items:
+                try:
+                    _touched = graph_module.merge_updates(graph_state, {"antipatterns": _items})
+                    graph_module.save_graph(graph_state)
+                    print(f"[wiki-graph] error-ingest '{_ec}': {len(_touched)} antipattern nodes")
+                except Exception as _ei_exc:
+                    print(f"[wiki-graph] error-ingest '{_ec}' failed ({_ei_exc})")
+
 
 def _stamp_category_tag(deltas: dict, category: str) -> None:
     """FIX-389: ensure every item in deltas has the category in its tags list.
