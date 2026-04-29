@@ -103,6 +103,7 @@ def negotiate_contract(
     cfg: dict,
     max_rounds: int = 3,
     vault_date_hint: str = "",
+    vault_tree: str = "",
 ) -> tuple[Contract, int, int, list[dict]]:
     """Run contract negotiation. Returns (contract, total_in_tokens, total_out_tokens, rounds_transcript).
 
@@ -145,6 +146,8 @@ def negotiate_contract(
         context_block += f"\n\nWIKI CONTEXT:\n{wiki_context}"
     if graph_context:
         context_block += f"\n\nKNOWLEDGE GRAPH:\n{graph_context}"
+    if vault_tree:
+        context_block += f"\n\nVAULT STRUCTURE:\n{vault_tree}"
 
     # FIX-393: build per-role cfg overrides with Pydantic-derived JSON schemas
     # so CC tier enforces structured output via --json-schema.

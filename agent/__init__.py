@@ -178,6 +178,7 @@ def run_agent(router: ModelRouter, harness_url: str, task_text: str) -> dict:
                 wiki_context=_wiki_patterns,
                 graph_context=graph_section,
                 vault_date_hint=getattr(pre, "vault_date_est", "") or "",
+                vault_tree=getattr(pre, "vault_tree_text", "") or "",
                 model=model,
                 cfg=cfg,
                 max_rounds=_CONTRACT_MAX_ROUNDS,

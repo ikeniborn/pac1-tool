@@ -266,6 +266,30 @@ def test_effective_model_uses_env(monkeypatch):
     assert _effective_model("anthropic/claude-sonnet-4.6") == "anthropic/claude-sonnet-4.6"
 
 
+@patch("agent.contract_phase.call_llm_raw")
+def test_vault_tree_injected_into_llm_prompt(mock_llm):
+    """vault_tree appears in the user prompt sent to both executor and evaluator."""
+    mock_llm.side_effect = [
+        _make_executor_json(agreed=True),
+        _make_evaluator_json(agreed=True),
+    ]
+    from agent.contract_phase import negotiate_contract
+    negotiate_contract(
+        task_text="Write email",
+        task_type="email",
+        agents_md="",
+        wiki_context="",
+        graph_context="",
+        vault_tree="├── 00_inbox\n└── 01_capture",
+        model="test-model",
+        cfg={},
+        max_rounds=3,
+    )
+    for call_args in mock_llm.call_args_list:
+        user_msg = call_args[0][1]
+        assert "01_capture" in user_msg, f"vault_tree missing from prompt: {user_msg[:200]}"
+
+
 def test_executor_proposal_json5_trailing_comma():
     """Contract negotiation survives trailing comma in executor JSON."""
     from unittest.mock import patch
