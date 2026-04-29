@@ -91,7 +91,176 @@ def index():
     return HTMLResponse(_HTML)
 
 
-_HTML = ""  # заглушка — заполним в Task 3
+_HTML = """<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Knowledge Graph</title>
+<script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, sans-serif; background: #0d1117; color: #c9d1d9; height: 100vh; display: flex; flex-direction: column; }
+#toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 16px; background: #161b22; border-bottom: 1px solid #30363d; flex-shrink: 0; }
+#toolbar label { font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 4px; }
+#toolbar input[type=range] { width: 120px; accent-color: #58a6ff; }
+#toolbar input[type=text] { background: #0d1117; border: 1px solid #30363d; color: #c9d1d9; border-radius: 4px; padding: 4px 8px; font-size: 13px; width: 160px; }
+#toolbar button { background: #21262d; border: 1px solid #30363d; color: #c9d1d9; border-radius: 4px; padding: 4px 10px; font-size: 12px; cursor: pointer; }
+#toolbar button:hover { background: #30363d; }
+#toolbar button.active { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+#graph { flex: 1; }
+#legend { position: absolute; bottom: 16px; right: 16px; background: #161b22cc; border: 1px solid #30363d; border-radius: 6px; padding: 10px 14px; font-size: 12px; line-height: 1.8; }
+#legend span { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+#stats { font-size: 12px; color: #8b949e; margin-left: auto; }
+</style>
+</head>
+<body>
+<div id="toolbar">
+  <b style="font-size:13px;color:#58a6ff">Knowledge Graph</b>
+  <label><input type="checkbox" id="cb-insight" checked> <span style="color:#3b82f6">insight</span></label>
+  <label><input type="checkbox" id="cb-rule" checked> <span style="color:#22c55e">rule</span></label>
+  <label><input type="checkbox" id="cb-antipattern" checked> <span style="color:#ef4444">antipattern</span></label>
+  <label><input type="checkbox" id="cb-pattern" checked> <span style="color:#f59e0b">pattern</span></label>
+  <label style="gap:6px">conf&nbsp;&ge; <span id="conf-val">0.0</span>
+    <input type="range" id="conf-slider" min="0" max="1" step="0.05" value="0">
+  </label>
+  <input type="text" id="search" placeholder="&crarr; поиск по тексту&hellip;">
+  <button id="btn-physics" class="active" onclick="setLayout('physics')">Physics</button>
+  <button id="btn-hierarchical" onclick="setLayout('hierarchical')">Hierarchical</button>
+  <button id="btn-circular" onclick="setLayout('circular')">Circular</button>
+  <span id="stats"></span>
+</div>
+<div id="graph"></div>
+<div id="legend">
+  <div><span style="background:#3b82f6"></span>insight</div>
+  <div><span style="background:#22c55e"></span>rule</div>
+  <div><span style="background:#ef4444"></span>antipattern</div>
+  <div><span style="background:#f59e0b"></span>pattern</div>
+  <div style="margin-top:6px;color:#8b949e;font-size:11px">размер = uses &nbsp; яркость = confidence</div>
+</div>
+
+<script>
+let network = null;
+let allNodes = [], allEdges = [];
+let currentLayout = 'physics';
+
+async function loadGraph() {
+  const tag = new URLSearchParams(window.location.search).get('tag') || '';
+  const url = '/api/graph' + (tag ? '?tag=' + encodeURIComponent(tag) : '');
+  const resp = await fetch(url);
+  const data = await resp.json();
+  allNodes = data.nodes;
+  allEdges = data.edges;
+  render();
+}
+
+function getFilters() {
+  const types = ['insight','rule','antipattern','pattern']
+    .filter(t => document.getElementById('cb-' + t).checked);
+  const minConf = parseFloat(document.getElementById('conf-slider').value);
+  const query = document.getElementById('search').value.toLowerCase().trim();
+  return { types, minConf, query };
+}
+
+function applyFilters(nodes, edges, { types, minConf, query }) {
+  let visible = nodes.filter(n => {
+    const type = (n.color.background === '#3b82f6' ? 'insight'
+                : n.color.background === '#22c55e' ? 'rule'
+                : n.color.background === '#ef4444' ? 'antipattern'
+                : 'pattern');
+    if (!types.includes(type)) return false;
+    if (n.opacity < (0.4 + minConf * 0.6 - 0.001)) return false;
+    return true;
+  });
+
+  if (query) {
+    const matched = new Set(
+      visible
+        .filter(n => n.label.toLowerCase().includes(query) || (n.title || '').toLowerCase().includes(query))
+        .map(n => n.id)
+    );
+    visible = visible.map(n => ({
+      ...n,
+      color: matched.has(n.id) ? n.color : { background: '#2d333b', border: '#444c56' },
+      opacity: matched.has(n.id) ? n.opacity : 0.15,
+    }));
+  }
+
+  const visibleIds = new Set(visible.map(n => n.id));
+  const visibleEdges = edges.filter(e => visibleIds.has(e.from) && visibleIds.has(e.to));
+  return { nodes: visible, edges: visibleEdges };
+}
+
+function render() {
+  const { nodes, edges } = applyFilters(allNodes, allEdges, getFilters());
+  document.getElementById('stats').textContent = nodes.length + ' узлов · ' + edges.length + ' рёбер';
+
+  const container = document.getElementById('graph');
+  const nodeSet = new vis.DataSet(nodes);
+  const edgeSet = new vis.DataSet(edges.map(e => ({
+    ...e, arrows: 'to', color: { color: '#444c56' }, font: { color: '#8b949e', size: 10 }
+  })));
+
+  const options = buildOptions();
+  if (network) {
+    network.setData({ nodes: nodeSet, edges: edgeSet });
+    network.setOptions(options);
+  } else {
+    network = new vis.Network(container, { nodes: nodeSet, edges: edgeSet }, options);
+  }
+}
+
+function buildOptions() {
+  const base = {
+    nodes: { shape: 'dot', font: { color: '#c9d1d9', size: 11 }, borderWidth: 0 },
+    edges: { smooth: { type: 'continuous' } },
+    interaction: { hover: true, tooltipDelay: 150, zoomView: true },
+    height: '100%',
+  };
+  if (currentLayout === 'hierarchical') {
+    return { ...base,
+      layout: { hierarchical: { direction: 'UD', sortMethod: 'directed', levelSeparation: 120 } },
+      physics: { enabled: false } };
+  }
+  if (currentLayout === 'circular') {
+    return { ...base, layout: { randomSeed: 42 }, physics: { enabled: false } };
+  }
+  return { ...base,
+    physics: { solver: 'barnesHut', barnesHut: { gravitationalConstant: -8000, springLength: 120 } } };
+}
+
+function setLayout(layout) {
+  currentLayout = layout;
+  ['physics','hierarchical','circular'].forEach(l => {
+    document.getElementById('btn-' + l).classList.toggle('active', l === layout);
+  });
+  if (layout === 'circular') {
+    render();
+    if (network) {
+      const ids = allNodes.map(n => n.id);
+      const r = Math.min(400, ids.length * 12);
+      ids.forEach((id, i) => {
+        const a = (2 * Math.PI * i) / ids.length;
+        network.moveNode(id, Math.cos(a) * r, Math.sin(a) * r);
+      });
+    }
+  } else {
+    render();
+  }
+}
+
+['cb-insight','cb-rule','cb-antipattern','cb-pattern'].forEach(id =>
+  document.getElementById(id).addEventListener('change', render)
+);
+document.getElementById('conf-slider').addEventListener('input', e => {
+  document.getElementById('conf-val').textContent = parseFloat(e.target.value).toFixed(2);
+  render();
+});
+document.getElementById('search').addEventListener('input', render);
+
+loadGraph();
+</script>
+</body>
+</html>"""
 
 
 def main() -> None:
