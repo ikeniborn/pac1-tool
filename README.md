@@ -355,10 +355,40 @@ scope-gates в `security.py`, stall-hints в `loop.py`, per-type блоки в `
 
 ---
 
+## Визуализация графа знаний
+
+Интерактивный граф `data/wiki/graph.json` в браузере:
+
+```bash
+# Установить зависимости для визуализации
+uv sync --group viz
+
+# Запустить (открывает http://localhost:8765)
+uv run --group viz python scripts/visualize_graph.py
+
+# Другой порт, без автооткрытия браузера
+uv run --group viz python scripts/visualize_graph.py --port 9000 --no-browser
+```
+
+Возможности:
+- **Цвет узла** по типу: insight (синий) / rule (зелёный) / antipattern (красный) / pattern (оранжевый)
+- **Размер узла** пропорционален `uses` — `10 + log(uses+1) × 8`
+- **Яркость узла** по `confidence` — `0.4 + confidence × 0.6`
+- Фильтрация по типу (чекбоксы), порогу confidence (слайдер), тексту (поиск)
+- Три layout-алгоритма: Physics (barnesHut) / Hierarchical / Circular
+- Hover-tooltip: тип, теги, текст, confidence, uses, last_seen
+- API: `GET /api/graph?tag=email&type=rule&min_confidence=0.7`
+
+---
+
 ## Тесты
 
 ```bash
+# Основной suite
 uv run python -m pytest tests/
+
+# С viz-зависимостями (включает test_visualize_graph.py)
+uv run --group viz python -m pytest tests/
 
 # Конкретный файл
 uv run pytest tests/test_security_gates.py -v
