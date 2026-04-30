@@ -89,21 +89,25 @@ flowchart TB
     Prephase --> PP
     PP --> PreResult[PrephaseResult<br/>log, preserve_prefix,<br/>agents_md, vault_tree]
 
-    PreResult --> Classify[router.resolve_after_prephase]
-    Classify --> TaskType[task_type + model + cfg]
+    PreResult --> ClsAgent["ClassifierAgent.run()<br/>task_type + model + cfg"]
 
-    TaskType --> BuildPrompt[build_system_prompt task_type]
-    BuildPrompt --> Addendum[build_dynamic_addendum<br/>DSPy fail-open]
-    Addendum --> Inject[_inject_addendum]
+    ClsAgent -->|PREJECT| PrejectPath["build_system_prompt<br/>→ run_loop напрямую"]
+    ClsAgent -->|остальные| WikiAgent["WikiGraphAgent.read()<br/>patterns + graph nodes"]
 
-    Inject --> Loop[run_loop ≤30 steps]
-    Loop --> Wiki[_write_wiki_fragment<br/>fail-open]
-    Wiki --> Out([token stats])
+    WikiAgent --> PlanAgent["PlannerAgent.run()<br/>prompt + addendum<br/>+ contract (опц.)"]
+
+    PlanAgent --> Loop[run_loop ≤30 steps]
+    PrejectPath --> Loop
+    Loop --> Out([token stats])
 
     style Prephase fill:#fff4e1
-    style Classify fill:#e1f5ff
+    style ClsAgent fill:#e1f5ff
+    style WikiAgent fill:#e1f5ff
+    style PlanAgent fill:#e1f5ff
     style Loop fill:#e1ffe1
 ```
+
+> **Contract phase** (`CONTRACT_ENABLED=1`): PlannerAgent внутри вызывает `negotiate_contract()` из `agent/contract_phase.py`. LLM-переговоры executor/evaluator ролей по шаблонам из `data/prompts/{task_type}/`. Результат — объект `Contract` с `plan_steps` и `success_criteria` — возвращается в `ExecutionPlan.contract` и передаётся в `run_loop` для пошаговой валидации через `StepGuardAgent`.
 
 ## Жизненный цикл одного шага loop
 
@@ -152,7 +156,9 @@ flowchart TB
 | Файл | Роль |
 |---|---|
 | `main.py` | CLI, подключение к harness, ThreadPoolExecutor, общая статистика |
-| `agent/__init__.py` | `run_agent()` — сборка pipeline для одной задачи |
+| `agent/__init__.py` | Re-export shim: `from .orchestrator import run_agent, write_wiki_fragment` |
+| `agent/orchestrator.py` | Hub-and-Spoke pipeline: ClassifierAgent → WikiGraphAgent → PlannerAgent → run_loop |
+| `agent/contracts/__init__.py` | Typed Pydantic v2 контракты между агентами |
 | `agent/prephase.py` | Discovery-фаза: tree, AGENTS.MD, context, few-shot pair |
 | `agent/loop.py` | Главный loop ≤30 шагов, оркестрация диспетчера/security/evaluator |
 | `agent/models.py` | Pydantic-модели `NextStep`, `Req_Read`, `Req_Write` и т. д. |
