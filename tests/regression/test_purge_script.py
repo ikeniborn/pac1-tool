@@ -21,7 +21,7 @@ def _make_graph(path: Path) -> None:
             "n_bad2": {
                 "type": "insight",
                 "tags": ["otp"],
-                "text": "OTP code required for admin elevation",
+                "text": "Reading otp.txt was required for admin elevation flow",
                 "confidence": 0.5,
                 "uses": 1,
                 "last_seen": "2026-04-21",
