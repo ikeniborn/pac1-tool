@@ -1423,13 +1423,18 @@ def _run_pages_lint_pass(graph_module, graph_state, model: str, cfg: dict) -> No
             if not deltas:
                 continue
 
+            page_meta = _read_page_meta_from_content(content)
+            is_mature = page_meta.get("quality") == "mature"
             _stamp_category_tag(deltas, category)
             for key in ("new_insights", "new_rules", "antipatterns"):
                 for item in (deltas.get(key) or []):
                     if isinstance(item, dict):
                         tags = item.get("tags") or []
                         if "wiki_page" not in tags:
-                            item["tags"] = [*tags, "wiki_page"]
+                            tags = [*tags, "wiki_page"]
+                        if is_mature and "wiki_mature" not in tags:
+                            tags = [*tags, "wiki_mature"]
+                        item["tags"] = tags
 
             try:
                 touched = graph_module.merge_updates(graph_state, deltas)

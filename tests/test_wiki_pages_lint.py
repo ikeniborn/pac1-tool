@@ -92,3 +92,73 @@ def test_pages_lint_pass_skipped_when_autobuild_off(tmp_path, monkeypatch):
 
     mock_llm.assert_not_called()
     graph_module.merge_updates.assert_not_called()
+
+
+def test_pages_lint_pass_adds_wiki_mature_tag_for_mature_page(tmp_path, monkeypatch):
+    """Nodes from mature pages get the wiki_mature tag."""
+    from agent.wiki import _write_page_meta
+    meta = {"category": "email", "quality": "mature", "fragment_count": 20,
+            "fragment_ids": [], "last_synthesized": "2026-04-30", "aspects_covered": "workflow_steps"}
+    meta_header = _write_page_meta(meta)
+    mature_page = meta_header + "\n\n" + SAMPLE_PAGE
+
+    pages_dir = tmp_path / "pages"
+    pages_dir.mkdir()
+    (pages_dir / "email.md").write_text(mature_page, encoding="utf-8")
+
+    monkeypatch.setattr("agent.wiki._PAGES_DIR", pages_dir)
+    monkeypatch.setattr("agent.wiki._GRAPH_AUTOBUILD", True)
+
+    fake_deltas_obj = {
+        "graph_deltas": {
+            "new_rules": [{"text": "read seq before write", "tags": ["email"], "confidence": 0.7}],
+            "new_insights": [], "antipatterns": [],
+        }
+    }
+    llm_response = "```json\n" + json.dumps(fake_deltas_obj) + "\n```"
+    graph_module = _make_graph_module(["r_abc123"])
+    graph_state = Graph()
+
+    with patch("agent.dispatch.call_llm_raw", return_value=llm_response):
+        _run_pages_lint_pass(graph_module, graph_state, model="test-model", cfg={})
+
+    call_args = graph_module.merge_updates.call_args[0]
+    deltas_arg = call_args[1]
+    rules = deltas_arg.get("new_rules", [])
+    assert any("wiki_mature" in r.get("tags", []) for r in rules), \
+        f"wiki_mature tag missing from rules: {rules}"
+
+
+def test_pages_lint_pass_no_wiki_mature_for_nascent_page(tmp_path, monkeypatch):
+    """Nodes from nascent pages do NOT get the wiki_mature tag."""
+    from agent.wiki import _write_page_meta
+    meta = {"category": "email", "quality": "nascent", "fragment_count": 2,
+            "fragment_ids": [], "last_synthesized": "2026-04-30", "aspects_covered": "workflow_steps"}
+    meta_header = _write_page_meta(meta)
+    nascent_page = meta_header + "\n\n" + SAMPLE_PAGE
+
+    pages_dir = tmp_path / "pages"
+    pages_dir.mkdir()
+    (pages_dir / "email.md").write_text(nascent_page, encoding="utf-8")
+
+    monkeypatch.setattr("agent.wiki._PAGES_DIR", pages_dir)
+    monkeypatch.setattr("agent.wiki._GRAPH_AUTOBUILD", True)
+
+    fake_deltas_obj = {
+        "graph_deltas": {
+            "new_rules": [{"text": "read seq before write", "tags": ["email"], "confidence": 0.7}],
+            "new_insights": [], "antipatterns": [],
+        }
+    }
+    llm_response = "```json\n" + json.dumps(fake_deltas_obj) + "\n```"
+    graph_module = _make_graph_module(["r_abc123"])
+    graph_state = Graph()
+
+    with patch("agent.dispatch.call_llm_raw", return_value=llm_response):
+        _run_pages_lint_pass(graph_module, graph_state, model="test-model", cfg={})
+
+    call_args = graph_module.merge_updates.call_args[0]
+    deltas_arg = call_args[1]
+    rules = deltas_arg.get("new_rules", [])
+    assert not any("wiki_mature" in r.get("tags", []) for r in rules), \
+        f"wiki_mature should NOT be in nascent page rules: {rules}"
