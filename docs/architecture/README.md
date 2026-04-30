@@ -50,6 +50,7 @@ flowchart LR
 | **Codegen-prompt** | Модель пишет Python-код, а не сырой JSON | Сложный анализ (агрегации, даты) |
 | **Prefix-Compaction** | Первые system+few-shot сохраняются, середина сжимается | Удержание ≤40K токенов в контексте |
 | **Fail-Open DSPy** | Отсутствие скомпилированной программы → baseline | Агент работает без оптимизации |
+| **Hub-and-Spoke Agents** | `agent/orchestrator.py` координирует 9 агентов через `agent/contracts/` (Pydantic v2) | Изоляция зависимостей, тестируемость, DI для security/stall/evaluator |
 | **Multi-Stage Security** | Нормализация → injection → contamination → write-scope → OTP | Защита от prompt-injection |
 | **Stall Detection** | 3 сигнала: action-loop / path-error / exploration | Выход из зацикливаний |
 | **Wiki-Memory** | Фрагменты per-task → LLM-lint в страницы | Кросс-сессионная память |
@@ -70,16 +71,19 @@ flowchart LR
 
 ```mermaid
 graph TD
-    main[main.py] --> agent_init[agent/__init__.py]
+    main[main.py] --> agent_init["agent/__init__.py\n(re-export shim)"]
     main --> harness[bitgn/harness_connect]
 
-    agent_init --> loop[agent/loop.py]
-    agent_init --> classifier[agent/classifier.py]
-    agent_init --> prephase[agent/prephase.py]
-    agent_init --> prompt[agent/prompt.py]
-    agent_init --> builder[agent/prompt_builder.py]
-    agent_init --> wiki[agent/wiki.py]
-    agent_init --> pcm[bitgn/vm/pcm_connect]
+    agent_init --> orchestrator[agent/orchestrator.py]
+    orchestrator --> contracts["agent/contracts/\nPydantic v2 contracts"]
+    orchestrator --> agents_pkg["agent/agents/\n9 isolated agents"]
+    orchestrator --> loop[agent/loop.py]
+    orchestrator --> classifier[agent/classifier.py]
+    orchestrator --> prephase[agent/prephase.py]
+    orchestrator --> prompt[agent/prompt.py]
+    orchestrator --> builder[agent/prompt_builder.py]
+    orchestrator --> wiki[agent/wiki.py]
+    orchestrator --> pcm[bitgn/vm/pcm_connect]
 
     loop --> dispatch[agent/dispatch.py]
     loop --> evaluator[agent/evaluator.py]
@@ -104,6 +108,7 @@ graph TD
     optimize --> dspy_lm
 
     style main fill:#ffe1e1
+    style orchestrator fill:#e1f5ff
     style loop fill:#e1ffe1
     style dispatch fill:#e1e1ff
     style optimize fill:#fff4e1
@@ -115,6 +120,8 @@ graph TD
 |---|---|
 | `main.py` | Точка входа, подключение к harness, ThreadPoolExecutor |
 | `agent/` | Ядро агента: loop, dispatch, классификатор, security и т.д. |
+| `agent/agents/` | 9 изолированных агентов-обёрток (security, stall, compaction, step_guard, classifier, wiki_graph, verifier, planner, executor) |
+| `agent/contracts/` | Typed Pydantic v2 контракты — единственный shared import между агентами |
 | `bitgn/` | Сгенерированные gRPC-Connect стабы (не редактировать вручную) |
 | `proto/bitgn/` | `.proto` определения (harness + PCM) |
 | `data/wiki/` | Страницы/фрагменты wiki-памяти |
