@@ -1155,6 +1155,96 @@ def _concat_merge(existing: str, new_entries: list[str]) -> str:
     return "\n\n".join(p for p in [existing, *new_entries] if p)
 
 
+def _llm_synthesize_aspects(
+    existing_sections: dict[str, str],
+    new_entries: list[str],
+    aspects: list[dict],
+    model: str,
+    cfg: dict,
+) -> dict[str, str]:
+    """Synthesize each knowledge aspect separately (add-only).
+
+    Returns updated sections dict. Existing non-aspect sections pass through unchanged.
+    Falls back to concat when model is empty or LLM returns empty response.
+    """
+    combined_new = "\n\n---\n\n".join(new_entries)
+    result = dict(existing_sections)
+
+    for aspect in aspects:
+        aspect_id = aspect["id"]
+        header = aspect.get("header", aspect_id.replace("_", " ").capitalize())
+        section_key = re.sub(r"[^a-z0-9]+", "_", header.lower()).strip("_")
+        existing_section = existing_sections.get(section_key, "")
+
+        if not model:
+            merged = (existing_section + "\n\n" + combined_new).strip() if existing_section else combined_new
+            result[section_key] = merged
+            continue
+
+        user_msg = (
+            f"You are updating a wiki section for an AI file-system agent.\n"
+            f"Section purpose: {aspect['prompt']}\n\n"
+            f"EXISTING SECTION CONTENT (DO NOT REMOVE ANY LINE FROM THIS):\n"
+            f"{existing_section or '(empty)'}\n\n"
+            f"NEW TASK FRAGMENTS:\n{combined_new}\n\n"
+            f"Instructions:\n"
+            f"1. Extract only content relevant to: {aspect['prompt']}\n"
+            f"2. ADD new insights to the existing content — never remove existing lines\n"
+            f"3. Skip new fragment content that duplicates what is already on the page\n"
+            f"4. Output ONLY the merged section body (no ## header, no preamble, no commentary)\n"
+        )
+        try:
+            from .dispatch import call_llm_raw
+            response = call_llm_raw(
+                system="You are a knowledge curator. Output only clean Markdown, no commentary.",
+                user_msg=user_msg,
+                model=model,
+                cfg=cfg,
+                max_tokens=2000,
+                plain_text=True,
+            )
+            if response and len(response.strip()) > 10:
+                merged = _sanitize_synthesized_page(response.strip()).rstrip("\n")
+                result[section_key] = merged
+            else:
+                result[section_key] = existing_section
+        except Exception as e:
+            print(f"[wiki-lint] aspect synthesis failed for '{aspect_id}' ({e}), keeping existing")
+            result[section_key] = existing_section
+
+    return result
+
+
+def _assemble_page_from_sections(
+    meta: dict,
+    sections: dict[str, str],
+    aspects: list[dict],
+) -> str:
+    """Assemble final page: meta header + aspect sections + promoted sections.
+
+    Aspect sections first (LLM relevance). Promoted sections (Successful pattern,
+    Verified refusal, Contract constraints) follow in original order.
+    """
+    lines: list[str] = [_write_page_meta(meta)]
+
+    aspect_keys: set[str] = set()
+    for aspect in aspects:
+        header = aspect.get("header", aspect["id"].replace("_", " ").capitalize())
+        section_key = re.sub(r"[^a-z0-9]+", "_", header.lower()).strip("_")
+        aspect_keys.add(section_key)
+        content = sections.get(section_key, "").strip()
+        if content:
+            lines.append(f"\n## {header}\n{content}")
+
+    for section_key, content in sections.items():
+        if section_key in aspect_keys or not content.strip():
+            continue
+        header = " ".join(w.capitalize() for w in section_key.split("_"))
+        lines.append(f"\n## {header}\n{content.strip()}")
+
+    return "\n".join(lines) + "\n"
+
+
 # FIX-328: strip negative-boilerplate lines that the LLM synthesizer occasionally
 # emits ("Halt and request clarification", "No OUTCOME_OK recorded", etc.).
 # These lines poison lookup/temporal/inbox prompts and push the agent toward
