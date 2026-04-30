@@ -965,22 +965,53 @@ def run_wiki_lint(model: str = "", cfg: dict | None = None) -> None:
         if not fragments:
             continue
 
-        existing = _read_page(category)
+        # Read existing page and its meta
+        existing_raw = _read_page(category)
+        page_meta = _read_page_meta_from_content(existing_raw)
+        existing_sections = _parse_page_sections(existing_raw)
         new_entries = [f.read_text(encoding="utf-8") for f in fragments]
 
-        merged, deltas = _llm_synthesize(existing, new_entries, category, model, cfg)
-        merged = _sanitize_synthesized_page(merged)  # FIX-328
+        # Resolve knowledge_aspects for this category
+        from .task_types import knowledge_aspects as _get_aspects
+        # category may be "errors/email" — use base name for aspect lookup
+        base_cat = category.split("/")[-1] if "/" in category else category
+        aspects = _get_aspects(base_cat)
+
+        # Aspect-by-aspect add-only synthesis
+        merged_sections, deltas = _llm_synthesize_v2(
+            existing_sections=existing_sections,
+            new_entries=new_entries,
+            category=category,
+            aspects=aspects,
+            model=model,
+            cfg=cfg,
+        )
+
+        # Update meta
+        new_count = page_meta["fragment_count"] + len(fragments)
+        new_ids = list(page_meta["fragment_ids"]) + [f.stem for f in fragments]
+        new_quality = _page_quality(new_count)
+        aspects_covered = ",".join(a["id"] for a in aspects)
+        new_meta = {
+            "category": category,
+            "quality": new_quality,
+            "fragment_count": new_count,
+            "fragment_ids": new_ids,
+            "last_synthesized": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+            "aspects_covered": aspects_covered,
+        }
+        merged_page = _assemble_page_from_sections(new_meta, merged_sections, aspects)
 
         page_path = _PAGES_DIR / f"{category}.md"
         page_path.parent.mkdir(parents=True, exist_ok=True)
-        page_path.write_text(merged, encoding="utf-8")
+        page_path.write_text(merged_page, encoding="utf-8")
 
         archive_dir = _ARCHIVE_DIR / category
         archive_dir.mkdir(parents=True, exist_ok=True)
         for f in fragments:
             f.rename(archive_dir / f.name)
 
-        # FIX-390: per-category diagnostic + immediate persist.
+        # Graph integration (unchanged)
         if graph_module is not None and graph_state is not None:
             n_ins = len(deltas.get("new_insights") or []) if isinstance(deltas, dict) else 0
             n_rul = len(deltas.get("new_rules") or []) if isinstance(deltas, dict) else 0
@@ -995,13 +1026,11 @@ def run_wiki_lint(model: str = "", cfg: dict | None = None) -> None:
                     graph_module.save_graph(graph_state)
                     n_total_items += n_ins + n_rul + n_apt
                     n_total_touched += len(touched)
-                    print(
-                        f"[wiki-graph] {category}: persisted, touched {len(touched)} nodes"
-                    )
+                    print(f"[wiki-graph] {category}: persisted, touched {len(touched)} nodes")
                 except Exception as e:
                     print(f"[wiki-graph] {category}: merge failed: {e}")
 
-        print(f"[wiki-lint] {category}: synthesized {len(fragments)} fragments → {category}.md")
+        print(f"[wiki-lint] {category}: synthesized {len(fragments)} fragments → {category}.md (quality={new_quality})")
 
     if graph_module is not None and n_total_items:
         print(
@@ -1153,6 +1182,59 @@ def _split_markdown_and_deltas(response: str) -> tuple[str, dict]:
 
 def _concat_merge(existing: str, new_entries: list[str]) -> str:
     return "\n\n".join(p for p in [existing, *new_entries] if p)
+
+
+def _llm_synthesize_v2(
+    existing_sections: dict[str, str],
+    new_entries: list[str],
+    category: str,
+    aspects: list[dict],
+    model: str,
+    cfg: dict,
+) -> tuple[dict[str, str], dict]:
+    """New synthesis entry point: aspect-by-aspect add-only.
+
+    Returns (merged_sections, graph_deltas). graph_deltas extracted via
+    separate graph-only LLM call when GRAPH_AUTOBUILD is on.
+    """
+    merged_sections = _llm_synthesize_aspects(
+        existing_sections=existing_sections,
+        new_entries=new_entries,
+        aspects=aspects,
+        model=model,
+        cfg=cfg,
+    )
+
+    # Graph deltas: separate extraction from combined new fragments
+    deltas: dict = {}
+    if _GRAPH_AUTOBUILD and model:
+        combined_new = "\n\n---\n\n".join(new_entries)
+        if category.startswith("errors/") and category not in _LINT_PROMPTS:
+            synthesis_prompt = _LINT_PROMPTS.get("errors", _LINT_PROMPTS["_pattern_default"])
+        else:
+            synthesis_prompt = _LINT_PROMPTS.get(category, _LINT_PROMPTS["_pattern_default"])
+        graph_user_msg = (
+            f"{synthesis_prompt}\n\n"
+            f"NEW FRAGMENTS:\n{combined_new}\n\n"
+            f"Output ONLY the graph deltas JSON block, no Markdown."
+            f"{_GRAPH_INSTRUCTION_SUFFIX}"
+        )
+        try:
+            from .dispatch import call_llm_raw
+            graph_resp = call_llm_raw(
+                system="You are a knowledge graph curator. Output only the JSON fence block.",
+                user_msg=graph_user_msg,
+                model=model,
+                cfg=cfg,
+                max_tokens=800,
+                plain_text=True,
+            )
+            if graph_resp:
+                _, deltas = _split_markdown_and_deltas(graph_resp)
+        except Exception as e:
+            print(f"[wiki-graph] delta extraction failed for '{category}' ({e})")
+
+    return merged_sections, deltas
 
 
 def _llm_synthesize_aspects(
