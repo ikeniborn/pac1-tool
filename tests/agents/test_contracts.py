@@ -39,6 +39,7 @@ def test_security_check_violation():
 
 def test_execution_result_status_literal():
     from agent.contracts import ExecutionResult
-    with pytest.raises(Exception):
+    from pydantic import ValidationError
+    with pytest.raises(ValidationError):
         ExecutionResult(status="unknown", outcome="x", token_stats={},
                         step_facts=[], injected_node_ids=[], rejection_count=0)

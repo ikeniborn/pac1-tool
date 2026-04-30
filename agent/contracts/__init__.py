@@ -67,8 +67,6 @@ class ExecutionPlan(BaseModel):
     in_tokens: int
     out_tokens: int
 
-    model_config = {"arbitrary_types_allowed": True}
-
 
 class SecurityRequest(BaseModel):
     """Request to SecurityAgent to validate a tool invocation."""
@@ -91,8 +89,6 @@ class StepGuardRequest(BaseModel):
     tool_name: str
     tool_args: dict
     contract: Contract
-
-    model_config = {"arbitrary_types_allowed": True}
 
 
 class StepValidation(BaseModel):
@@ -149,8 +145,6 @@ class CompletionRequest(BaseModel):
     evaluator_model: str = ""
     evaluator_cfg: dict = {}
     rejection_count: int = 0
-
-    model_config = {"arbitrary_types_allowed": True}
 
 
 class VerificationResult(BaseModel):
