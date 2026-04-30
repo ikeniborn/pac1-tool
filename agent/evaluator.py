@@ -27,6 +27,17 @@ _WIKI_EVAL_ENABLED = os.environ.get("EVALUATOR_WIKI_ENABLED", "1") == "1"
 _GRAPH_EVAL_ENABLED = os.environ.get("WIKI_GRAPH_ENABLED", "1") == "1"
 _GRAPH_EVAL_TOP_K = int(os.environ.get("EVALUATOR_GRAPH_TOP_K", "5"))
 
+# Char limits per wiki quality level
+_WIKI_CHARS_NASCENT    = int(os.environ.get("EVALUATOR_WIKI_MAX_CHARS_NASCENT",    "500"))
+_WIKI_CHARS_DEVELOPING = int(os.environ.get("EVALUATOR_WIKI_MAX_CHARS_DEVELOPING", "2000"))
+_WIKI_CHARS_MATURE     = int(os.environ.get("EVALUATOR_WIKI_MAX_CHARS_MATURE",     "4000"))
+
+_QUALITY_CHAR_LIMITS = {
+    "nascent":    _WIKI_CHARS_NASCENT,
+    "developing": _WIKI_CHARS_DEVELOPING,
+    "mature":     _WIKI_CHARS_MATURE,
+}
+
 # ---------------------------------------------------------------------------
 # Hard-gate: verbatim preservation of quoted task values in writes
 # ---------------------------------------------------------------------------
@@ -348,15 +359,26 @@ def _build_eval_prompt(
 # ---------------------------------------------------------------------------
 
 def _load_reference_patterns(task_type: str) -> str:
-    """Load researcher-promoted patterns (Successful + Verified refusal) for task_type.
+    """Load wiki patterns for evaluator, truncated by page quality level.
+
+    nascent   → max 500 chars (limited data, don't over-weight)
+    developing → max 2000 chars
+    mature    → max 4000 chars
 
     Fail-open → '' on any error.
     """
     if not _WIKI_EVAL_ENABLED:
         return ""
     try:
-        from .wiki import load_wiki_patterns
-        return load_wiki_patterns(task_type, include_negatives=False) or ""
+        from .wiki import load_wiki_patterns, _read_page_meta, _TYPE_TO_PAGE
+        page_name = _TYPE_TO_PAGE.get(task_type, task_type)
+        meta = _read_page_meta(page_name)
+        quality = meta.get("quality", "nascent")
+        char_limit = _QUALITY_CHAR_LIMITS.get(quality, _WIKI_CHARS_DEVELOPING)
+        patterns = load_wiki_patterns(task_type, include_negatives=False) or ""
+        if len(patterns) > char_limit:
+            patterns = patterns[:char_limit] + "\n...(truncated)"
+        return patterns
     except Exception as exc:
         print(f"{CLI_YELLOW}[evaluator] wiki load failed ({exc}) — skipping patterns{CLI_CLR}")
         return ""
