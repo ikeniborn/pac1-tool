@@ -21,3 +21,4 @@ data/wiki/fragments/
 !data/task_types.json
 .playwright-mcp
 .superpowers
+.worktrees/
