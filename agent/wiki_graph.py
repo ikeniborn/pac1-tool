@@ -58,6 +58,28 @@ def _mk_node_id(prefix: str, text: str) -> str:
     return f"{prefix}_{digest}"
 
 
+def _token_overlap(a: str, b: str) -> float:
+    """FIX-421: Jaccard overlap of non-stop-word tokens. Used for near-dedup."""
+    ta = frozenset(t for t in _NORMALIZE_RE.split(a.lower()) if t and t not in _STOP_WORDS)
+    tb = frozenset(t for t in _NORMALIZE_RE.split(b.lower()) if t and t not in _STOP_WORDS)
+    if not ta or not tb:
+        return 0.0
+    return len(ta & tb) / len(ta | tb)
+
+
+_DEDUP_THRESHOLD = 0.7
+
+
+def _find_near_duplicate(g: Graph, kind: str, text: str) -> str | None:
+    """FIX-421: return node id of existing node with same type and overlap >= threshold, or None."""
+    for nid, node in g.nodes.items():
+        if node.get("type") != kind:
+            continue
+        if _token_overlap(text, node.get("text", "")) >= _DEDUP_THRESHOLD:
+            return nid
+    return None
+
+
 def hash_trajectory(step_facts: list) -> str:
     """Stable hash of the tool-call sequence for idempotency checks.
 
@@ -160,6 +182,11 @@ def merge_updates(g: Graph, updates: dict) -> list[str]:
             return ""
         nid = _mk_node_id(prefix, text)
         tags = item.get("tags") or []
+        # FIX-421: near-dedup — bump uses on existing similar node instead of creating duplicate
+        if nid not in g.nodes:
+            dup_nid = _find_near_duplicate(g, kind, text)
+            if dup_nid:
+                nid = dup_nid
         if nid in g.nodes:
             n = g.nodes[nid]
             n["uses"] = int(n.get("uses", 0)) + 1
