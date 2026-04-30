@@ -262,6 +262,14 @@ TRANSIENT_KWS = (
     "apitimeouterror", "connecttimeout", "readtimeout",
 )
 
+# FIX-416: hard connection errors — not retried 3 times like soft transients.
+# These indicate the socket is dead; one immediate retry is sufficient before
+# falling through to MODEL_FALLBACK. Kept separate so loop.py can cap retries at 1.
+HARD_CONNECTION_KWS = (
+    "broken pipe", "errno 32", "connection aborted",
+    "connection refused", "remotedisconnected", "incompleteread",
+)
+
 _THINK_RE = re.compile(r"<think>.*?</think>", re.DOTALL)
 _LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()  # DEBUG → log think blocks
 
@@ -358,9 +366,15 @@ def call_llm_raw(
                 print("[Anthropic] Empty after all retries — falling through to next tier")
                 break  # do not return "" — let next tier try
             except Exception as e:
-                if any(kw.lower() in str(e).lower() for kw in TRANSIENT_KWS) and attempt < max_retries:
-                    print(f"[Anthropic] Transient (attempt {attempt + 1}): {e} — retrying in 4s")
-                    time.sleep(4)
+                # FIX-416: hard connection errors capped at 1 retry
+                _es = str(e).lower()
+                _is_hard = any(kw.lower() in _es for kw in HARD_CONNECTION_KWS)
+                _is_transient = any(kw.lower() in _es for kw in TRANSIENT_KWS)
+                _max_att = 1 if _is_hard else max_retries
+                if (_is_hard or _is_transient) and attempt < _max_att:
+                    _delay = 2 if _is_hard else 4
+                    print(f"[Anthropic] {'Hard connection' if _is_hard else 'Transient'} (attempt {attempt + 1}): {e} — retrying in {_delay}s")
+                    time.sleep(_delay)
                     continue
                 print(f"[Anthropic] Error: {e}")
                 break
@@ -424,9 +438,15 @@ def call_llm_raw(
                     token_out["output"] = getattr(_u, "completion_tokens", 0)
                 return raw
             except Exception as e:
-                if any(kw.lower() in str(e).lower() for kw in TRANSIENT_KWS) and attempt < max_retries:
-                    print(f"[OpenRouter] Transient (attempt {attempt + 1}): {e} — retrying in 4s")
-                    time.sleep(4)
+                # FIX-416: hard connection errors capped at 1 retry
+                _es = str(e).lower()
+                _is_hard = any(kw.lower() in _es for kw in HARD_CONNECTION_KWS)
+                _is_transient = any(kw.lower() in _es for kw in TRANSIENT_KWS)
+                _max_att = 1 if _is_hard else max_retries
+                if (_is_hard or _is_transient) and attempt < _max_att:
+                    _delay = 2 if _is_hard else 4
+                    print(f"[OpenRouter] {'Hard connection' if _is_hard else 'Transient'} (attempt {attempt + 1}): {e} — retrying in {_delay}s")
+                    time.sleep(_delay)
                     continue
                 print(f"[OpenRouter] Error: {e}")
                 break
@@ -474,9 +494,15 @@ def call_llm_raw(
                 token_out["output"] = getattr(_u, "completion_tokens", 0)
             return raw
         except Exception as e:
-            if any(kw.lower() in str(e).lower() for kw in TRANSIENT_KWS) and attempt < max_retries:
-                print(f"[Ollama] Transient (attempt {attempt + 1}): {e} — retrying in 4s")
-                time.sleep(4)
+            # FIX-416: hard connection errors capped at 1 retry
+            _es = str(e).lower()
+            _is_hard = any(kw.lower() in _es for kw in HARD_CONNECTION_KWS)
+            _is_transient = any(kw.lower() in _es for kw in TRANSIENT_KWS)
+            _max_att = 1 if _is_hard else max_retries
+            if (_is_hard or _is_transient) and attempt < _max_att:
+                _delay = 2 if _is_hard else 4
+                print(f"[Ollama] {'Hard connection' if _is_hard else 'Transient'} (attempt {attempt + 1}): {e} — retrying in {_delay}s")
+                time.sleep(_delay)
                 continue
             print(f"[Ollama] Error: {e}")
             break

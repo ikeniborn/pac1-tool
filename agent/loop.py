@@ -25,7 +25,8 @@ from .dispatch import (
     is_ollama_model,
     dispatch,
     probe_structured_output, get_response_format,
-    TRANSIENT_KWS, _THINK_RE,
+    TRANSIENT_KWS, HARD_CONNECTION_KWS,  # FIX-416
+    _THINK_RE,
     _CC_ENABLED,
 )
 from .cc_client import cc_complete as _cc_complete
@@ -319,10 +320,16 @@ def _call_openai_tier(
             raw = resp.choices[0].message.content or ""
         except Exception as e:
             err_str = str(e)
+            # FIX-416: hard connection errors (broken pipe etc.) get 1 retry max.
+            # Soft transient errors (429, 503) keep the existing 3-retry behaviour.
+            is_hard = any(kw.lower() in err_str.lower() for kw in HARD_CONNECTION_KWS)
             is_transient = any(kw.lower() in err_str.lower() for kw in TRANSIENT_KWS)
-            if is_transient and attempt < 3:
-                print(f"{CLI_YELLOW}[{label}] Transient error (attempt {attempt + 1}): {e} — retrying in 4s{CLI_CLR}")
-                time.sleep(4)
+            max_attempt = 1 if is_hard else 3
+            if (is_hard or is_transient) and attempt < max_attempt:
+                delay = 2 if is_hard else 4
+                print(f"{CLI_YELLOW}[{label}] {'Hard connection' if is_hard else 'Transient'} error "
+                      f"(attempt {attempt + 1}): {e} — retrying in {delay}s{CLI_CLR}")
+                time.sleep(delay)
                 continue
             print(f"{CLI_RED}[{label}] Error: {e}{CLI_CLR}")
             break
@@ -452,10 +459,15 @@ def _call_llm(log: list, model: str, max_tokens: int, cfg: dict) -> tuple[NextSt
                     print(f"{CLI_YELLOW}[Anthropic] RAW: {raw}{CLI_CLR}")
             except Exception as e:
                 err_str = str(e)
+                # FIX-416: hard connection errors capped at 1 retry
+                is_hard = any(kw.lower() in err_str.lower() for kw in HARD_CONNECTION_KWS)
                 is_transient = any(kw.lower() in err_str.lower() for kw in TRANSIENT_KWS)
-                if is_transient and attempt < 3:
-                    print(f"{CLI_YELLOW}[Anthropic] Transient error (attempt {attempt + 1}): {e} — retrying in 4s{CLI_CLR}")
-                    time.sleep(4)
+                max_attempt = 1 if is_hard else 3
+                if (is_hard or is_transient) and attempt < max_attempt:
+                    delay = 2 if is_hard else 4
+                    print(f"{CLI_YELLOW}[Anthropic] {'Hard connection' if is_hard else 'Transient'} error "
+                          f"(attempt {attempt + 1}): {e} — retrying in {delay}s{CLI_CLR}")
+                    time.sleep(delay)
                     continue
                 print(f"{CLI_RED}[Anthropic] Error: {e}{CLI_CLR}")
                 break
