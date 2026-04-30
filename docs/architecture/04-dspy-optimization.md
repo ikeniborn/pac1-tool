@@ -198,8 +198,8 @@ DSPY_COLLECT=1         # включить сбор примеров в runtime
 
 Фаза переговоров (`agent/contract_phase.py`) использует две отдельные DSPy-сигнатуры:
 
-- **`ContractExecutor`** signature: генерирует `plan_steps` и `success_criteria` для executor-роли
-- **`ContractEvaluator`** signature: верифицирует предложенный план с позиции evaluator-роли
+- **`ExecutorPropose`** signature: генерирует `plan_steps` и `success_criteria` для executor-роли
+- **`EvaluatorReview`** signature: верифицирует предложенный план с позиции evaluator-роли
 
 Сбор примеров: `data/dspy_contract_examples.jsonl` — пишется только при `is_default=False` (т.е. когда negotiation действительно состоялась, а не использован дефолтный контракт).
 
