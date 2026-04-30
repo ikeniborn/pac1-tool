@@ -280,7 +280,8 @@ def negotiate_contract(
 
         # FIX-406: partial consensus — evaluator is authority on success criteria.
         # FIX-415: track evaluator-only flag and filter mutation_scope on forbidden paths.
-        evaluator_accepts = response.agreed and not response.objections
+        # FIX-418: blocking_objections are true blockers; objections are non-blocking notes.
+        evaluator_accepts = response.agreed and not response.blocking_objections
         full_consensus = proposal.agreed and evaluator_accepts
         if full_consensus or evaluator_accepts:
             _evaluator_only = not full_consensus
