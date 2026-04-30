@@ -485,6 +485,95 @@ def _scrub_entity(text: str) -> str:
     return text
 
 
+# ---------------------------------------------------------------------------
+# FIX-BIG-BANG: page meta + section utilities
+# ---------------------------------------------------------------------------
+
+_META_BLOCK_RE = re.compile(r"^<!--\s*wiki:meta\s*\n(.*?)-->[ \t]*\n?", re.DOTALL)
+_FRAGMENT_IDS_RE = re.compile(r"[\w.-]+")
+
+
+def _page_quality(fragment_count: int) -> str:
+    """nascent/developing/mature based on accumulated fragment count."""
+    if fragment_count >= 15:
+        return "mature"
+    if fragment_count >= 5:
+        return "developing"
+    return "nascent"
+
+
+def _read_page_meta_from_content(content: str) -> dict:
+    """Parse wiki:meta comment block from raw page content string. Fail-open → defaults."""
+    defaults: dict = {
+        "fragment_ids": [], "quality": "nascent", "fragment_count": 0,
+        "category": "", "last_synthesized": "", "aspects_covered": "",
+    }
+    if not content:
+        return defaults
+    m = _META_BLOCK_RE.match(content)
+    if not m:
+        return defaults
+    meta = dict(defaults)
+    for line in m.group(1).splitlines():
+        line = line.strip()
+        if not line or ":" not in line:
+            continue
+        key, _, val = line.partition(":")
+        key, val = key.strip(), val.strip()
+        if key == "fragment_ids":
+            meta["fragment_ids"] = _FRAGMENT_IDS_RE.findall(val)
+        elif key == "fragment_count":
+            try:
+                meta["fragment_count"] = int(val)
+            except ValueError:
+                pass
+        elif key in meta:
+            meta[key] = val
+    return meta
+
+
+def _read_page_meta(page_name: str) -> dict:
+    """Read wiki:meta from pages/{page_name}.md. Fail-open → defaults."""
+    return _read_page_meta_from_content(_read_page(page_name))
+
+
+def _write_page_meta(meta: dict) -> str:
+    """Serialize meta dict → <!-- wiki:meta ... --> block."""
+    frag_ids = meta.get("fragment_ids") or []
+    ids_str = "[" + ", ".join(str(i) for i in frag_ids) + "]"
+    return (
+        f"<!-- wiki:meta\n"
+        f"category: {meta.get('category', '')}\n"
+        f"quality: {meta.get('quality', 'nascent')}\n"
+        f"fragment_count: {meta.get('fragment_count', 0)}\n"
+        f"fragment_ids: {ids_str}\n"
+        f"last_synthesized: {meta.get('last_synthesized', '')}\n"
+        f"aspects_covered: {meta.get('aspects_covered', '')}\n"
+        f"-->"
+    )
+
+
+def _parse_page_sections(content: str) -> dict[str, str]:
+    """Split page into {normalized_header_id: body} dict (insertion order preserved).
+
+    Strips wiki:meta block first. Header normalized: lower, non-alnum → underscore.
+    """
+    if not content:
+        return {}
+    body = _META_BLOCK_RE.sub("", content).strip()
+    if not body:
+        return {}
+    parts = re.split(r"(?m)^## (.+)$", body)
+    # parts[0]=preamble (ignore), parts[1::2]=headers, parts[2::2]=bodies
+    sections: dict[str, str] = {}
+    for i in range(1, len(parts), 2):
+        header = parts[i].strip()
+        section_body = parts[i + 1].strip() if i + 1 < len(parts) else ""
+        section_id = re.sub(r"[^a-z0-9]+", "_", header.lower()).strip("_")
+        sections[section_id] = section_body
+    return sections
+
+
 def promote_successful_pattern(
     task_type: str,
     task_id: str,
