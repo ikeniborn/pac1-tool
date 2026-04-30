@@ -600,7 +600,11 @@ def _call_llm(log: list, model: str, max_tokens: int, cfg: dict) -> tuple[NextSt
     if ollama_result[0] is not None:
         return ollama_result
 
-    # FIX-417: all tiers failed — one attempt with MODEL_FALLBACK
+    # FIX-417: all tiers failed — retry with MODEL_FALLBACK. Unlike dispatch.py (max_retries=1),
+    # here we give the fallback model a full tier attempt (Anthropic→OpenRouter→Ollama) so it has
+    # the best chance to succeed. Recursion depth is bounded to 1: the recursive call has
+    # model=_FALLBACK_MODEL, so _FALLBACK_MODEL != model is False and the guard won't fire again.
+    # cfg={}: fallback model may not share primary model's provider-specific config.
     if _FALLBACK_MODEL and _FALLBACK_MODEL != model:
         print(f"{CLI_YELLOW}[loop] All tiers failed — retrying with MODEL_FALLBACK={_FALLBACK_MODEL}{CLI_CLR}")
         return _call_llm(log, _FALLBACK_MODEL, max_tokens, {})

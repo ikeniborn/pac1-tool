@@ -114,3 +114,18 @@ def test_call_llm_raw_no_fallback_when_unset(monkeypatch):
 
     assert result is None
     assert mock.call_count == 1
+
+
+def test_call_llm_raw_no_fallback_when_same_as_primary(monkeypatch):
+    """MODEL_FALLBACK set to same model as primary → no fallback (avoid redundant retry)."""
+    monkeypatch.setenv("MODEL_FALLBACK", "primary:test")
+
+    import importlib
+    import agent.dispatch as disp
+    importlib.reload(disp)
+
+    with patch.object(disp, "_call_raw_single_model", return_value=None) as mock:
+        result = disp.call_llm_raw("sys", "user", "primary:test", {}, max_tokens=10)
+
+    assert result is None
+    assert mock.call_count == 1  # only primary, no fallback
