@@ -5,6 +5,12 @@ Each hardcoded fix gets a sequential label `FIX-N` in code comments.
 ## [Unreleased]
 
 ### Added
+- FIX-421 (wiki-graph dedup antipattern nodes): `agent/wiki_graph.py`. Error-ingest was creating near-duplicate antipattern nodes, degrading graph health to WARN. Added `_token_overlap(a, b)` (Jaccard on non-stop-word tokens), `_find_near_duplicate(g, kind, text)` (finds existing node with overlap ≥ 0.7), and dedup logic in `_upsert` inside `merge_updates`: if new node id not in graph, check for near-duplicate; if found, reuse its id and bump uses instead of inserting. Tests: `tests/test_wiki_graph_dedup.py` (8 tests).
+
+- FIX-420 (targeted evaluator bypass for lookup): `agent/loop.py`. Blanket `if task_type == TASK_LOOKUP: _eval_bypass = True` skipped evaluator for all lookup tasks including wrong OUTCOME_OK with no exploration. Replaced with `_should_bypass_evaluator_lookup(report)`: bypass only if outcome is OUTCOME_NONE_CLARIFICATION OR completed_steps_laconic contains list/read/search/find/tree keywords. Tests: 3 tests added to `tests/test_loop_mutation_gate.py`.
+
+- FIX-419 (contract reads Verified Refusals from wiki): `agent/wiki.py` + `agent/contract_phase.py`. Contract negotiation phase was generating action-plans even when wiki already contained Verified Refusal for the task type — contract prompts had no visibility into wiki. Added `load_refusal_hints(task_type, max_refusals=3)` in `wiki.py` that extracts up to 3 `## Verified refusal:` sections. Injected into `negotiate_contract()` context block so executor/evaluator can generate refusal-plans. Tests: `test_refusal_hints_injected_into_context` in `tests/test_contract_phase.py`.
+
 - **Contract DSPy optimization pipeline** (FIX-401):
   - `ContractRound` model in `contract_models.py` for per-round transcript
   - `negotiate_contract()` returns 4-tuple `(Contract, int, int, list[ContractRound])`
