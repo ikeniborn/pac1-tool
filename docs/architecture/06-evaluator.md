@@ -151,7 +151,7 @@ data/evaluator_<task_type>_program.json
 
 `evaluate_completion()` получает два дополнительных advisory InputField, инжектируемых перед вызовом DSPy:
 
-- **`reference_patterns`**: содержимое `data/wiki/pages/<task_type>.md` — раздел «Successful patterns» и «Verified refusals». Ограничен `EVALUATOR_WIKI_MAX_CHARS` символами.
+- **`reference_patterns`**: содержимое `data/wiki/pages/<task_type>.md`. Лимит символов масштабируется по уровню качества страницы: nascent → 500, developing → 2000, mature → 4000.
 - **`graph_insights`**: top-K релевантных узлов из `wiki_graph.retrieve_relevant()`. Требует `WIKI_GRAPH_ENABLED=1`.
 
 **Advisory, не binding**: при конфликте с хардкодированными INBOX/ENTITY правилами побеждают правила. При любом сбое чтения wiki/graph — пустая строка (fail-open).
@@ -212,9 +212,11 @@ EVAL_SKEPTICISM=mid           # low|mid|high
 EVAL_EFFICIENCY=mid           # low|mid|high — бюджет токенов
 EVAL_MAX_REJECTIONS=2         # лимит отклонений
 MODEL_EVALUATOR=...           # отдельная модель (иначе — основная агента)
-EVALUATOR_WIKI_ENABLED=1      # инъекция wiki страниц в evaluator (по умолчанию 1)
-EVALUATOR_WIKI_MAX_CHARS=3000 # лимит символов wiki-контекста
-EVALUATOR_GRAPH_TOP_K=5       # кол-во узлов графа (требует WIKI_GRAPH_ENABLED=1)
+EVALUATOR_WIKI_ENABLED=1               # инъекция wiki страниц в evaluator (по умолчанию 1)
+EVALUATOR_WIKI_MAX_CHARS_NASCENT=500   # лимит для nascent страниц (мало данных)
+EVALUATOR_WIKI_MAX_CHARS_DEVELOPING=2000 # лимит для developing страниц
+EVALUATOR_WIKI_MAX_CHARS_MATURE=4000   # лимит для mature страниц
+EVALUATOR_GRAPH_TOP_K=5                # кол-во узлов графа (требует WIKI_GRAPH_ENABLED=1)
 ```
 
 ## Ключевые файлы

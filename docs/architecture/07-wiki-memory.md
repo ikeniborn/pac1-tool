@@ -83,10 +83,10 @@ sequenceDiagram
     L->>Lint: run_wiki_lint(model, cfg)
 
     loop для каждой категории
-        Lint->>Lint: собрать все fragments
-        Lint->>LLM: category-specific synthesis prompt
-        LLM-->>Lint: structured page content
-        Lint->>PG: write pages/category.md
+        Lint->>Lint: собрать fragments + читать мета страницы
+        Lint->>LLM: aspect-by-aspect synthesis (_llm_synthesize_v2)
+        LLM-->>Lint: обновлённые секции по аспектам + graph_deltas
+        Lint->>PG: write pages/category.md с обновлённой мета
     end
 ```
 
@@ -126,35 +126,34 @@ flowchart TB
 
 > **FIX-346/350**: `load_wiki_base` (contacts.md + accounts.md) удалена — entity-catalog injection была избыточна, т.к. agent теперь обязан читать из живого vault перед записью. Осталась только инъекция task-type patterns.
 
-## Per-category synthesis prompts
+## Aspect-by-aspect синтез
+
+`_llm_synthesize_v2` заменяет монолитный синтез: страница делится на аспекты из `data/task_types.json` (поле `knowledge_aspects`). Каждый аспект синтезируется отдельно (add-only), без перезаписи уже накопленных знаний.
 
 ```mermaid
 flowchart LR
-    subgraph errors[errors]
-        EP[prompt:<br/>extract concrete<br/>error patterns:<br/>name, condition,<br/>root cause, solution]
-    end
-
-    subgraph contacts[contacts / accounts]
-        CP[prompt:<br/>extract proven sequences<br/>+ risks + insights;<br/>НЕ добавлять<br/>individual entries]
-    end
-
-    subgraph inbox[inbox / queue]
-        IP[prompt:<br/>extract patterns<br/>+ steps;<br/>НЕ включать<br/>vault-specific data<br/>handles, tokens]
-    end
-
-    Frags[fragments/*] --> errors
-    Frags --> contacts
-    Frags --> inbox
-
-    errors --> EpOut[pages/errors.md]
-    contacts --> CpOut[pages/contacts.md<br/>pages/accounts.md]
-    inbox --> IpOut[pages/inbox.md<br/>pages/queue.md]
+    Frags[fragments/*] --> ReadMeta[читать мета<br/>existing page]
+    ReadMeta --> Aspects[knowledge_aspects<br/>из task_types.json]
+    Aspects --> PerAsp[LLM per-aspect<br/>add-only call]
+    PerAsp --> Assemble[_assemble_page_from_sections]
+    Assemble --> Page[pages/category.md<br/>+ wiki:meta header]
+    PerAsp -.graph_deltas.-> Graph[merge_updates<br/>save_graph]
 ```
 
-**Правила синтеза**:
-- Категории `contacts`/`accounts`: не содержат individual records (фрагменты могут, страницы — нет).
-- Категории `inbox`/`queue`: не содержат vault-specific handles, channel names, tokens (во избежание leak в другие задачи).
+**Правила синтеза** (сохраняются):
+- Категории `contacts`/`accounts`: не содержат individual records.
+- Категории `inbox`/`queue`: не содержат vault-specific handles, channel names, tokens.
 - Категория `errors`: наоборот, максимально конкретные условия и решения.
+
+## Page quality
+
+Каждая страница хранит мета-блок `<!-- wiki:meta ... -->` с полем `quality`:
+
+| Уровень | Условие | Эффект |
+|---|---|---|
+| `nascent` | fragment_count < 5 | `load_wiki_patterns` добавляет `[draft — limited data]` заголовок; evaluator char limit 500 |
+| `developing` | 5 ≤ count < 15 | evaluator char limit 2000 |
+| `mature` | count ≥ 15 | evaluator char limit 4000; graph-узлы получают тег `wiki_mature` |
 
 ## Classifier-hints из wiki
 
