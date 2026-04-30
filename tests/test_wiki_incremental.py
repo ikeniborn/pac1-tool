@@ -1,15 +1,7 @@
 # tests/test_wiki_incremental.py
-import json
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from agent.wiki import run_wiki_lint, _read_page_meta_from_content
-
-
-def _make_graph_module():
-    gm = MagicMock()
-    gm.merge_updates.return_value = []
-    gm.load_graph.return_value = MagicMock()
-    return gm
 
 
 def _write_fragment(frag_dir: Path, name: str, content: str) -> None:

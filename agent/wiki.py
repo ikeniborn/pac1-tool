@@ -90,7 +90,7 @@ _PAGES_GRAPH_PROMPT = (
 # Task type → wiki page name mapping (FIX-325: driven by data/task_types.json).
 # 'think' is not a registered task type but a legacy synthesis-prompt bucket;
 # keep it pinned in the map so wiki-lint for 'think' fragments still resolves.
-from .task_types import wiki_folder_map as _wiki_folder_map
+from .task_types import wiki_folder_map as _wiki_folder_map, knowledge_aspects as _get_aspects
 _TYPE_TO_PAGE: dict[str, str] = {**_wiki_folder_map(), "think": "think"}
 
 # Category-specific LLM synthesis prompts (Variant C)
@@ -972,7 +972,6 @@ def run_wiki_lint(model: str = "", cfg: dict | None = None) -> None:
         new_entries = [f.read_text(encoding="utf-8") for f in fragments]
 
         # Resolve knowledge_aspects for this category
-        from .task_types import knowledge_aspects as _get_aspects
         # category may be "errors/email" — use base name for aspect lookup
         base_cat = category.split("/")[-1] if "/" in category else category
         aspects = _get_aspects(base_cat)
