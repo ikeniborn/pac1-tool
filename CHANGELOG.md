@@ -5,6 +5,8 @@ Each hardcoded fix gets a sequential label `FIX-N` in code comments.
 ## [Unreleased]
 
 ### Added
+- FIX-422 (auto-purge graph before each run): `main.py`. Ручной цикл "проверить → очистить → перезапустить" заменён встроенным шагом `_auto_purge_graph()`, вызываемым в `main()` до старта прогона. Два прохода: (1) `scripts/purge_research_contamination.py --apply` — удаляет контаминированные узлы; (2) деdup-проход — удаляет узлы с одинаковым текстом (разные type-prefix), оставляя узел с наибольшим `uses`. Fail-open: ошибки логируются, прогон не прерывается. Makefile упрощён — hard-fail gate удалён (очистка теперь в `main.py`).
+
 - FIX-421 (wiki-graph dedup antipattern nodes): `agent/wiki_graph.py`. Error-ingest was creating near-duplicate antipattern nodes, degrading graph health to WARN. Added `_token_overlap(a, b)` (Jaccard on non-stop-word tokens), `_find_near_duplicate(g, kind, text)` (finds existing node with overlap ≥ 0.7), and dedup logic in `_upsert` inside `merge_updates`: if new node id not in graph, check for near-duplicate; if found, reuse its id and bump uses instead of inserting. Tests: `tests/test_wiki_graph_dedup.py` (8 tests).
 
 - FIX-420 (targeted evaluator bypass for lookup): `agent/loop.py`. Blanket `if task_type == TASK_LOOKUP: _eval_bypass = True` skipped evaluator for all lookup tasks including wrong OUTCOME_OK with no exploration. Replaced with `_should_bypass_evaluator_lookup(report)`: bypass only if outcome is OUTCOME_NONE_CLARIFICATION OR completed_steps_laconic contains list/read/search/find/tree keywords. Tests: 3 tests added to `tests/test_loop_mutation_gate.py`.
