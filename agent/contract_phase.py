@@ -275,7 +275,8 @@ def negotiate_contract(
         if _LOG_LEVEL == "DEBUG":
             print(
                 f"[contract] round {round_num}: executor.agreed={proposal.agreed} "
-                f"evaluator.agreed={response.agreed} objections={response.objections}"
+                f"evaluator.agreed={response.agreed} objections={response.objections} "
+                f"blocking_objections={response.blocking_objections}"
             )
 
         # FIX-406: partial consensus — evaluator is authority on success criteria.

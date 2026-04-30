@@ -15,12 +15,13 @@ def _make_executor_json(agreed=False, steps=None):
     })
 
 
-def _make_evaluator_json(agreed=False, objections=None):
+def _make_evaluator_json(agreed=False, objections=None, blocking_objections=None):
     return json.dumps({
         "success_criteria": ["file /out/1.json written"],
         "failure_conditions": ["no file written"],
         "required_evidence": ["/out/1.json"],
         "objections": objections or [],
+        "blocking_objections": blocking_objections or [],
         "counter_proposal": None,
         "agreed": agreed,
     })
