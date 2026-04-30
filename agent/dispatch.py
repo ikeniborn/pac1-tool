@@ -254,20 +254,21 @@ def get_response_format(mode: str) -> dict | None:
 # ---------------------------------------------------------------------------
 
 # Transient error keywords — single source of truth; imported by loop.py
-# FIX-215: added timeout/timed out/connection reset — httpx/OpenAI timeouts should retry
+# FIX-215: added timeout/timed out — httpx/OpenAI timeouts should retry
 TRANSIENT_KWS = (
     "503", "502", "429", "NoneType", "overloaded",
     "unavailable", "server error", "rate limit", "rate-limit",
-    "timeout", "timed out", "connection reset", "read timeout",
+    "timeout", "timed out", "read timeout",
     "apitimeouterror", "connecttimeout", "readtimeout",
 )
 
 # FIX-416: hard connection errors — not retried 3 times like soft transients.
 # These indicate the socket is dead; one immediate retry is sufficient before
 # falling through to MODEL_FALLBACK. Kept separate so loop.py can cap retries at 1.
+# FIX-416b: "connection reset" (ECONNRESET) is a dead-socket condition, same as broken pipe.
 HARD_CONNECTION_KWS = (
     "broken pipe", "errno 32", "connection aborted",
-    "connection refused", "remotedisconnected", "incompleteread",
+    "connection reset", "connection refused", "remotedisconnected", "incompleteread",
 )
 
 _THINK_RE = re.compile(r"<think>.*?</think>", re.DOTALL)

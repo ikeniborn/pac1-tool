@@ -1024,10 +1024,14 @@ def _run_pre_route(
                     print(f"{CLI_YELLOW}[router] JSON decode failed (attempt {_rr_attempt+1}/{_ROUTER_MAX_RETRIES}): {_je} raw={_rr_raw_dbg!r}{CLI_CLR}")
                     continue
                 except Exception as _re:
-                    _is_transient = any(kw.lower() in str(_re).lower() for kw in TRANSIENT_KWS)
-                    if _is_transient and _rr_attempt < _ROUTER_MAX_RETRIES - 1:
-                        print(f"{CLI_YELLOW}[router] Transient error (attempt {_rr_attempt+1}/{_ROUTER_MAX_RETRIES}): {_re} — retrying in 2s{CLI_CLR}")
-                        time.sleep(2)
+                    _re_str = str(_re)
+                    _is_hard = any(kw.lower() in _re_str.lower() for kw in HARD_CONNECTION_KWS)
+                    _is_transient = any(kw.lower() in _re_str.lower() for kw in TRANSIENT_KWS)
+                    _max_attempt = 1 if _is_hard else _ROUTER_MAX_RETRIES - 1
+                    if (_is_hard or _is_transient) and _rr_attempt < _max_attempt:
+                        _delay = 2 if _is_hard else 4
+                        print(f"{CLI_YELLOW}[router] {'Hard connection' if _is_hard else 'Transient'} error (attempt {_rr_attempt+1}/{_ROUTER_MAX_RETRIES}): {_re} — retrying in {_delay}s{CLI_CLR}")
+                        time.sleep(_delay)
                         continue
                     # Non-transient or last attempt — use configured fallback
                     print(f"{CLI_YELLOW}[router] Router call failed: {_re} — fallback {_ROUTER_FALLBACK}{CLI_CLR}")
