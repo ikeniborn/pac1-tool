@@ -34,6 +34,10 @@ Input:
   - done_operations   : ['WRITTEN: /outbox/5.json', 'READ: /contacts/maya.json', ...]
   - task_text         : оригинальный текст
   - skepticism_level  : low | mid | high
+  - reference_patterns: str — wiki page content (advisory; "" если EVALUATOR_WIKI_ENABLED=0)
+  - graph_insights    : str — top-K graph nodes (advisory; "" если WIKI_GRAPH_ENABLED=0)
+  - account_evidence  : str — INBOX/entity evidence (hardcoded gate, не advisory)
+  - inbox_evidence    : str — inbox-specific evidence
 
 Output (ChainOfThought):
   - reasoning         : рассуждение модели
@@ -143,6 +147,32 @@ data/evaluator_<task_type>_program.json
   → bare signature
 ```
 
+## Wiki + Graph injection (FIX-367)
+
+`evaluate_completion()` получает два дополнительных advisory InputField, инжектируемых перед вызовом DSPy:
+
+- **`reference_patterns`**: содержимое `data/wiki/pages/<task_type>.md` — раздел «Successful patterns» и «Verified refusals». Ограничен `EVALUATOR_WIKI_MAX_CHARS` символами.
+- **`graph_insights`**: top-K релевантных узлов из `wiki_graph.retrieve_relevant()`. Требует `WIKI_GRAPH_ENABLED=1`.
+
+**Advisory, не binding**: при конфликте с хардкодированными INBOX/ENTITY правилами побеждают правила. При любом сбое чтения wiki/graph — пустая строка (fail-open).
+
+```mermaid
+flowchart LR
+    EvalCall[evaluate_completion] --> WikiLoad["load_reference_patterns<br/>data/wiki/pages/task_type.md"]
+    EvalCall --> GraphLoad["_load_graph_insights<br/>wiki_graph.retrieve_relevant"]
+
+    WikiLoad --> DspySig["EvaluateCompletion<br/>+reference_patterns<br/>+graph_insights"]
+    GraphLoad --> DspySig
+
+    DspySig --> HardRules{hardcoded<br/>INBOX/ENTITY rule?}
+    HardRules -->|да| HardWin[hard rule wins]
+    HardRules -->|нет| Advisory[wiki/graph advisory]
+
+    style WikiLoad fill:#e1f5ff
+    style GraphLoad fill:#f5e1ff
+    style HardWin fill:#ffe1e1
+```
+
 ## Интеграция с loop.py
 
 ```mermaid
@@ -182,6 +212,9 @@ EVAL_SKEPTICISM=mid           # low|mid|high
 EVAL_EFFICIENCY=mid           # low|mid|high — бюджет токенов
 EVAL_MAX_REJECTIONS=2         # лимит отклонений
 MODEL_EVALUATOR=...           # отдельная модель (иначе — основная агента)
+EVALUATOR_WIKI_ENABLED=1      # инъекция wiki страниц в evaluator (по умолчанию 1)
+EVALUATOR_WIKI_MAX_CHARS=3000 # лимит символов wiki-контекста
+EVALUATOR_GRAPH_TOP_K=5       # кол-во узлов графа (требует WIKI_GRAPH_ENABLED=1)
 ```
 
 ## Ключевые файлы
