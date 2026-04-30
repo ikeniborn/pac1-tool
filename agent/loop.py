@@ -26,6 +26,7 @@ from .dispatch import (
     dispatch,
     probe_structured_output, get_response_format,
     TRANSIENT_KWS, HARD_CONNECTION_KWS,  # FIX-416
+    _FALLBACK_MODEL,   # FIX-417
     _THINK_RE,
     _CC_ENABLED,
 )
@@ -589,13 +590,22 @@ def _call_llm(log: list, model: str, max_tokens: int, cfg: dict) -> tuple[NextSt
         extra["options"] = _opts
     # FIX-137: use json_object (not json_schema) for Ollama — json_schema is unsupported
     # by many Ollama models and causes empty responses; matches dispatch.py Ollama tier.
-    return _call_openai_tier(
+    ollama_result = _call_openai_tier(
         ollama_client, ollama_model, log,
         None,  # no max_tokens for Ollama — model stops naturally
         "Ollama",
         extra_body=extra if extra else None,
         response_format=get_response_format("json_object"),
     )
+    if ollama_result[0] is not None:
+        return ollama_result
+
+    # FIX-417: all tiers failed — one attempt with MODEL_FALLBACK
+    if _FALLBACK_MODEL and _FALLBACK_MODEL != model:
+        print(f"{CLI_YELLOW}[loop] All tiers failed — retrying with MODEL_FALLBACK={_FALLBACK_MODEL}{CLI_CLR}")
+        return _call_llm(log, _FALLBACK_MODEL, max_tokens, {})
+
+    return ollama_result
 
 
 # ---------------------------------------------------------------------------

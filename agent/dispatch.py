@@ -271,6 +271,10 @@ HARD_CONNECTION_KWS = (
     "connection reset", "connection refused", "remotedisconnected", "incompleteread",
 )
 
+# FIX-417: fallback model used when all tiers of primary model fail completely.
+# Set MODEL_FALLBACK to any supported model string (same format as MODEL_DEFAULT).
+_FALLBACK_MODEL = os.environ.get("MODEL_FALLBACK", "")
+
 _THINK_RE = re.compile(r"<think>.*?</think>", re.DOTALL)
 _LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()  # DEBUG → log think blocks
 
@@ -307,7 +311,7 @@ def get_provider(model: str, cfg: dict) -> str:
     return "openrouter"
 
 
-def call_llm_raw(
+def _call_raw_single_model(
     system: str,
     user_msg: str,
     model: str,
@@ -531,6 +535,34 @@ def call_llm_raw(
         print(f"[Ollama] Plain-text retry failed: {e}")
 
     return None
+
+
+def call_llm_raw(
+    system: str,
+    user_msg: str,
+    model: str,
+    cfg: dict,
+    max_tokens: int = 20,
+    think: bool | None = None,
+    max_retries: int = 3,
+    plain_text: bool = False,
+    token_out: dict | None = None,
+    logprobs: bool = False,
+) -> str | None:
+    """Call LLM with MODEL_FALLBACK retry (FIX-417). Primary model through all tiers first."""
+    result = _call_raw_single_model(
+        system, user_msg, model, cfg,
+        max_tokens=max_tokens, think=think, max_retries=max_retries,
+        plain_text=plain_text, token_out=token_out, logprobs=logprobs,
+    )
+    if result is None and _FALLBACK_MODEL and _FALLBACK_MODEL != model:
+        print(f"[dispatch] Primary exhausted — retrying with MODEL_FALLBACK={_FALLBACK_MODEL}")
+        result = _call_raw_single_model(
+            system, user_msg, _FALLBACK_MODEL, {},
+            max_tokens=max_tokens, think=think, max_retries=1,
+            plain_text=plain_text, token_out=token_out, logprobs=logprobs,
+        )
+    return result
 
 
 # ---------------------------------------------------------------------------

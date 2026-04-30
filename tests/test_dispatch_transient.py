@@ -70,3 +70,47 @@ def test_hard_connection_error_retries_at_most_once():
     )
     # After the single retry fails, result should be None (no valid response)
     assert result[0] is None
+
+
+import os
+from unittest.mock import patch, call as mcall
+
+
+def test_call_llm_raw_falls_back_on_total_failure(monkeypatch):
+    """When all tiers return None, call_llm_raw retries with MODEL_FALLBACK."""
+    monkeypatch.setenv("MODEL_FALLBACK", "fallback-model:test")
+
+    results = iter([None, '{"type": "lookup"}'])
+
+    def fake_single(system, user_msg, model, cfg, **kwargs):
+        return next(results)
+
+    # Reload to pick up MODEL_FALLBACK env var
+    import importlib
+    import agent.dispatch as disp
+    importlib.reload(disp)
+
+    with patch.object(disp, "_call_raw_single_model", side_effect=fake_single) as mock:
+        result = disp.call_llm_raw(
+            "sys", "user", "primary-model:test", {}, max_tokens=10,
+        )
+
+    assert result == '{"type": "lookup"}'
+    assert mock.call_count == 2
+    # Second call uses fallback model
+    assert mock.call_args_list[1][0][2] == "fallback-model:test"
+
+
+def test_call_llm_raw_no_fallback_when_unset(monkeypatch):
+    """MODEL_FALLBACK not set → single attempt, returns None on failure."""
+    monkeypatch.delenv("MODEL_FALLBACK", raising=False)
+
+    import importlib
+    import agent.dispatch as disp
+    importlib.reload(disp)
+
+    with patch.object(disp, "_call_raw_single_model", return_value=None) as mock:
+        result = disp.call_llm_raw("sys", "user", "primary:test", {}, max_tokens=10)
+
+    assert result is None
+    assert mock.call_count == 1
