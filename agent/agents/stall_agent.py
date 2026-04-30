@@ -57,11 +57,13 @@ class StallAgent:
         if hint is None:
             return StallResult(detected=False)
 
-        # Compute escalation level based on steps_without_write
+        # Escalation level mirrors the signal from _check_stall:
+        # [STALL ESCALATION] in the hint means the exploration-stall path
+        # triggered escalation (12+ or 18+ steps without write). Other stall
+        # types (fingerprint repeat, error repeat) get level 1 regardless of
+        # step count — they are not escalating stalls.
         escalation = 1
-        if request.steps_without_write >= 12:
-            escalation = 2
-        if request.steps_without_write >= 18:
-            escalation = 3
+        if "[STALL ESCALATION]" in hint:
+            escalation = 2 if request.steps_without_write < 18 else 3
 
         return StallResult(detected=True, hint=hint, escalation_level=escalation)
