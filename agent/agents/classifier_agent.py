@@ -6,8 +6,7 @@ and selects the appropriate model for execution.
 from __future__ import annotations
 
 from agent.classifier import ModelRouter, classify_task
-from agent.contracts import ClassificationResult, TaskInput
-from agent.prephase import PrephaseResult
+from agent.contracts import ClassificationResult, PrephaseResult, TaskInput
 
 
 class ClassifierAgent:
