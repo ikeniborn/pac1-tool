@@ -306,12 +306,18 @@ def load_wiki_patterns(task_type: str, include_negatives: bool = True) -> str:
 
     include_negatives=True (default) appends a KNOWN DEAD ENDS block from the
     last 5 error fragments for this task_type (FIX-410). Fail-open.
+    Nascent pages (quality == "nascent" or no meta) get a [draft — limited data] marker.
     """
     page_name = _TYPE_TO_PAGE.get(task_type, task_type)
     content = _read_page(page_name)
     parts = []
     if content:
-        parts.append(f"## Wiki: {task_type} Patterns\n{content}")
+        meta = _read_page_meta_from_content(content)
+        quality = meta.get("quality", "nascent")
+        header = f"## Wiki: {task_type} Patterns"
+        if quality == "nascent":
+            header += " [draft — limited data]"
+        parts.append(f"{header}\n{content}")
     if include_negatives:
         negatives = _load_dead_ends(task_type)
         if negatives:
