@@ -1,10 +1,9 @@
 """SecurityAgent — validation of tool invocations against security gates.
 
-Wraps existing security functions from agent.security and agent.loop
-into a contract-based interface for the multi-agent architecture.
+Wraps existing security functions from agent.security into a
+contract-based interface for the multi-agent architecture.
 
-Isolation rule: imports only from agent.contracts and agent.security
-(plus agent.loop for _INJECTION_RE).
+Isolation rule: imports only from agent.contracts and agent.security.
 """
 from __future__ import annotations
 
@@ -15,8 +14,8 @@ from agent.security import (
     _check_write_scope,
     _check_write_payload_injection,
     _normalize_for_injection,
+    _INJECTION_RE,
 )
-from agent.loop import _INJECTION_RE
 
 
 class SecurityAgent:

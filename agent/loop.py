@@ -71,19 +71,7 @@ if _EVAL_EFFICIENCY not in ("low", "mid", "high"):
     _EVAL_EFFICIENCY = "mid"
 _MAX_EVAL_REJECTIONS = int(os.environ.get("EVAL_MAX_REJECTIONS", "2"))
 
-# Module-level regex for fast-path injection detection (compiled once, not per-task)
-_INJECTION_RE = re.compile(
-    r"ignore\s+(previous|above|prior)\s+instructions?"
-    r"|disregard\s+(all|your|previous)"
-    r"|new\s+(task|instruction)\s*:"
-    r"|system\s*prompt\s*:"
-    r'|"tool"\s*:\s*"report_completion"'
-    # FIX-329: bridge-relay injection (t09-style)
-    r"|security\s+relay\s*:\s*authenticated"
-    r"|mirrored\s+through\s+(an\s+)?internal\s+bridge"
-    r"|trusted\s+operational\s+guidance",
-    re.IGNORECASE,
-)
+from agent.security import _INJECTION_RE  # FIX-203/329: moved to security.py
 
 # FIX-203/206/214/215: security constants/functions imported from agent/security.py
 
