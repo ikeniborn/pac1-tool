@@ -35,7 +35,7 @@ def test_mature_page_has_higher_limit(tmp_path, monkeypatch):
     assert "Step X." in result
 
 
-def test_wiki_eval_disabled_returns_empty(tmp_path, monkeypatch):
+def test_wiki_eval_disabled_returns_empty(monkeypatch):
     monkeypatch.setattr("agent.evaluator._WIKI_EVAL_ENABLED", False)
     result = _load_reference_patterns("email")
     assert result == ""
