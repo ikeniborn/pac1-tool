@@ -23,14 +23,21 @@ flowchart TB
     BuilderEx -->|≥30| Optimize[scripts/optimize_prompts.py]
     EvalEx -->|≥20| Optimize
 
-    Optimize --> Copro[COPRO<br/>breadth×depth<br/>prompt refinement]
+    Optimize --> BackendSel{OPTIMIZER_TARGET?}
+    BackendSel -->|copro default| Copro[COPRO<br/>breadth×depth<br/>prompt refinement]
+    BackendSel -->|gepa| Gepa[GEPA<br/>Genetic-Pareto<br/>Reflective Evolution]
     Copro --> Compiled[data/*_program.json]
+    Gepa --> Compiled
+    Gepa -.pareto frontier.-> Pareto["data/&lt;target&gt;_program_pareto/"]
 
     Compiled -.auto-load on next run.-> Agent
 
     style Record fill:#e1f5ff
     style Optimize fill:#fff4e1
     style Compiled fill:#e1ffe1
+    style BackendSel fill:#e1f5ff
+    style Gepa fill:#f5e1ff
+    style Pareto fill:#f0f0f0
 ```
 
 ## Три сигнатуры DSPy
@@ -187,6 +194,22 @@ DSPY_COLLECT=1         # включить сбор примеров в runtime
 
 `COPRO` минимизирует `1 - mean(score)` по devset. Метрика — score от harness, нормализованный в [0, 1].
 
+## Contract phase: дополнительные сигнатуры
+
+Фаза переговоров (`agent/contract_phase.py`) использует две отдельные DSPy-сигнатуры:
+
+- **`ContractExecutor`** signature: генерирует `plan_steps` и `success_criteria` для executor-роли
+- **`ContractEvaluator`** signature: верифицирует предложенный план с позиции evaluator-роли
+
+Сбор примеров: `data/dspy_contract_examples.jsonl` — пишется только при `is_default=False` (т.е. когда negotiation действительно состоялась, а не использован дефолтный контракт).
+
+Порог: ≥30 контрактных примеров → оптимизация:
+```bash
+uv run python scripts/optimize_prompts.py --target contract
+```
+
+Compiled programs: `data/contract_executor_program.json`, `data/contract_evaluator_program.json`. Fail-open: при отсутствии файлов используется bare signature.
+
 ## Two-backend architecture (since 2026-04)
 
 `agent/optimization/` is a small package with two interchangeable optimizer backends behind a common `OptimizerProtocol`:
@@ -258,7 +281,7 @@ flowchart TB
 
 | Файл | Назначение |
 |---|---|
-| `scripts/optimize_prompts.py` | CLI для COPRO: `--target builder\|evaluator` |
+| `scripts/optimize_prompts.py` | CLI: `--target builder\|evaluator\|classifier\|contract` |
 | `agent/dspy_lm.py` | `DispatchLM` — `dspy.BaseLM` adapter |
 | `agent/dspy_examples.py` | `record_example`, `record_eval_example`, загрузчики |
 | `agent/prompt_builder.py` | `PromptAddendum` signature + `build_dynamic_addendum` |
@@ -269,6 +292,10 @@ flowchart TB
 | `data/dspy_examples.jsonl` | Собранные примеры builder |
 | `data/dspy_eval_examples.jsonl` | Собранные примеры evaluator |
 | `data/dspy_errors.jsonl` | Ошибки при загрузке / форсированные fail-open |
+| `agent/optimization/` | `CoproBackend`, `GepaBackend`, `OptimizerProtocol`, `metrics.py`, `feedback.py` |
+| `data/dspy_contract_examples.jsonl` | Собранные примеры contract phase |
+| `data/contract_executor_program.json` | Скомпилированная executor-программа контракта |
+| `data/contract_evaluator_program.json` | Скомпилированная evaluator-программа контракта |
 
 ## Порог и запуск
 
