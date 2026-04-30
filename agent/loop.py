@@ -78,6 +78,25 @@ from agent.security import _INJECTION_RE  # FIX-203/329: moved to security.py
 # FIX-203/206/214/215: security constants/functions imported from agent/security.py
 
 
+def _should_bypass_evaluator_lookup(report) -> bool:
+    """FIX-420: targeted evaluator bypass for TASK_LOOKUP.
+
+    Bypass only when:
+    - outcome is OUTCOME_NONE_CLARIFICATION (no evaluation needed), OR
+    - agent actually explored the vault (list/read/search/find/tree in steps)
+
+    If OUTCOME_OK arrived with zero exploration steps → evaluator must run.
+    """
+    if report.outcome == "OUTCOME_NONE_CLARIFICATION":
+        return True
+    _steps = report.completed_steps_laconic or []
+    _explored = any(
+        any(kw in s.lower() for kw in ("list", "read", "search", "find", "tree"))
+        for s in _steps
+    )
+    return _explored
+
+
 def _format_contract_block(contract: "Any") -> str:
     """Format a Contract into a ## AGREED CONTRACT system-prompt section."""
     lines = ["## AGREED CONTRACT"]
@@ -2181,9 +2200,10 @@ def _run_step(
             _eval_bypass = True
         if st._format_gate_fired:
             _eval_bypass = True
-        # Lookup tasks: evaluator doesn't understand vault data model well enough
+        # FIX-420: targeted bypass — only skip evaluator when agent actually explored
         if task_type == TASK_LOOKUP:
-            _eval_bypass = True
+            if _should_bypass_evaluator_lookup(job.function):
+                _eval_bypass = True
         if _eval_bypass:
             print(f"{CLI_GREEN}[evaluator] Code-verified bypass → auto-approve{CLI_CLR}")
     if (_EVALUATOR_ENABLED

@@ -111,3 +111,35 @@ def test_gate_no_contract():
     with patch("agent.loop._check_write_scope", return_value=None):
         result = _pre_dispatch(job, "queue", vm, st)
     assert result is None
+
+
+def _make_report(outcome="OUTCOME_OK", steps=None):
+    from agent.models import ReportTaskCompletion
+    return ReportTaskCompletion(
+        tool="report_completion",
+        completed_steps_laconic=steps or [],
+        message="done",
+        outcome=outcome,
+        grounding_refs=[],
+    )
+
+
+def test_lookup_bypass_when_explored():
+    """FIX-420: lookup with exploration steps → bypass evaluator."""
+    from agent.loop import _should_bypass_evaluator_lookup
+    report = _make_report(outcome="OUTCOME_OK", steps=["listed /01_capture/influential — 5 articles"])
+    assert _should_bypass_evaluator_lookup(report) is True
+
+
+def test_lookup_no_bypass_when_no_exploration():
+    """FIX-420: lookup OUTCOME_OK with zero exploration → evaluator must run."""
+    from agent.loop import _should_bypass_evaluator_lookup
+    report = _make_report(outcome="OUTCOME_OK", steps=[])
+    assert _should_bypass_evaluator_lookup(report) is False
+
+
+def test_lookup_bypass_for_clarification():
+    """FIX-420: OUTCOME_NONE_CLARIFICATION never needs evaluator."""
+    from agent.loop import _should_bypass_evaluator_lookup
+    report = _make_report(outcome="OUTCOME_NONE_CLARIFICATION", steps=[])
+    assert _should_bypass_evaluator_lookup(report) is True
