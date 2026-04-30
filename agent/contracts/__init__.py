@@ -163,6 +163,8 @@ class ExecutorInput(BaseModel):
     prephase: PrephaseResult
     harness_url: str          # ExecutorAgent creates vm from this
     task_type: str
+    model: str
+    model_cfg: dict
     evaluator_model: str
     evaluator_cfg: dict
 

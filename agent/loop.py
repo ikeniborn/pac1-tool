@@ -2402,7 +2402,12 @@ def run_loop(vm: PcmRuntimeClientSync, model: str, _task_text: str,
              pre: PrephaseResult, cfg: dict, task_type: str = "default",
              evaluator_model: str = "", evaluator_cfg: "dict | None" = None,
              max_steps: int | None = None,
-             contract: "Any" = None) -> dict:
+             contract: "Any" = None,
+             _security_agent=None,
+             _stall_agent=None,
+             _compaction_agent=None,
+             _step_guard_agent=None,
+             _verifier_agent=None) -> dict:
     """Run main agent loop. Returns token usage stats dict."""
     # FIX-195: run_loop() is now a thin orchestrator — logic lives in:
     #   _run_pre_route() — injection detection + semantic routing (pre-loop)
