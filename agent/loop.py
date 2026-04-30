@@ -71,19 +71,7 @@ if _EVAL_EFFICIENCY not in ("low", "mid", "high"):
     _EVAL_EFFICIENCY = "mid"
 _MAX_EVAL_REJECTIONS = int(os.environ.get("EVAL_MAX_REJECTIONS", "2"))
 
-# Module-level regex for fast-path injection detection (compiled once, not per-task)
-_INJECTION_RE = re.compile(
-    r"ignore\s+(previous|above|prior)\s+instructions?"
-    r"|disregard\s+(all|your|previous)"
-    r"|new\s+(task|instruction)\s*:"
-    r"|system\s*prompt\s*:"
-    r'|"tool"\s*:\s*"report_completion"'
-    # FIX-329: bridge-relay injection (t09-style)
-    r"|security\s+relay\s*:\s*authenticated"
-    r"|mirrored\s+through\s+(an\s+)?internal\s+bridge"
-    r"|trusted\s+operational\s+guidance",
-    re.IGNORECASE,
-)
+from agent.security import _INJECTION_RE  # FIX-203/329: moved to security.py
 
 # FIX-203/206/214/215: security constants/functions imported from agent/security.py
 
@@ -2414,7 +2402,12 @@ def run_loop(vm: PcmRuntimeClientSync, model: str, _task_text: str,
              pre: PrephaseResult, cfg: dict, task_type: str = "default",
              evaluator_model: str = "", evaluator_cfg: "dict | None" = None,
              max_steps: int | None = None,
-             contract: "Any" = None) -> dict:
+             contract: "Any" = None,
+             _security_agent=None,
+             _stall_agent=None,
+             _compaction_agent=None,
+             _step_guard_agent=None,
+             _verifier_agent=None) -> dict:
     """Run main agent loop. Returns token usage stats dict."""
     # FIX-195: run_loop() is now a thin orchestrator — logic lives in:
     #   _run_pre_route() — injection detection + semantic routing (pre-loop)
