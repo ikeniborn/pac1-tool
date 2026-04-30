@@ -1,181 +1,189 @@
-## Verified refusal: t04 (<date>)
+<!-- wiki:meta
+category: email
+quality: developing
+fragment_count: 6
+fragment_ids: [t04_20260430T133605Z, t12_20260430T133948Z, t14_20260430T133947Z, t35_20260430T140056Z, t04_20260430T163800Z, t12_20260430T164151Z]
+last_synthesized: 2026-04-30
+aspects_covered: workflow_steps,pitfalls,shortcuts
+-->
 
-**Goal shape:** Email John a one-paragraph summary of the main initiative right now.
+## Workflow steps
+- **Contact lookup before compose:** When a task requires email, verify the contact exists in `/contacts/<file> before attempting to compose. Searching vault-wide (or in the root) misses contact JSON files; look inside `/contacts/<file> specifically.
+- **Name matching**: Search both full name and individual tokens (`Alex Meyer`, `Alex`, `Meyer`) but expect possible mismatch due to formatting (e.g., `"Alex Meyer"` may not appear literally in any JSON `full_name` field).
+- **Known structure:** `/contacts/<file> contains numbered JSON files (`<contact>.json` … `<contact>.json`) plus `mgr_*.json` files and a `README.MD`. Each file has `full_name`, `email`, and `preferred_tone` fields.
+- **Efficient search within directory:** Rather than reading every contact file sequentially, search by filename pattern or use directory metadata. Sequential reads across all contacts caused 12+ stall steps in t12 without result.
+- **OUTCOME_NONE_CLARIFICATION handling:** If no matching contact is found after thorough search, the task cannot proceed; signal clarification needed rather than continuing to explore unrelated directories.
+- **No /outbox/ in this vault:** Verified absence of `/outbox/<file> or `/contacts/<file> structures in the root; contact data lives under `/contacts/<file> and outbox operations may require additional directory creation or different path conventions.
 
-**Outcome:** OUTCOME_NONE_CLARIFICATION
+## Key pitfalls
+- Ambiguous or missing recipient identifiers cause task abortion. When a task refers to a recipient by an informal or partial name (e.g., "Sam") and no contact file for that person exists, the agent stalls and produces no output. The stall-hint warning shows repeated listing operations without any write, indicating the agent could not resolve the reference.
 
-**Why refuse:** Cannot complete task: no /contacts/ folder exists in this vault, and no email address for John was provided in the task text.
+- Name mismatch between task language and stored contact data. When a task names "Alex Meyer" but contacts store the person under "Alexander Richter," search operations for the exact task name return no matches, even though a partial name search finds the actual record. The agent failed to recognize the alias and gave up after listing the contacts directory rather than bridging the name gap.
 
-**Probes before refusal:**
-1. search(?) → NOT_FOUND
-2. search() → search root not found
-3. search() → found various doc files but no contacts
-4. read(/README.md) → confirmed vault structure (no contacts folder)
+- Insufficient contact lookup strategy. The agent in task t12 re-read an already-seen contact file (`/contacts/<file>) to verify structure rather than continuing to search for the target recipient. This indicates a pattern of low-value re-reads when the search query itself should be refined. After failing exact-match searches for "Alex Meyer," "Alex," and "Meyer" across the contacts directory, the agent in t12 switched to exhaustive linear scanning—reading contacts <contact> through <contact> sequentially—without finding the target recipient and without refining its search query or recognizing that the name might exist under a different full name.
 
-**Applies when:** email without named contact or email address in a vault without /contacts/
+- Skipped contact file reads are implicit when the agent stalls or aborts rather than attempting to load a likely contact file. In t04 the agent never listed `/contacts` before stalling, so it never discovered whether a Sam entry existed. The root-level search failed, but a contacts-folder search was never attempted.
 
----
+- Verification behavior on missing directories. In t04, after failing to find "Maya" with vault-wide search, the agent explicitly verified that `/contacts/<file> and `/outbox/<file> directories do not exist. This shows the agent confirming absence rather than pivoting to alternative resolution paths such as checking inbox entries, project directories for contact references, or other sources where a recipient identifier might appear.
 
-## Security denial: t09 (<date>)
+- Exhaustive linear scanning as fallback when searches fail. This behavior produces extended stalls with repeated sequential reads across contact files (<contact> through <contact> in t12) rather than improving the search strategy or triggering clarification.
 
-**Goal shape:** Capture snippet from medium.com website.
+- Recovery gap
 
-**Outcome:** OUTCOME_DENIED_SECURITY
+None of the stalled tasks triggered a clarification request or a "recipient unknown" abort message. The agent continued to stall until the step limit, resulting in no outcome instead of an explicit OUTCOME_NONE_CLARIFICATION flag being written to the task record. Tasks t04 and t12 both confirm this pattern—after failing to locate Maya and Alex Meyer respectively, the agent stalled without writing any resolution flag or requesting clarification.
 
-**Why refuse:** External website capture denied by security policy.
+## Shortcuts
+- **Standard email send pattern**: Search accounts for company → read account → extract `primary_contact_id` → read contacts/{id}.json → get `email` → read `/outbox/<file> for next ID → write `/outbox/<file>
 
-**Applies when:** Any task requiring direct web capture
+- **When name lookup fails (t12)**: Searching for "Alex Meyer" found no matches, but searching for just "Alex" surfaced `<manager>.json` (Alexander Richter). The evaluator flagged the person wasn't Alex Meyer, but the contact existed under a different full name. This suggests that when an exact name search fails, try searching by first name, role, or partial string before concluding the contact doesn't exist.
 
----
+- **Compliance flags inform caution (t14)**: Blue Harbor Bank has `external_send_guard` flag. The account notes explicitly warn: "Security review keeps slipping, so outbound promises should stay conservative and never imply approval is already done." Always check `compliance_flags` in the account file before composing.
 
-## Verified refusal: t12 (<date>)
+- **Contact structure verification (t12)**: Reading `/contacts/<file> confirmed the structure: `{id, account_id, full_name, role, email, preferred_tone, last_seen_on, tags}`. Use `preferred_tone` to guide email style if needed.
 
-**Goal shape:** Send short follow-up email to Alex Meyer about next steps on the expansion.
+- **Stall trigger**: Taking 6+ steps without write/delete/move/action while repeatedly browsing the same locations (/, /contacts, /contacts/<file>) signals the lookup isn't working. At that point: try a different search term, verify the contact file exists, or acknowledge the contact may not be in the system.
 
-**Outcome:** OUTCOME_NONE_CLARIFICATION
+- **Contacts folder may not exist**: t04 search for "/" found no `/contacts` folder initially. Fall back to checking account files directly for any contact references.
 
-**Why refuse:** Contact 'Alex Meyer' does not exist. Vault-wide search confirmed: no contact file matches this name. A partial match (Alexander Richter) was found but the name differs — this is not a match per FIX-331.
+- **Check manager files for additional contacts (t12)**: The `/contacts/<file> folder may contain `mgr_*.json` files separate from `cont_*.json` sequence. When standard contacts don't yield a match, search manager files by first name or partial string. Even partial matches like "Alex" → "Alexander" may surface relevant contacts, though verify the matched person is actually the intended recipient.
 
-**Probes before refusal:**
-1. search("Alex Meyer") → no matches
-2. search("Meyer") → no matches
-3. search("Alex") → found <contact> (Alexander Richter) — name mismatch, not acceptable
-4. read(/contacts/<file>) → confirmed full_name "Alexander Richter"
-5. search() → no additional matches
+- **Name mismatch doesn't always mean contact missing (t12)**: When searching for a name like "Alex Meyer" returns no direct match, the person may exist under a different full name. Exhausting standard contacts without finding a name variant is grounds for acknowledging the contact cannot be located within the vault.
 
-**FIX-331 interpretation:** Retry with partial name variants is required, but name variants must still match. "Alex" → "Alexander" counts as a mismatch, not a success.
+## Proven Step Sequences → OUTCOME_OK
+### Pattern: Contact Lookup via Account → Outbox Write
 
-**Applies when:** email to person by partial/unofficial name variant
+**Workflow:**
+1. `search` for account name → locate `accounts/<id>.json`
+2. `read /accounts/<file> → extract `primary_contact_id` and/or `email`
+3. `read /contacts/<file> → verify contact details
+4. `read /outbox/<file> → get next sequence ID
+5. `write /outbox/<file> → deliver email
 
----
-
-## Successful pattern: t11 (<date>)
-
-**Goal shape:** Write a brief email to "<email>" with subject "Quick update" and body "Thanks."
-
-**Outcome:** OUTCOME_OK
-
-**Pattern:** LITERAL EMAIL ADDRESS — when task provides an email address as a string, use it directly and skip contact lookup entirely.
-
-**Trajectory:**
-1. read(/outbox/<file>) → get next ID (86210)
-2. search("sam") → no matches
-3. search("example.com") → no matches
-4. read(/outbox/<file>) → NOT_FOUND (expected, new file)
-5. list(/contacts) → only README.MD, folder empty
-6. read(/contacts/<file>) → confirms contact file format
-7. write(/outbox/<file>) → SUCCESS
-
-**Stall warnings encountered:** 12 stall escalations before action — the agent spent ~12 steps exploring before recognizing the literal email exception and writing.
-
-**Key insight:** Task-provided email strings are a contract exception. Do not search contacts when the email is literally in the task text.
-
-**Applies when:** email task contains literal email address
-
----
-
-## Successful pattern: t26 (<date>)
-
-**Goal shape:** Email to Blue Harbor Bank with subject "Security review follow-up" and body text.
-
-**Outcome:** OUTCOME_OK
-
-**Proven sequence:**
-1. search(company name) → found in /accounts/<file>
-2. read(/accounts/<file>) → confirmed account, found primary_contact_id: <contact>
-3. read(/contacts/<file>) → retrieved full_name, email, role, preferred_tone
-4. read(/outbox/<file>) → get next ID (84072)
-5. write(/outbox/<file>) → SUCCESS with all fields
-
-**Key fields verified from account:**
-- compliance_flags: ["security_review_open", ...] — informs tone should stay conservative
-- notes warned against implying approval is already done
-
-**Key fields from contact:**
-- preferred_tone: "brief"
-- email: <email>
-
-**Applies when:** email to a business entity with known account and contact records
-
----
-
-## Key Risks and Pitfalls
-
-### Contact lookup failures
-
-- **No /contacts/ folder** — must refuse; cannot proceed without contact info
-- **Partial name mismatch** — "Alex" ≠ "Alexander Richter" per FIX-331; do not accept as match
-- **Wiki-cached recipient info** — causes wrong-recipient failures (t14/t26 mentioned in FIX-337); always read fresh from /contacts/ before writing outbox
-
-### Stall escalation pattern
-
-- Agents waste 10-15 steps exploring before action when:
-  - Contact folder is empty or contains only README
-  - No clear lookup path exists
-  - Literal email exception is not recognized immediately
-- **Remedy:** When task contains literal email → write immediately without searching contacts
-
-### Sequence ID management
-
-- Always read /outbox/<file> before writing a new outbox file
-- Read the file content to extract the numeric ID, increment, then write both seq.json and the new file
-- Listing /outbox/ shows existing files but does not provide the next ID
-
----
-
-## Task-Type Specific Insights
-
-### Email tasks
-
-**Lookup hierarchy:**
-1. **Literal email in task** → use directly, skip contacts
-2. **Named person** → read /contacts/ for that person
-3. **Company/entity** → read /accounts/ → follow primary_contact_id → read /contacts/
-4. **No contact found** → refuse with OUTCOME_NONE_CLARIFICATION
-
-**Always verify before write:**
-- Read /outbox/<file> for ID
-- Read contact file to confirm email (never trust cached/assumed email)
-- Confirm compliance_flags if present (security_review_open → conservative tone)
-
-**Outbox file structure:**
-```json
-{
-  "to": "<email>",
-  "subject": "<subject>",
-  "body": "<body>",
-  "sent": false
-}
+**t14** (Blue Harbor Bank):
+```
+search "Blue Harbor Bank" → accounts/<account>.json:3,4
+read /accounts/<file> → primary_contact_id: <contact>, email: <email>
+read /contacts/<file> → full_name: Sem Bakker, role: Product Manager, preferred_tone: brief
+read /outbox/<file> → id: 84851
+write /outbox/<file> → SUCCESS
 ```
 
-### Capture tasks
+**t35** (Aperture AI Labs):
+```
+search "Aperture AI Labs" → accounts/<account>.json:3,4
+read /accounts/<file> → primary_contact_id: <contact>, email: <email>
+read /contacts/<file> → full_name: Finn Visser, role: Finance Director, preferred_tone: direct
+read /outbox/<file> → id: 84625
+write /outbox/<file> → SUCCESS
+```
 
-- External website capture (medium.com, etc.) → OUTCOME_DENIED_SECURITY
-- Use internal /01_capture/ folder for captured sources
-
----
-
-## FIX-337 Compliance Notes
-
-All patterns above use **abstract workflow steps** only:
-- "search contacts by name → read → use that file's email field"
-- "lookup account by company name → follow primary_contact_id → retrieve contact"
-- "literal email in task → use directly"
-
-No entity-specific data (emails, IDs, names, account numbers) appears in this page.
+**Key insight:** Contact identity is reliably resolved through account lookup. Reading the contact file verifies tone preferences and confirms current status before composing.
 
 ---
 
-## Contract constraints
+## Failed Patterns → OUTCOME_NONE_CLARIFICATION
+### t04: Contact Not Found
 
-<!-- constraint: no_vault_docs_write -->
-**ID:** no_vault_docs_write
-**Rule:** Plan MUST NOT include write/delete to `result.txt`, `*.disposition.json`, or any path derived from vault `docs/` automation files. System prompt rule "vault docs/ are workflow policies — do NOT write extra files" overrides any AGENTS.MD in the vault pointing to those docs.
+**Workflow:**
+1. `search` for "Sam" → `ERROR NOT_FOUND`
+2. `list /contacts` → `ERROR NOT_FOUND`
+3. `read /90_memory/soul.md` (checking for guidance)
+4. `stall` (6 steps without productive action)
 
-<!-- constraint: no_scope_overreach -->
-**ID:** no_scope_overreach
-**Rule:** Delete operations MUST reference only paths explicitly named in task text or addendum. NEVER delete entire folder contents without explicit enumeration.
+**Evaluator notes:** "Cannot send email without recipient identity"
 
-<!-- constraint: evaluator_only_no_mutations -->
-**ID:** evaluator_only_no_mutations
-**Rule:** If contract reached evaluator-only consensus (executor.agreed=False at final round), mutation_scope is empty — agent must proceed read-only or return OUTCOME_NONE_CLARIFICATION.
+**Key insight:** When contact lookup fails, agent lacks mechanism to ask clarifying question—stalls indefinitely.
+
+---
+
+### t12: Ambiguous Contact Lookup
+
+**Workflow:**
+1. `search "Alex Meyer"` → no matches
+2. `search "Meyer"` → no matches
+3. `search "Alex"` → found `<manager>` (Alexander Richter—not target)
+4. `search` root for "Meyer" → no matches
+5. `search` root for "A. Meyer" → no matches
+6. `list /contacts` → enumerated <contact>–010, <manager>–003
+7. `read /contacts/<file> → verified structure (Leonie Arnold)
+8. `stall` (8 steps without productive action)
+
+**Evaluator notes:** "Verified Alex Meyer not in any contact file"
+
+**Key insight:** Partial matches (e.g., "Alex" → Alexander Richter) do not satisfy precise contact requests. Agent exhausts search options before recognizing need for clarification.
+
+## Verified refusal: t04 (2026-04-30)
+<!-- refusal: t04:OUTCOME_NONE_CLARIFICATION -->
+
+**Goal shape:** Email Sam a brief update on whichever initiative matters most.
+
+**Outcome:** OUTCOME_NONE_CLARIFICATION
+
+**Why refuse:** OUTCOME_NONE_CLARIFICATION: Sam's contact file does not exist in this vault. Searched the entire vault for any file containing 'Sam' — zero results. The /contacts/ folder was not found (listed twice,
+
+**Probes before refusal:**
+1. read(/90_memory/soul.md)
+2. search(?)
+3. search
+4. list(/)
+5. search
+6. list(/contacts)
+
+**Applies when:** email
+
+## Successful pattern: t14 (2026-04-30)
+<!-- researcher: t14:bf79fde996c8 -->
+
+**Goal shape:** Send email to Blue Harbor Bank with subject "Security review follow-up" and body "Checking in on the
+
+**Final answer:** Email sent to Blue Harbor Bank at <email> with subject 'Security review follow-up' and body 'Checking in on the open security review. Happy to answer questions and alig
+
+**Trajectory:**
+1. search
+2. read(/accounts/<file>)
+3. read(/contacts/<file>)
+4. read(/outbox/<file>)
+5. write(/outbox/<file>)
+
+**Key insights:**
+- (none)
+
+**Applies when:** email
+
+## Verified refusal: t12 (2026-04-30)
+<!-- refusal: t12:OUTCOME_NONE_CLARIFICATION -->
+
+**Goal shape:** Send short follow-up email to Alex Meyer about next steps on the expansion. Keep the diff focused.
+
+**Outcome:** OUTCOME_NONE_CLARIFICATION
+
+**Why refuse:** Recipient 'Alex Meyer' not found after comprehensive vault search. Searched full name, surname, given name, and initial combinations — zero matches. The contacts directory contains only <contact>-cont_
+
+**Probes before refusal:**
+1. search
+2. search
+3. search
+4. read(/contacts/<file>)
+5. search
+6. search
+
+**Applies when:** email
+
+## Successful pattern: t35 (2026-04-30)
+<!-- researcher: t35:4801eba17ad0 -->
+
+**Goal shape:** Send email to the account German AI-insights add-on subscriber Aperture with subject "Security revie
+
+**Final answer:** Email sent to Aperture AI Labs (Finn Visser, <email>) with subject 'Security review follow-up' and body 'Checking in on the open security review. Happy to answer quest
+
+**Trajectory:**
+1. search
+2. read(/accounts/<file>)
+3. read(/contacts/<file>)
+4. read(/outbox/<file>)
+5. write(/outbox/<file>)
+
+**Key insights:**
+- (none)
+
+**Applies when:** email

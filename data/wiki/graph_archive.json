@@ -1,0 +1,19 @@
+{
+  "a_122173acbd": {
+    "type": "antipattern",
+    "tags": [
+      "capture",
+      "crm",
+      "default",
+      "email",
+      "inbox",
+      "lookup",
+      "queue",
+      "temporal"
+    ],
+    "text": "(see outcome above)",
+    "confidence": 0.16,
+    "uses": 29,
+    "last_seen": "2026-04-30"
+  }
+}

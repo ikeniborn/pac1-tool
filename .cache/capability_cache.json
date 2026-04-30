@@ -1,14 +1,18 @@
 {
   "anthropic/claude-sonnet-4.6": {
     "mode": "json_object",
-    "ts": 1777209100.2407348
+    "ts": 1777551452.5455434
   },
   "anthropic/claude-opus-4.7": {
     "mode": "json_object",
-    "ts": 1777209100.2407355
+    "ts": 1777551452.5455444
   },
   "claude-haiku-4-5-20251001": {
     "mode": "json_object",
-    "ts": 1777209100.2407358
+    "ts": 1777551452.5455446
+  },
+  "claude-3-5-sonnet": {
+    "mode": "json_object",
+    "ts": 1777551452.5455449
   }
 }

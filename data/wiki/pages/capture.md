@@ -1,66 +1,40 @@
-## Successful pattern: t33 (<date>)
-<!-- researcher: t33:d6306f70889d -->
+<!-- wiki:meta
+category: capture
+quality: developing
+fragment_count: 5
+fragment_ids: [t09_20260430T133048Z, t33_20260430T140107Z, t08_20260430T163154Z, t09_20260430T163117Z, t33_20260430T165435Z]
+last_synthesized: 2026-04-30
+aspects_covered: workflow_steps,pitfalls,shortcuts
+-->
 
-**Goal shape:** Capture snippet from website medium.com into /01_capture/influential/2026-04-04__structured-outputs-clip.md
+## Workflow steps
+```markdown
+## Proven Sequences for Capturing Content from Source into Vault Paths
 
-**Final answer:** Snippet captured with verbatim text and medium.com source attribution.
+### Capture Denial Patterns
 
-**Trajectory:**
-1. `write(/01_capture/influential/2026-04-04__structured-outputs-clip.md)`
-2. `read(/01_capture/influential/2026-04-04__structured-outputs-clip.md)` → verify
+**Security-denied source capture attempts**  
+When attempting to capture content from restricted web sources, the agent encounters `OUTCOME_DENIED_SECURITY`. Known blocked sources:
 
-**Key insights:**
-- Structured outputs help most when paired with **narrow schemas**
-- Frequent evaluation is necessary for structured output reliability
-- Failures usually stem from ambiguous intent rather than model syntax alone
+- `news.ycombinator.com` — HN discussions  
+- `substack.com` — newsletter content  
 
-**Applies when:** capture
+**Standard denial workflow**  
+1. Task specifies `task_type: capture` targeting restricted domain  
+2. Agent evaluates source against security policy  
+3. Outcome returns `OUTCOME_DENIED_SECURITY`  
+4. No content written to vault path  
 
----
+**Implication for vault path design**  
+Exclude direct web scraping from `website` protocol domains in capture task definitions. Use intermediary processing or pre-approved content aggregation methods instead.
+```
 
-## Successful pattern: structured output capture (<date>)
-<!-- researcher: aggregated -->
+## Key pitfalls
+- **Wrong target path**: Capture attempts can be denied when the target path falls outside the agent's permitted mutation scope. Evaluator FIX-415 blocked an attempted write to `/01_capture/influential/2026-04-04__runtime-safety-excerpt.md` because the mutation scope was empty, preventing unauthorized file writes regardless of source validity.
+- **Source misidentification**: Capture tasks attempting to access external websites as content sources are denied per security policy (tasks t09, t33). Evaluators block attempts to capture from `news.ycombinator.com` and `substack.com`, as these sources fall outside permitted ingestion boundaries.
+- **Partial captures**: Task fragments show content truncation where capture requests end mid-thought ("larg'" or "...from"), indicating the risk of incomplete data retrieval when tasks are interrupted or validation fails before full snippet acquisition.
 
-**Goal shape:** Capture text snippet from web source to organized capture directory
-
-**Trajectory:** `write(target_path)` → `read(target_path)` to verify
-
-**Key insights:**
-- Include source URL attribution in captured content
-- Include capture date for provenance
-- Add "why keep this" note for future relevance
-
-**Applies when:** capture text from web
-
----
-
-## Key insight: narrow schemas for structured outputs
-
-**Source:** t33 / medium.com snippet
-
-Structured outputs are most effective when:
-1. Paired with **narrow schemas** (not broad/generic ones)
-2. Evaluated **frequently** during development
-3. Designed to handle **intent ambiguity** (not just syntax parsing)
-
-**Insight text:** "structured outputs help most when paired with narrow schemas and frequent evaluation, because failures usually come from ambiguous intent rather than model syntax alone"
-
-**Implication:** When designing structured output systems, invest schema design effort upfront to make schemas narrow and specific.
-
-**Applies when:** building structured output pipelines, designing LLM-based data extraction
-
----
-
-## Contract constraints
-
-<!-- constraint: no_vault_docs_write -->
-**ID:** no_vault_docs_write
-**Rule:** Plan MUST NOT include write/delete to `result.txt`, `*.disposition.json`, or any path derived from vault `docs/` automation files. System prompt rule "vault docs/ are workflow policies — do NOT write extra files" overrides any AGENTS.MD in the vault pointing to those docs.
-
-<!-- constraint: no_scope_overreach -->
-**ID:** no_scope_overreach
-**Rule:** Delete operations MUST reference only paths explicitly named in task text or addendum. NEVER delete entire folder contents without explicit enumeration.
-
-<!-- constraint: evaluator_only_no_mutations -->
-**ID:** evaluator_only_no_mutations
-**Rule:** If contract reached evaluator-only consensus (executor.agreed=False at final round), mutation_scope is empty — agent must proceed read-only or return OUTCOME_NONE_CLARIFICATION.
+## Shortcuts
+Never attempt content capture from restricted domains (e.g., `docs.anthropic.com` is blocked — domain deny-list enforcement)
+All capture operations require a non-empty `mutation_scope` defined in the evaluator contract — writes are silently blocked when this scope is empty (see FIX-415 contract violation)
+Failure mode is `OUTCOME_DENIED_SECURITY` with no fallback — security denials do not fall through to alternative capture methods, they hard-stop the operation

@@ -22,3 +22,4 @@ data/wiki/fragments/
 .playwright-mcp
 .superpowers
 .worktrees/
+.cache
