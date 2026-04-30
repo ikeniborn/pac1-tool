@@ -36,6 +36,12 @@ _RE_FLAG_MAP = {
     "UNICODE":    re.UNICODE,
 }
 
+_DEFAULT_ASPECTS: list[dict] = [
+    {"id": "workflow_steps", "header": "Workflow steps", "prompt": "Proven step sequences leading to task success"},
+    {"id": "pitfalls",       "header": "Key pitfalls",   "prompt": "Key risks and failure patterns"},
+    {"id": "shortcuts",      "header": "Shortcuts",       "prompt": "Task-specific insights and optimizations"},
+]
+
 
 @dataclass(frozen=True)
 class FastPath:
@@ -53,6 +59,7 @@ class TaskType:
     fast_path: FastPath | None
     needs_builder: bool
     status: str  # "hard" | "soft"
+    knowledge_aspects: tuple  # tuple of dicts [{id, header, prompt}], empty → use _DEFAULT_ASPECTS
 
 
 @dataclass(frozen=True)
@@ -98,6 +105,8 @@ def _parse_task_type(name: str, raw: dict) -> TaskType:
     status = raw["status"]
     if status not in {"hard", "soft"}:
         raise ValueError(f"task_types.json: '{name}.status' must be 'hard' or 'soft', got {status!r}")
+    raw_aspects = raw.get("knowledge_aspects") or []
+    knowledge_aspects_tuple = tuple(raw_aspects)
     return TaskType(
         name=name,
         description=str(raw["description"]).strip(),
@@ -107,6 +116,7 @@ def _parse_task_type(name: str, raw: dict) -> TaskType:
         fast_path=fast_path,
         needs_builder=bool(raw.get("needs_builder", True)),
         status=status,
+        knowledge_aspects=knowledge_aspects_tuple,
     )
 
 
@@ -276,6 +286,14 @@ def builder_types() -> frozenset[str]:
 def vault_types() -> frozenset[str]:
     """All types except 'default' — replaces legacy _VAULT_TASK_TYPES."""
     return frozenset(name for name in REGISTRY.types if name != "default")
+
+
+def knowledge_aspects(type_name: str) -> list[dict]:
+    """Return knowledge_aspects for type_name, falling back to _DEFAULT_ASPECTS."""
+    t = REGISTRY.types.get(type_name)
+    if t is None or not t.knowledge_aspects:
+        return _DEFAULT_ASPECTS
+    return list(t.knowledge_aspects)
 
 
 def plaintext_fallback_pairs() -> list[tuple[tuple[str, ...], str]]:
