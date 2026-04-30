@@ -580,6 +580,22 @@ def _parse_page_sections(content: str) -> dict[str, str]:
     return sections
 
 
+def _parse_page_headers(content: str) -> dict[str, str]:
+    """Return {section_key: original_header_text} for all ## sections."""
+    if not content:
+        return {}
+    body = _META_BLOCK_RE.sub("", content).strip()
+    if not body:
+        return {}
+    parts = re.split(r"(?m)^## (.+)$", body)
+    headers: dict[str, str] = {}
+    for i in range(1, len(parts), 2):
+        header = parts[i].strip()
+        section_id = re.sub(r"[^a-z0-9]+", "_", header.lower()).strip("_")
+        headers[section_id] = header
+    return headers
+
+
 def promote_successful_pattern(
     task_type: str,
     task_id: str,
@@ -975,6 +991,7 @@ def run_wiki_lint(model: str = "", cfg: dict | None = None) -> None:
         existing_raw = _read_page(category)
         page_meta = _read_page_meta_from_content(existing_raw)
         existing_sections = _parse_page_sections(existing_raw)
+        existing_section_headers = _parse_page_headers(existing_raw)
         new_entries = [f.read_text(encoding="utf-8") for f in fragments]
 
         # Resolve knowledge_aspects for this category
@@ -1005,7 +1022,7 @@ def run_wiki_lint(model: str = "", cfg: dict | None = None) -> None:
             "last_synthesized": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
             "aspects_covered": aspects_covered,
         }
-        merged_page = _assemble_page_from_sections(new_meta, merged_sections, aspects)
+        merged_page = _assemble_page_from_sections(new_meta, merged_sections, aspects, existing_section_headers)
 
         page_path = _PAGES_DIR / f"{category}.md"
         page_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1306,11 +1323,13 @@ def _assemble_page_from_sections(
     meta: dict,
     sections: dict[str, str],
     aspects: list[dict],
+    section_headers: dict[str, str] | None = None,
 ) -> str:
     """Assemble final page: meta header + aspect sections + promoted sections.
 
     Aspect sections first (LLM relevance). Promoted sections (Successful pattern,
     Verified refusal, Contract constraints) follow in original order.
+    section_headers maps section_key → original header text to avoid mangling.
     """
     lines: list[str] = [_write_page_meta(meta)]
 
@@ -1326,7 +1345,11 @@ def _assemble_page_from_sections(
     for section_key, content in sections.items():
         if section_key in aspect_keys or not content.strip():
             continue
-        header = " ".join(w.capitalize() for w in section_key.split("_"))
+        # Use original header text if available to avoid mangling (e.g. "Contract constraints")
+        if section_headers and section_key in section_headers:
+            header = section_headers[section_key]
+        else:
+            header = " ".join(w.capitalize() for w in section_key.split("_"))
         lines.append(f"\n## {header}\n{content.strip()}")
 
     return "\n".join(lines) + "\n"
