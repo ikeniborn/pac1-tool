@@ -19,6 +19,7 @@ from .contract_models import Contract, ContractRound, EvaluatorResponse, Executo
 from .dispatch import call_llm_raw
 from .json_extract import _extract_json_from_text
 from .wiki import load_contract_constraints as _load_contract_constraints
+from .wiki import load_refusal_hints as _load_refusal_hints
 
 _DATA = Path(__file__).parent.parent / "data"
 _LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
@@ -149,6 +150,11 @@ def negotiate_contract(
         context_block += f"\n\nKNOWLEDGE GRAPH:\n{graph_context}"
     if vault_tree:
         context_block += f"\n\nVAULT STRUCTURE:\n{vault_tree}"
+
+    # FIX-419: inject verified refusals so contract can generate refusal-plan
+    _refusal_hints = _load_refusal_hints(task_type)
+    if _refusal_hints:
+        context_block += f"\n\n{_refusal_hints}"
 
     # FIX-415: load wiki contract constraints for evaluator checklist
     _constraints = _load_contract_constraints(task_type)

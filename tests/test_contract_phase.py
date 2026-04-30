@@ -552,3 +552,28 @@ def test_blocking_objections_require_extra_round(mock_llm):
     )
     assert contract.rounds_taken == 2
     assert contract.is_default is False
+
+
+@patch("agent.contract_phase.call_llm_raw")
+@patch("agent.contract_phase._load_refusal_hints")
+def test_refusal_hints_injected_into_context(mock_hints, mock_llm):
+    """FIX-419: refusal hints from wiki appear in the executor prompt."""
+    mock_hints.return_value = "## Verified refusal: t43\nOutcome: OUTCOME_NONE_CLARIFICATION\nWhy refuse: no article on that date."
+    mock_llm.side_effect = [
+        _make_executor_json(agreed=True),
+        _make_evaluator_json(agreed=True),
+    ]
+    from agent.contract_phase import negotiate_contract
+    negotiate_contract(
+        task_text="which article captured 37 days ago?",
+        task_type="lookup",
+        agents_md="",
+        wiki_context="",
+        graph_context="",
+        model="test-model",
+        cfg={},
+        max_rounds=1,
+    )
+    first_call_user = mock_llm.call_args_list[0][0][1]
+    assert "OUTCOME_NONE_CLARIFICATION" in first_call_user
+    assert "Verified refusal" in first_call_user

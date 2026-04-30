@@ -325,6 +325,26 @@ def load_wiki_patterns(task_type: str, include_negatives: bool = True) -> str:
     return "\n\n".join(parts)
 
 
+def load_refusal_hints(task_type: str, max_refusals: int = 3) -> str:
+    """FIX-419: extract up to max_refusals Verified Refusal sections from wiki page.
+
+    Returns a compact block for injection into contract context, or '' if none.
+    """
+    page_name = _TYPE_TO_PAGE.get(task_type, task_type)
+    content = _read_page(page_name)
+    if not content:
+        return ""
+    sections = re.split(r"(?m)^## Verified refusal: ", content)
+    if len(sections) <= 1:
+        return ""
+    refusals = sections[1:][-max_refusals:]
+    lines = ["VERIFIED REFUSALS (known patterns that must return OUTCOME_NONE_CLARIFICATION):"]
+    for r in refusals:
+        snippet = "\n".join(r.splitlines()[:8]).strip()
+        lines.append(f"## Verified refusal: {snippet}")
+    return "\n\n".join(lines)
+
+
 def load_contract_constraints(task_type: str) -> list[dict]:
     """FIX-415: Parse ## Contract constraints section from a wiki page.
 
