@@ -111,24 +111,20 @@ flowchart LR
 
 ```mermaid
 flowchart TB
-    Agent[agent.__init__.run_agent] --> LoadBase[load_wiki_base task_text]
-    Agent --> LoadPat[load_wiki_patterns task_type]
+    Agent["agent/orchestrator.py\nWikiGraphAgent.read()"] --> LoadPat[load_wiki_patterns task_type]
 
-    LoadBase --> BaseSel[выбор:<br/>errors.md +<br/>contacts.md +<br/>accounts.md]
-    LoadPat --> TypeSel[выбор:<br/>&lt;task_type&gt;.md]
+    LoadPat --> TypeSel["выбор:<br/>&lt;task_type&gt;.md"]
 
-    BaseSel --> Combine[combine into<br/>wiki context block]
-    TypeSel --> Combine
+    TypeSel --> InjectPre["inject перед task_text<br/>в preserve_prefix"]
+    InjectPre --> Loop["run_loop сохранит<br/>через compaction"]
 
-    Combine --> InjectPre[inject перед task_text<br/>в preserve_prefix]
-    InjectPre --> Loop[run_loop сохранит<br/>через compaction]
-
-    style BaseSel fill:#e1f5ff
     style TypeSel fill:#e1f5ff
     style InjectPre fill:#e1ffe1
 ```
 
 **Ключевое**: блок wiki помещён в `preserve_prefix`, то есть никогда не компактизуется (см. [09](09-observability.md)).
+
+> **FIX-346/350**: `load_wiki_base` (contacts.md + accounts.md) удалена — entity-catalog injection была избыточна, т.к. agent теперь обязан читать из живого vault перед записью. Осталась только инъекция task-type patterns.
 
 ## Per-category synthesis prompts
 
@@ -197,21 +193,95 @@ flowchart TB
 
 Wiki-подсистема — опциональная: любой сбой переходит к baseline-поведению без inject.
 
+## Knowledge Graph
+
+Граф знаний расширяет wiki-память структурированными узлами с уровнями уверенности.
+
+### Структура
+
+- **Узлы**: типы `insight`, `rule`, `pattern`, `antipattern`; поля `{tags, confidence, uses, last_seen}`
+- **Рёбра**: `requires`, `conflicts_with`, `generalizes`, `precedes`
+- **Файл**: `data/wiki/graph.json` (committed + runtime-updated)
+
+### Два пути заполнения
+
+```mermaid
+flowchart LR
+    subgraph LintPath["run_wiki_lint (WIKI_GRAPH_AUTOBUILD=1)"]
+        LintLLM["_llm_synthesize → (markdown, deltas)"] --> MergeG["merge_updates → save_graph"]
+    end
+
+    subgraph FeedbackPath["main.py post end_trial (WIKI_GRAPH_FEEDBACK=1)"]
+        Score1["score=1.0"] --> BumpUses["bump_uses(injected_node_ids)<br/>+ add_pattern_node"]
+        Score0["score=0.0"] --> Degrade["degrade_confidence(epsilon)"]
+    end
+
+    Trial[выполнение задачи] --> LintPath
+    Trial --> FeedbackPath
+
+    style LintPath fill:#e1f5ff
+    style FeedbackPath fill:#e1ffe1
+```
+
+**LLM-extractor** (lint): промпт просит модель приложить fenced ` ```json {graph_deltas: ...} ``` ` после markdown-страницы. Fail-open: невалидный JSON → пишем только markdown.
+
+**Confidence feedback** (post-trial): `stats["graph_injected_node_ids"]` фиксирует какие узлы агент видел в trial — `main.py` целит feedback ровно по ним.
+
+### Retrieval
+
+`retrieve_relevant_with_ids(graph, task_type, task_text, top_k)` — scoring = tag_overlap + text-token overlap + confidence × log(uses).
+
+Граф читается в **трёх** точках, все гейчены `WIKI_GRAPH_ENABLED=1`:
+
+| Точка | Как используется |
+|---|---|
+| System prompt | Инжектируется через `WikiGraphAgent.read()` → `orchestrator.py` |
+| DSPy addendum | `graph_context` InputField в `PromptAddendum` signature |
+| Evaluator | `_load_graph_insights()` в `evaluator.py` (advisory) |
+
+### Конфигурация графа
+
+```bash
+WIKI_GRAPH_ENABLED=1               # чтение в prompt/addendum/evaluator
+WIKI_GRAPH_TOP_K=5                 # кол-во узлов при retrieval
+WIKI_GRAPH_AUTOBUILD=1             # LLM-extractor в run_wiki_lint
+WIKI_GRAPH_FEEDBACK=1              # confidence feedback post-trial
+WIKI_GRAPH_CONFIDENCE_EPSILON=0.05 # шаг degrade при score=0
+WIKI_GRAPH_MIN_CONFIDENCE=0.1      # нижняя граница confidence
+```
+
+### Инспекция и обслуживание
+
+```bash
+uv run python scripts/print_graph.py             # все узлы
+uv run python scripts/print_graph.py --tag email # по тегу
+uv run python scripts/print_graph.py --edges     # с рёбрами
+uv run python scripts/purge_research_contamination.py --apply  # очистка contaminated узлов
+```
+
 ## Конфигурация
 
 ```bash
 WIKI_ENABLED=1          # инъекция wiki в prompts
 WIKI_LINT_ENABLED=1     # компиляция фрагментов в страницы
+WIKI_GRAPH_ENABLED=1    # граф активен (читается агентом, evaluator, DSPy)
+WIKI_GRAPH_AUTOBUILD=1  # LLM-extractor в run_wiki_lint
+WIKI_GRAPH_FEEDBACK=1   # confidence feedback post-trial
 ```
 
 ## Ключевые файлы
 
 | Файл | Что делает |
 |---|---|
-| `agent/wiki.py` | `load_wiki_base`, `load_wiki_patterns`, `format_fragment`, `write_fragment`, `run_wiki_lint` |
-| `data/wiki/pages/` | Компилированные страницы (injected) |
+| `agent/wiki.py` | `load_wiki_patterns`, `format_fragment`, `write_fragment`, `run_wiki_lint` |
+| `agent/wiki_graph.py` | `load_graph`, `save_graph`, `retrieve_relevant_with_ids`, `bump_uses`, `degrade_confidence`, `merge_updates` |
+| `agent/agents/wiki_graph_agent.py` | `WikiGraphAgent` — обёртка над wiki + wiki_graph |
+| `data/wiki/pages/` | Скомпилированные страницы (injected) |
 | `data/wiki/fragments/` | Сырые фрагменты per-task |
+| `data/wiki/graph.json` | Персистентный граф знаний |
 | `data/wiki/archive/` | Ротированные фрагменты |
+| `scripts/purge_research_contamination.py` | Очистка contaminated узлов из графа |
+| `scripts/print_graph.py` | Инспекция графа |
 
 ## Архитектурное решение
 
