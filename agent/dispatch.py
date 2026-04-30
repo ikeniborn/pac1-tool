@@ -254,13 +254,26 @@ def get_response_format(mode: str) -> dict | None:
 # ---------------------------------------------------------------------------
 
 # Transient error keywords — single source of truth; imported by loop.py
-# FIX-215: added timeout/timed out/connection reset — httpx/OpenAI timeouts should retry
+# FIX-215: added timeout/timed out — httpx/OpenAI timeouts should retry
 TRANSIENT_KWS = (
     "503", "502", "429", "NoneType", "overloaded",
     "unavailable", "server error", "rate limit", "rate-limit",
-    "timeout", "timed out", "connection reset", "read timeout",
+    "timeout", "timed out", "read timeout",
     "apitimeouterror", "connecttimeout", "readtimeout",
 )
+
+# FIX-416: hard connection errors — not retried 3 times like soft transients.
+# These indicate the socket is dead; one immediate retry is sufficient before
+# falling through to MODEL_FALLBACK. Kept separate so loop.py can cap retries at 1.
+# FIX-416b: "connection reset" (ECONNRESET) is a dead-socket condition, same as broken pipe.
+HARD_CONNECTION_KWS = (
+    "broken pipe", "errno 32", "connection aborted",
+    "connection reset", "connection refused", "remotedisconnected", "incompleteread",
+)
+
+# FIX-417: fallback model used when all tiers of primary model fail completely.
+# Set MODEL_FALLBACK to any supported model string (same format as MODEL_DEFAULT).
+_FALLBACK_MODEL = os.environ.get("MODEL_FALLBACK", "")
 
 _THINK_RE = re.compile(r"<think>.*?</think>", re.DOTALL)
 _LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()  # DEBUG → log think blocks
@@ -298,7 +311,7 @@ def get_provider(model: str, cfg: dict) -> str:
     return "openrouter"
 
 
-def call_llm_raw(
+def _call_raw_single_model(
     system: str,
     user_msg: str,
     model: str,
@@ -358,9 +371,15 @@ def call_llm_raw(
                 print("[Anthropic] Empty after all retries — falling through to next tier")
                 break  # do not return "" — let next tier try
             except Exception as e:
-                if any(kw.lower() in str(e).lower() for kw in TRANSIENT_KWS) and attempt < max_retries:
-                    print(f"[Anthropic] Transient (attempt {attempt + 1}): {e} — retrying in 4s")
-                    time.sleep(4)
+                # FIX-416: hard connection errors capped at 1 retry
+                _es = str(e).lower()
+                _is_hard = any(kw.lower() in _es for kw in HARD_CONNECTION_KWS)
+                _is_transient = any(kw.lower() in _es for kw in TRANSIENT_KWS)
+                _max_att = 1 if _is_hard else max_retries
+                if (_is_hard or _is_transient) and attempt < _max_att:
+                    _delay = 2 if _is_hard else 4
+                    print(f"[Anthropic] {'Hard connection' if _is_hard else 'Transient'} (attempt {attempt + 1}): {e} — retrying in {_delay}s")
+                    time.sleep(_delay)
                     continue
                 print(f"[Anthropic] Error: {e}")
                 break
@@ -424,9 +443,15 @@ def call_llm_raw(
                     token_out["output"] = getattr(_u, "completion_tokens", 0)
                 return raw
             except Exception as e:
-                if any(kw.lower() in str(e).lower() for kw in TRANSIENT_KWS) and attempt < max_retries:
-                    print(f"[OpenRouter] Transient (attempt {attempt + 1}): {e} — retrying in 4s")
-                    time.sleep(4)
+                # FIX-416: hard connection errors capped at 1 retry
+                _es = str(e).lower()
+                _is_hard = any(kw.lower() in _es for kw in HARD_CONNECTION_KWS)
+                _is_transient = any(kw.lower() in _es for kw in TRANSIENT_KWS)
+                _max_att = 1 if _is_hard else max_retries
+                if (_is_hard or _is_transient) and attempt < _max_att:
+                    _delay = 2 if _is_hard else 4
+                    print(f"[OpenRouter] {'Hard connection' if _is_hard else 'Transient'} (attempt {attempt + 1}): {e} — retrying in {_delay}s")
+                    time.sleep(_delay)
                     continue
                 print(f"[OpenRouter] Error: {e}")
                 break
@@ -474,9 +499,15 @@ def call_llm_raw(
                 token_out["output"] = getattr(_u, "completion_tokens", 0)
             return raw
         except Exception as e:
-            if any(kw.lower() in str(e).lower() for kw in TRANSIENT_KWS) and attempt < max_retries:
-                print(f"[Ollama] Transient (attempt {attempt + 1}): {e} — retrying in 4s")
-                time.sleep(4)
+            # FIX-416: hard connection errors capped at 1 retry
+            _es = str(e).lower()
+            _is_hard = any(kw.lower() in _es for kw in HARD_CONNECTION_KWS)
+            _is_transient = any(kw.lower() in _es for kw in TRANSIENT_KWS)
+            _max_att = 1 if _is_hard else max_retries
+            if (_is_hard or _is_transient) and attempt < _max_att:
+                _delay = 2 if _is_hard else 4
+                print(f"[Ollama] {'Hard connection' if _is_hard else 'Transient'} (attempt {attempt + 1}): {e} — retrying in {_delay}s")
+                time.sleep(_delay)
                 continue
             print(f"[Ollama] Error: {e}")
             break
@@ -504,6 +535,34 @@ def call_llm_raw(
         print(f"[Ollama] Plain-text retry failed: {e}")
 
     return None
+
+
+def call_llm_raw(
+    system: str,
+    user_msg: str,
+    model: str,
+    cfg: dict,
+    max_tokens: int = 20,
+    think: bool | None = None,
+    max_retries: int = 3,
+    plain_text: bool = False,
+    token_out: dict | None = None,
+    logprobs: bool = False,
+) -> str | None:
+    """Call LLM with MODEL_FALLBACK retry (FIX-417). Primary model through all tiers first."""
+    result = _call_raw_single_model(
+        system, user_msg, model, cfg,
+        max_tokens=max_tokens, think=think, max_retries=max_retries,
+        plain_text=plain_text, token_out=token_out, logprobs=logprobs,
+    )
+    if result is None and _FALLBACK_MODEL and _FALLBACK_MODEL != model:
+        print(f"[dispatch] Primary exhausted — retrying with MODEL_FALLBACK={_FALLBACK_MODEL}")
+        result = _call_raw_single_model(
+            system, user_msg, _FALLBACK_MODEL, {},
+            max_tokens=max_tokens, think=think, max_retries=1,
+            plain_text=plain_text, token_out=token_out, logprobs=logprobs,
+        )
+    return result
 
 
 # ---------------------------------------------------------------------------

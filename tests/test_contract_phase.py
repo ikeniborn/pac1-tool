@@ -15,12 +15,13 @@ def _make_executor_json(agreed=False, steps=None):
     })
 
 
-def _make_evaluator_json(agreed=False, objections=None):
+def _make_evaluator_json(agreed=False, objections=None, blocking_objections=None):
     return json.dumps({
         "success_criteria": ["file /out/1.json written"],
         "failure_conditions": ["no file written"],
         "required_evidence": ["/out/1.json"],
         "objections": objections or [],
+        "blocking_objections": blocking_objections or [],
         "counter_proposal": None,
         "agreed": agreed,
     })
@@ -487,3 +488,67 @@ def test_executor_proposal_json5_trailing_comma():
             )
     assert not contract.is_default
     assert "discover" in contract.plan_steps
+
+
+@patch("agent.contract_phase.call_llm_raw")
+def test_caveat_notes_do_not_block_consensus(mock_llm):
+    """agreed=True + objections with confirmations + blocking_objections=[]
+    → consensus reached in round 1, not max_rounds."""
+    mock_llm.side_effect = [
+        _make_executor_json(agreed=True),
+        json.dumps({
+            "success_criteria": ["article found"],
+            "failure_conditions": [],
+            "required_evidence": ["/01_capture/influential/"],
+            "objections": [
+                "Date math verified: 14 days before 2026-03-23 = 2026-03-09 ✓",
+                "Plan correctly anchors to VAULT_DATE_LOWER_BOUND ✓",
+            ],
+            "blocking_objections": [],
+            "counter_proposal": None,
+            "agreed": True,
+        }),
+    ]
+    from agent.contract_phase import negotiate_contract
+    contract, _, _, rounds = negotiate_contract(
+        task_text="What article did I capture 14 days ago?",
+        task_type="lookup",
+        agents_md="", wiki_context="", graph_context="",
+        model="m", cfg={}, max_rounds=3,
+    )
+    assert contract.is_default is False
+    assert contract.rounds_taken == 1
+    assert len(rounds) == 1
+
+
+@patch("agent.contract_phase.call_llm_raw")
+def test_blocking_objections_require_extra_round(mock_llm):
+    """blocking_objections non-empty → round 1 not accepted, round 2 is."""
+    mock_llm.side_effect = [
+        _make_executor_json(agreed=True),
+        json.dumps({
+            "success_criteria": ["article found"],
+            "failure_conditions": [],
+            "required_evidence": [],
+            "objections": [],
+            "blocking_objections": ["Missing explicit date calculation step before search"],
+            "counter_proposal": None,
+            "agreed": True,
+        }),
+        _make_executor_json(agreed=True, steps=[
+            "compute target date: 14 days before 2026-03-23 = 2026-03-09",
+            "list /01_capture/influential",
+            "filter by date prefix 2026-03-09",
+            "report_completion with found article",
+        ]),
+        _make_evaluator_json(agreed=True),
+    ]
+    from agent.contract_phase import negotiate_contract
+    contract, _, _, rounds = negotiate_contract(
+        task_text="What article did I capture 14 days ago?",
+        task_type="lookup",
+        agents_md="", wiki_context="", graph_context="",
+        model="m", cfg={}, max_rounds=3,
+    )
+    assert contract.rounds_taken == 2
+    assert contract.is_default is False

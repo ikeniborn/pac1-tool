@@ -16,7 +16,8 @@ class EvaluatorResponse(BaseModel):
     success_criteria: list[str]
     failure_conditions: list[str]
     required_evidence: list[str]
-    objections: list[str]
+    objections: list[str]                                          # non-blocking: notes, caveats, confirmations
+    blocking_objections: list[str] = Field(default_factory=list)  # FIX-418: true plan-blockers only
     counter_proposal: str | None = None
     agreed: bool
 

@@ -25,7 +25,9 @@ from .dispatch import (
     is_ollama_model,
     dispatch,
     probe_structured_output, get_response_format,
-    TRANSIENT_KWS, _THINK_RE,
+    TRANSIENT_KWS, HARD_CONNECTION_KWS,  # FIX-416
+    _FALLBACK_MODEL,   # FIX-417
+    _THINK_RE,
     _CC_ENABLED,
 )
 from .cc_client import cc_complete as _cc_complete
@@ -319,10 +321,16 @@ def _call_openai_tier(
             raw = resp.choices[0].message.content or ""
         except Exception as e:
             err_str = str(e)
+            # FIX-416: hard connection errors (broken pipe etc.) get 1 retry max.
+            # Soft transient errors (429, 503) keep the existing 3-retry behaviour.
+            is_hard = any(kw.lower() in err_str.lower() for kw in HARD_CONNECTION_KWS)
             is_transient = any(kw.lower() in err_str.lower() for kw in TRANSIENT_KWS)
-            if is_transient and attempt < 3:
-                print(f"{CLI_YELLOW}[{label}] Transient error (attempt {attempt + 1}): {e} — retrying in 4s{CLI_CLR}")
-                time.sleep(4)
+            max_attempt = 1 if is_hard else 3
+            if (is_hard or is_transient) and attempt < max_attempt:
+                delay = 2 if is_hard else 4
+                print(f"{CLI_YELLOW}[{label}] {'Hard connection' if is_hard else 'Transient'} error "
+                      f"(attempt {attempt + 1}): {e} — retrying in {delay}s{CLI_CLR}")
+                time.sleep(delay)
                 continue
             print(f"{CLI_RED}[{label}] Error: {e}{CLI_CLR}")
             break
@@ -452,10 +460,15 @@ def _call_llm(log: list, model: str, max_tokens: int, cfg: dict) -> tuple[NextSt
                     print(f"{CLI_YELLOW}[Anthropic] RAW: {raw}{CLI_CLR}")
             except Exception as e:
                 err_str = str(e)
+                # FIX-416: hard connection errors capped at 1 retry
+                is_hard = any(kw.lower() in err_str.lower() for kw in HARD_CONNECTION_KWS)
                 is_transient = any(kw.lower() in err_str.lower() for kw in TRANSIENT_KWS)
-                if is_transient and attempt < 3:
-                    print(f"{CLI_YELLOW}[Anthropic] Transient error (attempt {attempt + 1}): {e} — retrying in 4s{CLI_CLR}")
-                    time.sleep(4)
+                max_attempt = 1 if is_hard else 3
+                if (is_hard or is_transient) and attempt < max_attempt:
+                    delay = 2 if is_hard else 4
+                    print(f"{CLI_YELLOW}[Anthropic] {'Hard connection' if is_hard else 'Transient'} error "
+                          f"(attempt {attempt + 1}): {e} — retrying in {delay}s{CLI_CLR}")
+                    time.sleep(delay)
                     continue
                 print(f"{CLI_RED}[Anthropic] Error: {e}{CLI_CLR}")
                 break
@@ -577,13 +590,26 @@ def _call_llm(log: list, model: str, max_tokens: int, cfg: dict) -> tuple[NextSt
         extra["options"] = _opts
     # FIX-137: use json_object (not json_schema) for Ollama — json_schema is unsupported
     # by many Ollama models and causes empty responses; matches dispatch.py Ollama tier.
-    return _call_openai_tier(
+    ollama_result = _call_openai_tier(
         ollama_client, ollama_model, log,
         None,  # no max_tokens for Ollama — model stops naturally
         "Ollama",
         extra_body=extra if extra else None,
         response_format=get_response_format("json_object"),
     )
+    if ollama_result[0] is not None:
+        return ollama_result
+
+    # FIX-417: all tiers failed — retry with MODEL_FALLBACK. Unlike dispatch.py (max_retries=1),
+    # here we give the fallback model a full tier attempt (Anthropic→OpenRouter→Ollama) so it has
+    # the best chance to succeed. Recursion depth is bounded to 1: the recursive call has
+    # model=_FALLBACK_MODEL, so _FALLBACK_MODEL != model is False and the guard won't fire again.
+    # cfg={}: fallback model may not share primary model's provider-specific config.
+    if _FALLBACK_MODEL and _FALLBACK_MODEL != model:
+        print(f"{CLI_YELLOW}[loop] All tiers failed — retrying with MODEL_FALLBACK={_FALLBACK_MODEL}{CLI_CLR}")
+        return _call_llm(log, _FALLBACK_MODEL, max_tokens, {})
+
+    return ollama_result
 
 
 # ---------------------------------------------------------------------------
@@ -1012,10 +1038,14 @@ def _run_pre_route(
                     print(f"{CLI_YELLOW}[router] JSON decode failed (attempt {_rr_attempt+1}/{_ROUTER_MAX_RETRIES}): {_je} raw={_rr_raw_dbg!r}{CLI_CLR}")
                     continue
                 except Exception as _re:
-                    _is_transient = any(kw.lower() in str(_re).lower() for kw in TRANSIENT_KWS)
-                    if _is_transient and _rr_attempt < _ROUTER_MAX_RETRIES - 1:
-                        print(f"{CLI_YELLOW}[router] Transient error (attempt {_rr_attempt+1}/{_ROUTER_MAX_RETRIES}): {_re} — retrying in 2s{CLI_CLR}")
-                        time.sleep(2)
+                    _re_str = str(_re)
+                    _is_hard = any(kw.lower() in _re_str.lower() for kw in HARD_CONNECTION_KWS)
+                    _is_transient = any(kw.lower() in _re_str.lower() for kw in TRANSIENT_KWS)
+                    _max_attempt = 1 if _is_hard else _ROUTER_MAX_RETRIES - 1
+                    if (_is_hard or _is_transient) and _rr_attempt < _max_attempt:
+                        _delay = 2 if _is_hard else 4
+                        print(f"{CLI_YELLOW}[router] {'Hard connection' if _is_hard else 'Transient'} error (attempt {_rr_attempt+1}/{_ROUTER_MAX_RETRIES}): {_re} — retrying in {_delay}s{CLI_CLR}")
+                        time.sleep(_delay)
                         continue
                     # Non-transient or last attempt — use configured fallback
                     print(f"{CLI_YELLOW}[router] Router call failed: {_re} — fallback {_ROUTER_FALLBACK}{CLI_CLR}")
