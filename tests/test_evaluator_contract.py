@@ -54,3 +54,93 @@ def test_contract_context_passed_to_predictor(mock_dspy):
     call_kwargs = mock_predictor.call_args[1]
     assert "contract_context" in call_kwargs
     assert "do not write to /secrets/" in call_kwargs["contract_context"]
+
+
+def test_contract_required_evidence_descriptive_string_matches_ref_path():
+    """FIX-423: evidence like 'Final listing of /path/ showing empty' must
+    match grounding_ref '/path/' — path is substring of description."""
+    from agent.evaluator import evaluate_completion
+
+    contract = Contract(
+        plan_steps=["list /02_distill/cards/", "delete files"],
+        success_criteria=["cards deleted"],
+        required_evidence=[
+            "Final listing of /02_distill/cards/ showing empty",
+            "Listing of /02_distill/threads/ showing empty",
+        ],
+        failure_conditions=[],
+        is_default=False,
+        rounds_taken=1,
+    )
+    report = MagicMock()
+    report.outcome = "OUTCOME_OK"
+    report.message = "done"
+    report.grounding_refs = ["/02_distill/cards/", "/02_distill/threads/"]
+    report.done_operations = ["DELETED: /02_distill/cards/card1.md"]
+    report.completed_steps_laconic = ["listed /02_distill/cards/", "deleted files"]
+
+    with patch("agent.evaluator.dspy") as mock_dspy, \
+         patch("agent.evaluator._load_reference_patterns", return_value="(none)"), \
+         patch("agent.evaluator._load_graph_insights", return_value="(none)"):
+        mock_predictor = MagicMock()
+        mock_dspy.ChainOfThought.return_value = mock_predictor
+        mock_dspy.context.return_value.__enter__ = lambda s: s
+        mock_dspy.context.return_value.__exit__ = MagicMock(return_value=False)
+        mock_dspy.JSONAdapter.return_value = MagicMock()
+        result = MagicMock()
+        result.approved_str = "yes"
+        result.issues_str = ""
+        result.correction_hint = ""
+        mock_predictor.return_value = result
+
+        verdict = evaluate_completion(
+            task_text="Remove all captured cards and threads",
+            task_type="default",
+            report=report,
+            done_ops=["DELETED: /02_distill/cards/card1.md"],
+            digest_str="",
+            model="test-model",
+            cfg={},
+            contract=contract,
+        )
+
+    assert verdict.approved is True, f"Contract gate blocked: {verdict.issues}"
+
+
+def test_contract_required_evidence_rejects_when_path_not_in_refs():
+    """FIX-423: evidence path not referenced by agent → still rejected."""
+    from agent.evaluator import evaluate_completion
+
+    contract = Contract(
+        plan_steps=["read account"],
+        success_criteria=["account read"],
+        required_evidence=[
+            "Read of /accounts/acct_001.json showing primary_contact_id",
+        ],
+        failure_conditions=[],
+        is_default=False,
+        rounds_taken=1,
+    )
+    report = MagicMock()
+    report.outcome = "OUTCOME_OK"
+    report.message = "done"
+    report.grounding_refs = ["/contacts/cont_001.json"]
+    report.done_operations = []
+    report.completed_steps_laconic = ["read contact"]
+
+    with patch("agent.evaluator.dspy"), \
+         patch("agent.evaluator._load_reference_patterns", return_value="(none)"), \
+         patch("agent.evaluator._load_graph_insights", return_value="(none)"):
+        verdict = evaluate_completion(
+            task_text="lookup account for contact",
+            task_type="lookup",
+            report=report,
+            done_ops=[],
+            digest_str="",
+            model="test-model",
+            cfg={},
+            contract=contract,
+        )
+
+    assert verdict.approved is False
+    assert "/accounts/acct_001.json" in " ".join(verdict.issues)

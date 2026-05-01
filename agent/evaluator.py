@@ -443,10 +443,16 @@ def evaluate_completion(
         return EvalVerdict(approved=False, issues=[_gr_issue], correction_hint=_gr_issue)
 
     # Contract hard-gate: required_evidence must appear in grounding_refs
+    # FIX-423: inverted check — evidence entries are descriptive strings that
+    # contain paths (e.g. "Final listing of /path/ showing empty"). Check that
+    # at least one grounding_ref path appears as a substring of each entry,
+    # instead of checking if the full description appears in the joined refs.
     if contract is not None and not contract.is_default and contract.required_evidence:
         refs = [str(r) for r in (getattr(report, "grounding_refs", None) or [])]
-        refs_str = "\n".join(refs).lower()
-        missing = [e for e in contract.required_evidence if e.lower() not in refs_str]
+        missing = [
+            e for e in contract.required_evidence
+            if not any(ref.lower() in e.lower() for ref in refs)
+        ]
         if missing:
             _issue = (
                 f"Contract required_evidence missing from grounding_refs: {missing}. "
