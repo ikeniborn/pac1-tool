@@ -98,6 +98,7 @@ def _check_crm_date_anchor(report) -> str | None:
     mentions both VAULT_DATE (baseline) and the +8-day CRM offset (TOTAL_DAYS).
     Returns error hint string if gate fires, None if OK.
     Only applies to OUTCOME_OK — refusals pass through.
+    Counts against st.eval_rejections — shares the _MAX_EVAL_REJECTIONS budget.
     """
     if report.outcome != "OUTCOME_OK":
         return None

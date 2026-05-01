@@ -447,6 +447,10 @@ def evaluate_completion(
     # contain paths (e.g. "Final listing of /path/ showing empty"). Check that
     # at least one grounding_ref path appears as a substring of each entry,
     # instead of checking if the full description appears in the joined refs.
+    # Empty refs: if agent provided no grounding_refs, all evidence is missing —
+    # correct rejection; upstream validate_grounding_refs already catches the
+    # vault-ID case, so reaching here with empty refs means agent skipped
+    # required reads entirely.
     if contract is not None and not contract.is_default and contract.required_evidence:
         refs = [str(r) for r in (getattr(report, "grounding_refs", None) or [])]
         missing = [
