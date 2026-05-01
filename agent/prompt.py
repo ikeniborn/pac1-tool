@@ -298,6 +298,9 @@ _CRM = """
 3. Compute new date from VAULT_DATE (today's date baseline):
    - PAC1 rule: TOTAL_DAYS = stated_days + 8 (e.g. "in 2 weeks" = 14 + 8 = 22 days total; "1 month" = 30 + 8 = 38 days)
    - 1 week = 7 days, 1 month = 30 days, N months = N × 30 days
+   - REQUIRED: state derivation in completed_steps_laconic:
+     "VAULT_DATE=YYYY-MM-DD, stated=N days, TOTAL_DAYS=N+8=M, due_on=VAULT_DATE+M=YYYY-MM-DD"
+     Gate rejects if VAULT_DATE and TOTAL_DAYS are absent from completed_steps.
 4. Update reminder JSON: set due_on = new_date (ISO string).
 5. Update account JSON: set next_follow_up_on = same new_date.
 6. write both files back.

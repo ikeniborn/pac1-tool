@@ -169,3 +169,64 @@ def test_bypass_lookup_outcome_ok_no_exploration_does_not_bypass():
     from agent.loop import _should_bypass_evaluator_lookup
     report = _make_report(outcome="OUTCOME_OK", steps=[])
     assert _should_bypass_evaluator_lookup(report) is False
+
+
+def test_crm_date_anchor_gate_blocks_when_no_vault_date_in_steps():
+    """FIX-425: CRM OUTCOME_OK without VAULT_DATE in steps → gate rejects."""
+    from agent.loop import _check_crm_date_anchor
+    from unittest.mock import MagicMock
+
+    report = MagicMock()
+    report.outcome = "OUTCOME_OK"
+    report.completed_steps_laconic = [
+        "searched reminders for Nordlicht",
+        "wrote due_on=2026-08-08",
+    ]
+
+    result = _check_crm_date_anchor(report)
+    assert result is not None
+    assert "vault_date" in result.lower() or "VAULT_DATE" in result
+
+
+def test_crm_date_anchor_gate_blocks_when_no_offset_in_steps():
+    """FIX-425: VAULT_DATE present but +8 absent → gate rejects."""
+    from agent.loop import _check_crm_date_anchor
+    from unittest.mock import MagicMock
+
+    report = MagicMock()
+    report.outcome = "OUTCOME_OK"
+    report.completed_steps_laconic = [
+        "VAULT_DATE=2026-07-25",
+        "wrote due_on=2026-08-08",
+    ]
+
+    result = _check_crm_date_anchor(report)
+    assert result is not None
+
+
+def test_crm_date_anchor_gate_passes_with_vault_date_and_offset():
+    """FIX-425: steps with VAULT_DATE + TOTAL_DAYS → gate approves."""
+    from agent.loop import _check_crm_date_anchor
+    from unittest.mock import MagicMock
+
+    report = MagicMock()
+    report.outcome = "OUTCOME_OK"
+    report.completed_steps_laconic = [
+        "VAULT_DATE=2026-07-25, stated=2 weeks=14 days, TOTAL_DAYS=14+8=22, due_on=2026-07-25+22=2026-08-16",
+    ]
+
+    result = _check_crm_date_anchor(report)
+    assert result is None
+
+
+def test_crm_date_anchor_gate_skips_for_none_clarification():
+    """FIX-425: gate only applies to OUTCOME_OK, not NONE_CLARIFICATION."""
+    from agent.loop import _check_crm_date_anchor
+    from unittest.mock import MagicMock
+
+    report = MagicMock()
+    report.outcome = "OUTCOME_NONE_CLARIFICATION"
+    report.completed_steps_laconic = []
+
+    result = _check_crm_date_anchor(report)
+    assert result is None

@@ -91,6 +91,29 @@ def _should_bypass_evaluator_lookup(report) -> bool:
     return report.outcome == "OUTCOME_NONE_CLARIFICATION"
 
 
+def _check_crm_date_anchor(report) -> str | None:
+    """FIX-425: CRM date anchor gate.
+
+    For CRM OUTCOME_OK, require that completed_steps_laconic explicitly
+    mentions both VAULT_DATE (baseline) and the +8-day CRM offset (TOTAL_DAYS).
+    Returns error hint string if gate fires, None if OK.
+    Only applies to OUTCOME_OK — refusals pass through.
+    """
+    if report.outcome != "OUTCOME_OK":
+        return None
+    _steps_str = " ".join(report.completed_steps_laconic or []).lower()
+    _has_vault = any(k in _steps_str for k in ("vault_date", "vault-date", "vault date"))
+    _has_offset = any(k in _steps_str for k in ("+8", "total_days", "crm offset", "8 day"))
+    if _has_vault and _has_offset:
+        return None
+    return (
+        "[crm-gate] FIX-425: CRM date computed without explicit VAULT_DATE anchor "
+        "or +8-day CRM offset. "
+        "State in completed_steps: 'VAULT_DATE=X, stated=N days, "
+        "TOTAL_DAYS=N+8=M, due_on=VAULT_DATE+M=YYYY-MM-DD'."
+    )
+
+
 def _format_contract_block(contract: "Any") -> str:
     """Format a Contract into a ## AGREED CONTRACT system-prompt section."""
     lines = ["## AGREED CONTRACT"]
@@ -2242,6 +2265,23 @@ def _run_step(
                 "hard_gate": "quoted_values_verbatim",
             })
             return False
+        # FIX-425: CRM date anchor gate — require explicit VAULT_DATE + +8 in steps
+        if task_type == TASK_CRM:
+            _crm_hint = _check_crm_date_anchor(job.function)
+            if _crm_hint:
+                st.eval_rejections += 1
+                print(f"{CLI_RED}[crm-gate] FIX-425: missing VAULT_DATE or +8 offset ({st.eval_rejections}/{_MAX_EVAL_REJECTIONS}){CLI_CLR}")
+                st.log.append({"role": "user", "content": (
+                    f"[EVALUATOR] Your proposed completion was rejected. {_crm_hint} "
+                    "Re-state your completed_steps with the full date derivation before retrying."
+                )})
+                _tracer.emit("evaluator_call", st.step_count, {
+                    "approved": False,
+                    "issues": [_crm_hint],
+                    "elapsed_ms": 0,
+                    "hard_gate": "crm_date_anchor",
+                })
+                return False
         verdict = evaluate_completion(
             task_text=st.task_text, task_type=task_type,
             report=job.function, done_ops=_eval_done_ops,  # FIX-223
