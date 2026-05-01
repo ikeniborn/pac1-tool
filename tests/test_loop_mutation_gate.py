@@ -125,10 +125,14 @@ def _make_report(outcome="OUTCOME_OK", steps=None):
 
 
 def test_lookup_bypass_when_explored():
-    """FIX-420: lookup with exploration steps → bypass evaluator."""
+    """FIX-424: lookup OUTCOME_OK with exploration steps → must NOT bypass evaluator.
+
+    This test was updated from FIX-420 which had the bug: it incorrectly
+    bypassed for OUTCOME_OK + exploration. FIX-424 fixes this.
+    """
     from agent.loop import _should_bypass_evaluator_lookup
     report = _make_report(outcome="OUTCOME_OK", steps=["listed /01_capture/influential — 5 articles"])
-    assert _should_bypass_evaluator_lookup(report) is True
+    assert _should_bypass_evaluator_lookup(report) is False
 
 
 def test_lookup_no_bypass_when_no_exploration():
@@ -143,3 +147,25 @@ def test_lookup_bypass_for_clarification():
     from agent.loop import _should_bypass_evaluator_lookup
     report = _make_report(outcome="OUTCOME_NONE_CLARIFICATION", steps=[])
     assert _should_bypass_evaluator_lookup(report) is True
+
+
+def test_bypass_lookup_outcome_ok_with_exploration_should_not_bypass():
+    """FIX-424: OUTCOME_OK + exploration must NOT bypass evaluator for lookup."""
+    from agent.loop import _should_bypass_evaluator_lookup
+    report = _make_report(outcome="OUTCOME_OK", steps=["read /contacts/cont_001.json", "found contact"])
+    # Pre-FIX-424: this returned True (bug). Post-fix: must return False.
+    assert _should_bypass_evaluator_lookup(report) is False
+
+
+def test_bypass_lookup_none_clarification_still_bypasses():
+    """FIX-424: NONE_CLARIFICATION must still bypass evaluator for lookup."""
+    from agent.loop import _should_bypass_evaluator_lookup
+    report = _make_report(outcome="OUTCOME_NONE_CLARIFICATION", steps=[])
+    assert _should_bypass_evaluator_lookup(report) is True
+
+
+def test_bypass_lookup_outcome_ok_no_exploration_does_not_bypass():
+    """FIX-424: OUTCOME_OK without exploration also must not bypass (unchanged)."""
+    from agent.loop import _should_bypass_evaluator_lookup
+    report = _make_report(outcome="OUTCOME_OK", steps=[])
+    assert _should_bypass_evaluator_lookup(report) is False

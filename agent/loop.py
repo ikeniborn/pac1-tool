@@ -79,22 +79,16 @@ from agent.security import _INJECTION_RE  # FIX-203/329: moved to security.py
 
 
 def _should_bypass_evaluator_lookup(report) -> bool:
-    """FIX-420: targeted evaluator bypass for TASK_LOOKUP.
+    """FIX-424: bypass evaluator for lookup only on OUTCOME_NONE_CLARIFICATION.
 
     Bypass only when:
-    - outcome is OUTCOME_NONE_CLARIFICATION (no evaluation needed), OR
-    - agent actually explored the vault (list/read/search/find/tree in steps)
+    - outcome is OUTCOME_NONE_CLARIFICATION (refusal needs no evidence check)
 
-    If OUTCOME_OK arrived with zero exploration steps → evaluator must run.
+    OUTCOME_OK always runs the evaluator — even with exploration steps.
+    FIX-420 original intent (don't re-evaluate correct refusals) is preserved.
+    FIX-424 narrows: OUTCOME_OK + exploration was incorrectly bypassing (t30, t40).
     """
-    if report.outcome == "OUTCOME_NONE_CLARIFICATION":
-        return True
-    _steps = report.completed_steps_laconic or []
-    _explored = any(
-        any(kw in s.lower() for kw in ("list", "read", "search", "find", "tree"))
-        for s in _steps
-    )
-    return _explored
+    return report.outcome == "OUTCOME_NONE_CLARIFICATION"
 
 
 def _format_contract_block(contract: "Any") -> str:
