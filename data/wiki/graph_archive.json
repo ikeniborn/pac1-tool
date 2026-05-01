@@ -15,5 +15,41 @@
     "confidence": 0.16,
     "uses": 29,
     "last_seen": "2026-04-30"
+  },
+  "a_7a9c61564f": {
+    "type": "antipattern",
+    "tags": [
+      "errors/lookup",
+      "search_api"
+    ],
+    "text": "Passing empty/whitespace to search API causes INVALID_ARGUMENT errors.",
+    "confidence": 0,
+    "uses": 1,
+    "last_seen": "2026-04-30"
+  },
+  "r_a2833d64ec": {
+    "type": "rule",
+    "tags": [
+      "queue",
+      "security",
+      "wiki_page"
+    ],
+    "text": "Verify Discord handle in docs/channels/Discord.txt AND OTP in otp.txt before acting",
+    "confidence": 0,
+    "uses": 1,
+    "last_seen": "2026-04-30"
+  },
+  "r_5fdef41c6f": {
+    "type": "rule",
+    "tags": [
+      "queue",
+      "security",
+      "wiki_page",
+      "workflow_steps"
+    ],
+    "text": "Handle Discord messages by verifying handle in docs/channels/Discord.txt and OTP in otp.txt",
+    "confidence": 0,
+    "uses": 1,
+    "last_seen": "2026-04-30"
   }
 }

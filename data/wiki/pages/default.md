@@ -1,8 +1,8 @@
 <!-- wiki:meta
 category: default
 quality: developing
-fragment_count: 5
-fragment_ids: [t03_20260430T133906Z, t10_20260430T133216Z, t31_20260430T140450Z, t02_20260430T163328Z, t31_20260430T165529Z]
+fragment_count: 7
+fragment_ids: [t03_20260430T133906Z, t10_20260430T133216Z, t31_20260430T140450Z, t02_20260430T163328Z, t31_20260430T165529Z, t02_20260430T210322Z, t08_20260430T210158Z]
 last_synthesized: 2026-04-30
 aspects_covered: workflow_steps,pitfalls,shortcuts
 -->
@@ -20,17 +20,16 @@ aspects_covered: workflow_steps,pitfalls,shortcuts
 - Do not rewrite historical records unless the task explicitly authorizes it; the fix stays at the generation boundary
 - `cleanup-plan.json` is preparation only and does not resolve a live regression; focus on the emitter config
 - For targeted deletion tasks: delete target, verify absence with a fresh `list`, confirm no collateral impact on neighboring files
+- For deletion tasks with ambiguous references ("that card", "the file", etc.), stop and request clarification before performing any operations; proceeding without clear identification risks unintended removal
 
 ## Key pitfalls
 - **Conversion gap despite technical success**: An agentic integration can run without errors and still deliver worse outcomes than simpler alternatives. The Walmart case showed that ChatGPT checkout converted at one-third the rate of the regular website checkout. Technical readiness does not guarantee business metric alignment.
-
 - **Context and trust loss in third-party surfaces**: When purchase flows run outside an owned environment, trust signals, product context, and flow quality degrade. Owned merchant environments outperform third-party chat surfaces on conversion because the customer stays within a context they already trust.
-
 - **Prefix regression breaks downstream reconciliation**: A change to purchase ID generation at the active boundary caused mixed prefixes to appear in downstream processing. Historical records must remain stable; fixes apply only at the generation boundary going forward. Do not rewrite stored IDs unless explicitly authorized. When sampling historical records to understand regression scope, read multiple files across the timeline to confirm whether the regression is contained or systemic before writing the boundary fix.
-
 - **Stall patterns before writes**: Taking multiple read steps without writing, deleting, or moving indicates the agent is gathering context but not converging. When navigation files and configs are consulted repeatedly, check whether the information needed to act has already been obtained.
-
 - **Approval gating prevents unintended historical repair**: Tasks with `approved: false` or `enabled: false` flags in related configs (e.g., cleanup-plan.json) require explicit re-authorization. Proceeding without checking the flag risks performing a repair that was only prepared, not approved.
+- **Unspecified targets produce OUTCOME_NONE_CLARIFICATION**: Tasks with ambiguous references (e.g., "Delete that card" without identifying which card) result in no action taken and no step facts recorded. The task cannot be executed as written—clarification of the target is required before proceeding. This outcome differs from execution failures; it indicates the task itself lacks the specificity needed to proceed.
+- **Verification steps confirm operational success**: Proper file operations include post-action confirmation. Listing the parent directory after a deletion verifies the target no longer appears, completing the operational chain. Absence of verification in step facts suggests the operation was not completed or not confirmed.
 
 ## Shortcuts
 - **Inbox capture tasks**: When the task specifies "keep the diff focused," write only to the explicitly named destination paths and avoid creating extra artifacts; the evaluator checks for exact path matches in DONE OPS.
@@ -39,6 +38,7 @@ aspects_covered: workflow_steps,pitfalls,shortcuts
 - **Stall avoidance on diagnostic tasks**: After reading 6+ files without writing, the system warns you are stalling; if you have enough evidence from documentation and sampling to make the fix, write the change rather than continuing to read additional files.
 - **Discard tasks with path precision**: When discarding specific named items, list the parent directory first to confirm exact filename spelling, perform the delete, then verify the parent directory listing—three operations that confirm "only this item was removed, nothing else touched."
 - **Prefix regression fixes via sampling**: When a config layer controls downstream output format, sample 2-3 existing data files alongside the config to rapidly identify both the established pattern and the regression state; once the discrepancy is clear, a single targeted write to the owning lane config resolves the issue.
+- **Ambiguous references block execution**: Tasks using non-specific references ("that card", "the file", "it") without providing exact paths result in OUTCOME_NONE_CLARIFICATION and produce no DONE OPS; always identify the specific named item before attempting any operation.
 
 ## Successful pattern: t10 (2026-04-30)
 <!-- researcher: t10:38c49e1ae33f -->
@@ -106,18 +106,18 @@ aspects_covered: workflow_steps,pitfalls,shortcuts
 **Applies when:** default
 
 ## Successful pattern: t02 (2026-04-30)
-<!-- researcher: t02:1b26507486d0 -->
+<!-- researcher: t02:a4d55baaee18 -->
 
-**Goal shape:** Discard thread 2026-03-23__ai-engineering-foundations entirely, don't touch anything else
+**Goal shape:** Discard thread 2026-03-23__agent-platforms-and-runtime entirely, don't touch anything else
 
-**Final answer:** Discarded thread /02_distill/threads/2026-03-23__ai-engineering-foundations.md. The thread file is confirmed absent. Only /02_distill/threads/2026-03-23__agent-platforms-and-runtime.md and /02_distill
+**Final answer:** Discarded thread /02_distill/threads/2026-03-23__agent-platforms-and-runtime.md. Directory listing confirms only ai-engineering-foundations.md and _thread-template.md remain in /02_distill/threads/. N
 
 **Trajectory:**
 1. list(/02_distill/threads)
-2. delete(/02_distill/threads/2026-03-23__ai-engineering-foundations.md)
+2. delete(/02_distill/threads/2026-03-23__agent-platforms-and-runtime.md)
 3. list(/02_distill/threads)
-4. list(/02_distill/)
-5. list(/02_distill/threads/)
+4. list(/02_distill)
+5. list(/02_distill/threads)
 
 **Key insights:**
 - (none)

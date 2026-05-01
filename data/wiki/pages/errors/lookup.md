@@ -1,8 +1,8 @@
 <!-- wiki:meta
 category: errors/lookup
 quality: developing
-fragment_count: 5
-fragment_ids: [t30_20260430T140045Z, t40_20260430T140604Z, t42_20260430T140456Z, t30_20260430T165750Z, t40_20260430T170204Z]
+fragment_count: 8
+fragment_ids: [t30_20260430T140045Z, t40_20260430T140604Z, t42_20260430T140456Z, t30_20260430T165750Z, t40_20260430T170204Z, t43_20260430T200320Z, t30_20260430T211247Z, t40_20260430T211735Z]
 last_synthesized: 2026-04-30
 aspects_covered: workflow_steps,pitfalls,shortcuts
 -->
@@ -21,6 +21,11 @@ aspects_covered: workflow_steps,pitfalls,shortcuts
 - **Reading manager contact files first** (e.g., `search: <manager_name>` to find `mgr_XXX.json`) can establish manager-to-account relationships before iterating all account files, reducing total reads when a manager manages multiple accounts
 - **Search may return no matches** for manager-related files even when the manager exists; when search returns empty results, fall back to listing the directory and reading files sequentially
 - **Sequential account reading at scale** (10+ files) will generate repeated stall warnings up to and including `[STALL ESCALATION]` level; account for the fact that some manager lookup queries require reading all account files to confirm matches and are inherently multi-step
+- **Embedded dates in filenames enable date-based lookups without reads** — when files include timestamps in their names (e.g., `YYYY-MM-DD__title.md`), a single list operation reveals both file inventory and temporal data, allowing date arithmetic on the client side without reading file contents
+- **Directory listing alone can satisfy date-range queries** when filenames contain dates and the task requires only identifying which file matches (e.g., "article from 37 days ago"), rather than extracting content from files
+- **Consolidated source files can satisfy counting queries in a single read** — when a single file contains all relevant identifier-status pairs (e.g., `telegram_account_XXXXXX - blacklist` lines), a single read returns sufficient data for counting without iterating multiple files
+- **Name format mismatches between search queries and stored data cause search failures** — when `account_manager` fields store names in "Surname Givenname" format (e.g., `Moritz Günther`) but the query uses "Givenname Surname" order (e.g., `Günther Moritz`), search returns no matches even though the manager exists; sequential file reading becomes necessary as fallback
+- **Account JSON fields may use inverted name ordering** compared to natural language queries; when search for a manager name returns empty results, inspect account JSON structure to verify field format before attempting sequential reads
 
 ## Key pitfalls
 - **Premature NONE_CLARIFICATION (t30):** The agent attempted to read `/docs/channels/telegram.txt` twice, receiving timeouts on both attempts. Instead of retrying with adjusted parameters, listing the parent directory to verify the file's existence and accessibility, or trying alternative approaches (e.g., splitting the path or checking for encoding issues), the agent abandoned the lookup and reported a dead end. The file existed in the filesystem but was never successfully accessed. In a subsequent run, the agent again attempted to read `/docs/channels/Telegram.txt` multiple times without first confirming the file's accessibility by listing the parent directory. Timeouts on file reads should trigger immediate verification of the path's validity before retrying the same operation.
@@ -29,9 +34,23 @@ aspects_covered: workflow_steps,pitfalls,shortcuts
 
 - **False match (t42):** The agent searched for a file captured 42 days prior to <date> (approximately <date>). The search returned `2026-02-10__how-i-use-claude-code.md`, which was approximately 79 days prior—nearly double the requested timespan. The agent accepted this result without validating the date arithmetic or recalculating the target capture date, leading to an incorrect answer.
 
-## Shortcuts
-## Lookup-specific Patterns: Search Strategies, Filter Approaches
+- **Premature NONE_CLARIFICATION (t43):** When asked which captured article is from 37 days ago (from <date>), the agent listed `/01_capture/influential` and found files from 38, 44, 55, 74, and 79 days prior. Instead of recognizing the closest match (<date> at ~38 days), attempting date arithmetic to verify which file best fits the criteria, or checking additional directories for other captures, the agent reported a dead end. Near-matches should prompt verification of calculation accuracy, confirmation of whether all relevant directories were searched, and consideration of whether approximate matches satisfy the query intent before abandoning the lookup.
 
+- **Search query name-order mismatch (t40 variant):** When tasked with finding accounts managed by "Günther Moritz," the agent's search returned no matches. The underlying data stored the name as "Moritz Günther" (surname first), creating a format mismatch with the query. The agent failed to recognize the name-order discrepancy, did not try alternative query formats, and instead fell back to brute-force sequential reads of all account files. Search queries should account for name ordering variations or attempt alternative formats before abandoning the search operation.
+
+- **Data synthesis failure (t30 variant):** The agent successfully read and parsed `/docs/channels/Telegram.txt`, correctly identifying entries tagged as "blacklist" versus "verified." However, with a large dataset to process, the agent failed to synthesize the data into a final count and produced a dead end despite having all necessary information. The agent appeared to get lost in the volume of data rather than completing the final aggregation step. Large read operations should include explicit tracking of data state and a clear synthesis step toward the final answer.
+
+- **Redundant reads indicating loss of context (t40 variant):** During account lookup, the agent read `/accounts/<file> then later read the same file again. Multiple stall warnings accumulated without the agent recognizing it was duplicating work. This suggests the agent loses track of processed items when operations span many steps, failing to maintain a working memory of what has been examined. Long-running read operations should maintain explicit state tracking to avoid redundant file accesses.
+
+## Shortcuts
+- **Dead-end scenario (no match found):** When the date calculation produces no matching file in the directory, document the attempted offset and closest candidates as evidence the search was thorough. In this case, target date was <date> (37 days prior), but no file existed; closest candidates were <date> (38 days prior) and <date> (44 days prior).
+- **Pattern-counting lookup:** For queries asking "how many X" where X maps to a repeating label, read the target file and count all entries matching that pattern. In t30, reading /docs/channels/Telegram.txt and counting entries marked "blacklist" resolved the lookup directly without needing date-based search.
+- **Fallback strategy for attribute lookups:** When direct search for a value yields no matches, list the parent directory and read files sequentially to filter by field values. In t40, searches for "Günther Moritz" returned nothing, but listing /accounts and reading each acct_*.json file revealed the matching field was stored as "Moritz Günther" (reversed order) in the data.
+- **Name-order sensitivity:** Attribute-based lookups can fail silently when name fields are stored in a different order than queried. Always attempt reversed name formats or field-level inspection when name-string searches return zero results.
+- **Stall during lookup exploration:** Taking more than ~6 steps reading files without producing output triggers stall warnings. For lookup tasks, resolve by completing the count or list immediately rather than continuing to scan additional files.
+- **Outcome-OK dead ends:** Some lookup tasks complete successfully (OUTCOME_OK) even when the process required fallback strategies, multiple file reads, or name-format adjustments. The outcome documents that the goal was reached, not that the initial approach succeeded.
+
+## Lookup-specific Patterns: Search Strategies, Filter Approaches
 ### Search Pattern Requirements
 
 - **Non-empty patterns required**: Search with empty or whitespace-only patterns returns `ERROR INVALID_ARGUMENT`. Always provide a valid search term.

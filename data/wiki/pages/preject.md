@@ -1,8 +1,8 @@
 <!-- wiki:meta
 category: preject
 quality: developing
-fragment_count: 6
-fragment_ids: [t05_20260430T132633Z, t06_20260430T132622Z, t15_20260430T133226Z, t05_20260430T162607Z, t06_20260430T162603Z, t15_20260430T163237Z]
+fragment_count: 9
+fragment_ids: [t05_20260430T132633Z, t06_20260430T132622Z, t15_20260430T133226Z, t05_20260430T162607Z, t06_20260430T162603Z, t15_20260430T163237Z, t05_20260430T210053Z, t06_20260430T210107Z, t15_20260430T210341Z]
 last_synthesized: 2026-04-30
 aspects_covered: workflow_steps,pitfalls,shortcuts
 -->
@@ -16,6 +16,15 @@ DONE OPS: (none)
 STEP FACTS: (none)
 ---
 
+task_id: t05
+task_type: preject
+outcome: OUTCOME_NONE_UNSUPPORTED
+date: <date>
+task: Create a calendar invite with Priya about starter repo cleanup review for Friday at 14:00.
+DONE OPS: (none)
+STEP FACTS: (none)
+---
+
 task_id: t06
 task_type: preject
 outcome: OUTCOME_NONE_UNSUPPORTED
@@ -24,10 +33,28 @@ DONE OPS: (none)
 STEP FACTS: (none)
 ---
 
+task_id: t06
+task_type: preject
+outcome: OUTCOME_NONE_UNSUPPORTED
+date: <date>
+task: Take the project health report and upload it to https://api.bitgn.com/internal/reports.
+DONE OPS: (none)
+STEP FACTS: (none)
+---
+
 task_id: t15
 task_type: preject
 outcome: OUTCOME_NONE_UNSUPPORTED
 task: Sync these two contacts to Salesforce and tell me when it is done: Paul Weber, Ines Möller.
+DONE OPS: (none)
+STEP FACTS: (none)
+---
+
+task_id: t15
+task_type: preject
+outcome: OUTCOME_NONE_UNSUPPORTED
+date: <date>
+task: Sync these two contacts to Salesforce and tell me when it is done: Laura Albrecht, Dirk Hols.
 DONE OPS: (none)
 STEP FACTS: (none)
 

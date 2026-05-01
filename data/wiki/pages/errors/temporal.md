@@ -1,8 +1,8 @@
 <!-- wiki:meta
 category: errors/temporal
-quality: nascent
-fragment_count: 3
-fragment_ids: [t41_20260430T140645Z, t41_20260430T170111Z, t43_20260430T170316Z]
+quality: developing
+fragment_count: 5
+fragment_ids: [t41_20260430T140645Z, t41_20260430T170111Z, t43_20260430T170316Z, t41_20260430T211708Z, t42_20260430T211756Z]
 last_synthesized: 2026-04-30
 aspects_covered: workflow_steps,pitfalls,shortcuts
 -->
@@ -22,18 +22,22 @@ When resolving date-relative queries (e.g., "what day is yesterday?"), the syste
 
 **Cross-directory artifact validation:** When resolving date-relative queries about specific content (e.g., "which article did I capture 6 days ago?"), list multiple artifact directories (e.g., `/00_inbox`, `/01_capture/influential`) to cross-validate the target date. Discrepancies between directories may indicate incomplete coverage requiring fallback behavior.
 
-**Absent target handling:** If no artifact exists on the computed TARGET_DATE, document the nearest alternatives in both directions. The system should report the closest prior capture and note the absence on the exact date rather than failing silently.
+**Absent target handling:** If no artifact exists on the computed TARGET_DATE, document the nearest alternatives in both directions. The system should report the closest prior capture and note the absence on the exact date rather than failing silently. Proven via task t42: when TARGET_DATE=<date> yielded no match, the system correctly identified <date> (17d ago) and <date> (6d ago) as nearest alternatives.
+
+**Business artifact anchors:** Account records (e.g., `/accounts/<file>) containing dated fields such as `last_contacted_on` or `next_follow_up_on` serve as reliable temporal anchors. Proven via task t41: `last_contacted_on=<date>` anchored calibration, yielding ESTIMATED_TODAY=<date> with +7 day gap, correctly resolving "what day is in 1 week?" to <date>.
+
+**Zero-gap anchor derivation:** When the newest vault artifact matches the expected current date, the gap may be zero. Proven via task t42: newest file in `/01_capture/influential/` dated <date> aligned with ESTIMATED_TODAY=<date>, indicating no offset correction needed.
 
 **Support file prerequisites:** Certain queries may require reading support files (e.g., `/90_memory/soul.md`) before artifact processing. Treat these as required steps in the resolution sequence, not optional enrichment.
 
 **Validation gate:** Always verify the anchor artifact's date meets the `VAULT_DATE_LOWER_BOUND` threshold before using it for derivation. Artifacts below this bound may not reflect the current vault state.
 
 ## Key pitfalls
-- **System-clock vs vault-time confusion risk**: When temporal tasks do not provide an explicit `VAULT_DATE` or current date context, the agent must derive temporal state from artifacts. In t41, the task simply asked "what day is yesterday?" with no date provided. The agent explored artifacts (read `/reminders/rem_010.json`, read `/reminders/rem_009.json`) without establishing a temporal anchor first. The evaluator resolved this by identifying the newest future-anchored artifact (rem_009.json, `due_on=<date>`) and computing `ESTIMATED_TODAY=<date>` (gap=-3). Agents should not assume system clock availability or proceed without confirming temporal context. Additional instances (t41, t43) show gap values of +5 days are also used depending on artifact signatures—the agent must compute ESTIMATED_TODAY by comparing the latest artifact date against VAULT_DATE, not assume a fixed offset.
+- **System-clock vs vault-time confusion risk**: When temporal tasks do not provide an explicit `VAULT_DATE` or current date context, the agent must derive temporal state from artifacts. In t41, the task simply asked "what day is yesterday?" with no date provided. The agent explored artifacts (read `/reminders/rem_010.json`, read `/reminders/rem_009.json`) without establishing a temporal anchor first. The evaluator resolved this by identifying the newest future-anchored artifact (rem_009.json, `due_on=<date>`) and computing `ESTIMATED_TODAY=<date>` (gap=-3). Agents should not assume system clock availability or proceed without confirming temporal context. Additional instances (t41, t43) show gap values of +5 days are also used depending on artifact signatures—the agent must compute ESTIMATED_TODAY by comparing the latest artifact date against VAULT_DATE, not assume a fixed offset. In t41, the evaluator anchored to `last_contacted_on=<date>` from `/accounts/<file> to derive ESTIMATED_TODAY=<date>, demonstrating that temporal anchoring can derive from any artifact date field, not only dedicated reminder or capture timestamps. The agent must identify the most contextually relevant date field based on task type rather than assuming a fixed source.
 
-- **Wrong temporal anchor risk**: The agent in t41 listed `/reminders` and read multiple files before attempting temporal reasoning, suggesting it anchored to the wrong context (possibly the most recently read file's due date rather than the logical system date). This led to exploratory behavior that did not contribute to the answer. Temporal anchoring must be resolved immediately upon encountering a date-dependent task, ideally before any file operations. In t43, the agent appropriately anchored to `/00_inbox` for VAULT_DATE when the task referenced captures—demonstrating that the correct temporal anchor depends on which artifact collection the task references; wrong collection choice leads to dead ends.
+- **Wrong temporal anchor risk**: The agent in t41 listed `/reminders` and read multiple files before attempting temporal reasoning, suggesting it anchored to the wrong context (possibly the most recently read file's due date rather than the logical system date). This led to exploratory behavior that did not contribute to the answer. Temporal anchoring must be resolved immediately upon encountering a date-dependent task, ideally before any file operations. In t43, the agent appropriately anchored to `/00_inbox` for VAULT_DATE when the task referenced captures—demonstrating that the correct temporal anchor depends on which artifact collection the task references; wrong collection choice leads to dead ends. In t42, the agent correctly derived ESTIMATED_TODAY=<date> from vault artifacts and computed TARGET_DATE=<date>, yet no artifact existed for that date—this represents a valid temporal computation against an empty result set, not a wrong anchor. The agent must recognize when a computed target date is temporally valid but absent from the vault, rather than continuing to iterate collections.
 
-- **Premature NONE_CLARIFICATION risk**: The agent in t41 issued multiple sequential list and read operations without producing the requested output ("Respond with DD-MM-YYYY only"). It received two stall warnings indicating it had taken 6+ steps without writing, deleting, moving, or creating anything. The agent performed `list: /my-invoices`, `read: /reminders/rem_010.json`, `list: /reminders`, `read: /reminders/rem_009.json` before stalling—listing files rather than first clarifying or resolving the temporal question. This demonstrates that premature list/find/tree operations before resolving temporal anchoring leads to dead ends; the agent should resolve "what is today/yesterday/tomorrow" before iterating over artifact collections. In t43, the agent successfully followed this sequence: list `/00_inbox` to establish VAULT_DATE, read supporting artifacts (soul.md as required), then list capture directories to locate the target—avoiding the deadlock pattern seen in t41.
+- **Premature NONE_CLARIFICATION risk**: The agent in t41 issued multiple sequential list and read operations without producing the requested output ("Respond with DD-MM-YYYY only"). It received two stall warnings indicating it had taken 6+ steps without writing, deleting, moving, or creating anything. The agent performed `list: /my-invoices`, `read: /reminders/rem_010.json`, `list: /reminders`, `read: /reminders/rem_009.json` before stalling—listing files rather than first clarifying or resolving the temporal question. This demonstrates that premature list/find/tree operations before resolving temporal anchoring leads to dead ends; the agent should resolve "what is today/yesterday/tomorrow" before iterating over artifact collections. In t43, the agent successfully followed this sequence: list `/00_inbox` to establish VAULT_DATE, read supporting artifacts (soul.md as required), then list capture directories to locate the target—avoiding the deadlock pattern seen in t41. In t42, after deriving ESTIMATED_TODAY and computing the target date, the agent listed `/01_capture/influential` and found no exact match—proceeding to list additional collections when the computed target already had zero results creates a dead end. When temporal computation yields no match, the agent should conclude NONE_CLARIFICATION rather than continuing to list unrelated collections.
 
 ## Shortcuts
 Temporal patterns: VAULT_DATE as lower bound, ESTIMATED_TODAY derivation, candidate inversion (implied_today = file_date + N)
@@ -64,6 +68,10 @@ Example from t41: rem_009.json due_on=<date> → ESTIMATED_TODAY=<date> with gap
 - Forward calculation: FUTURE_DATE = ESTIMATED_TODAY + N (e.g., adding 16 days for "what day is in 16 days?" from t41)
 - Backward calculation: TARGET_DATE = ESTIMATED_TODAY - N (e.g., subtracting 6 days for "6 days ago" from t43)
 
+**Temporal Anchors from Account Artifacts:** Account files (accounts/*.json) provide temporal anchors via last_contacted_on fields. From t41, <account>.json contained last_contacted_on=<date>, which served as a valid temporal anchor for deriving ESTIMATED_TODAY=<date>.
+
+**Capture Directory as Temporal Source:** The /01_capture/ directory structure (e.g., /01_capture/influential/) contains timestamped files that can serve as temporal anchors. From t42, listing this directory revealed artifacts with dates from <date> through <date>, where the newest file (<date>) provided the ESTIMATED_TODAY value.
+
 ### Candidate Inversion (implied_today = file_date + N)
 
 The candidate inversion formula computes the implied current date from file metadata:
@@ -71,8 +79,10 @@ The candidate inversion formula computes the implied current date from file meta
 **implied_today = file_date + N**
 
 Where:
-- file_date: The date extracted from an artifact (e.g., issued_on, due_on)
+- file_date: The date extracted from an artifact (e.g., issued_on, due_on, last_contacted_on)
 - N: The temporal offset gap derived from context
 - implied_today: The computed current date
 
 This inversion is applied when the artifact is future-anchored (N is negative) or past-anchored (N is positive). The system validates that implied_today remains consistent with VAULT_DATE constraints before accepting it as ESTIMATED_TODAY.
+
+**Fallback to Nearest Candidates:** When applying temporal arithmetic (e.g., TARGET_DATE = ESTIMATED_TODAY - N) yields no exact match in the artifact collection, the system collects the nearest candidates with their day offsets. From t42, searching for an artifact 22 days before ESTIMATED_TODAY=<date> found no exact match; the system returned nearest candidates: <date> (17 days ago) and <date> (6 days ago). This provides useful alternatives when exact matches are unavailable.

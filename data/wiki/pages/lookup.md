@@ -1,8 +1,8 @@
 <!-- wiki:meta
 category: lookup
 quality: developing
-fragment_count: 10
-fragment_ids: [t16_20260430T133739Z, t34_20260430T140103Z, t38_20260430T140152Z, t39_20260430T140342Z, t43_20260430T140718Z, t16_20260430T163802Z, t34_20260430T165555Z, t38_20260430T165841Z, t39_20260430T165835Z, t42_20260430T165844Z]
+fragment_count: 14
+fragment_ids: [t16_20260430T133739Z, t34_20260430T140103Z, t38_20260430T140152Z, t39_20260430T140342Z, t43_20260430T140718Z, t16_20260430T163802Z, t34_20260430T165555Z, t38_20260430T165841Z, t39_20260430T165835Z, t42_20260430T165844Z, t16_20260430T210642Z, t34_20260430T211342Z, t38_20260430T211531Z, t39_20260430T211537Z]
 last_synthesized: 2026-04-30
 aspects_covered: workflow_steps,pitfalls,shortcuts
 -->
@@ -66,15 +66,42 @@ When searching with a combined query (e.g., country + industry + account type), 
 - search:  → accounts/<account>.json:3, accounts/<account>.json:4, accounts/<account>.json:14, accounts/<account>.json:3, accounts/<account>.json:4, accounts/<account>.json:14
 - read: /accounts/<file> → { … "legal_name": "Acme Robotics GmbH", "industry": "manufacturing", "country": "Germany" … } → target found
 
+**Query with Name Order Variation**
+
+When searching by a person's name, the stored full_name may have name parts in reversed order. Perform the partial search anyway—the system may return the file even if the query string is not an exact subsequence of the stored name.
+
+- search:  → (no matches)
+- search:  → contacts/<contact>.json:4
+- read: /contacts/<file> → { … "full_name": "Pascal Heinrich", "email": "<email>" … }
+
+**Query by Partial Name Then Cross-Reference for Primary Contact**
+
+When the primary contact for a specific account is needed, search for the account by descriptive query (e.g., region + industry), read multiple candidate files to identify the matching account by country/industry, extract the primary_contact_id, then read the contact file.
+
+- search:  → accounts/<account>.json:14, accounts/<account>.json:14, accounts/README.MD:45
+- read: /accounts/<file> → { … "industry": "retail", "country": "Germany" … } → not Dutch
+- read: /accounts/<file> → { … "industry": "logistics", "country": "Netherlands", "primary_contact_id": "<contact>" … } → target found
+- read: /contacts/<file> → { … "email": "<email>" … }
+
+**Query for Account Manager via Account Then Manager Record**
+
+When the account manager's email is needed, search for the account by name, read the account to extract the account_manager field, then search for the manager record and read the email.
+
+- search:  → accounts/<account>.json:3, accounts/<account>.json:4
+- read: /accounts/<file> → { … "account_manager": "Oliver König" … }
+- search:  → contacts/<manager>.json:4
+- read: /contacts/<file> → { … "email": "<email>" … }
+
 ## Key pitfalls
 **False Matches:**
 - Partial string matches can lead to reading wrong files. Searching for "Acme" returned results from both `accounts/<account>.json` (German Acme Robotics) and `accounts/<account>.json` (Dutch Acme Logistics), risking confusion between similarly-named accounts if subsequent reads are not precisely targeted.
 - Vague queries yield wide result sets. Searching for "Acme" returned 6 matches across two accounts (`<account>`, `<account>`), making it difficult to determine which account is the intended German manufacturing entity without reading both files to check industry and country fields.
+- Name ordering variations can cause false empty results before refinement. In task t16, the first search with `query="Heinrich Pascal"` returned no matches; only after searching with `query="Pascal Heinrich"` did the agent find the contact. Agents should attempt alternate name orderings (e.g., "Pascal Heinrich") or partial first/last name searches before concluding contacts are absent.
 
 **Wrong Filters:**
-- Failure to narrow search scope can cause excessive sequential reads. In task t38, the agent listed all accounts then read each one sequentially (<account> through <account>) to find the Dutch banking customer with an open security review, instead of filtering directly for `country=Netherlands`, `industry=finance`, and `compliance_flags` containing `security_review_open`. This caused 6 stall warnings before completion.
+- Failure to narrow search scope can cause excessive sequential reads. In task t38, the agent searched for "Dutch port-operations shipping account" which returned no direct matches, then searched broadly and received results spanning both accounts (`<account>`, `<account>`) plus documentation. The agent then read `<account>` (German retail) before discovering it was the wrong account and reading `<account>` (Dutch logistics) — instead of filtering directly for `country=Netherlands`, `industry=logistics`, and `notes` containing vessel-schedule terminology. This caused multiple unnecessary file reads before reaching the correct account.
 - Not using available metadata fields for filtering wastes operations and increases error surface.
-- Metadata fields provide direct filtering paths that bypass multiple reads. The `account_manager` field in account files points to the specific manager contact, but agents may instead search by name (task t39 required two searches: one to find the account, another to find the manager contact by searching for "Tim Hoffmann") rather than using `account_id` or `role=account_manager` for direct lookup.
+- Metadata fields provide direct filtering paths that bypass multiple reads. The `account_manager` field in account files points to the specific manager contact, but agents may instead search by name (task t39 required two searches: one to find the account, another to find the manager contact by searching for "Oliver König") rather than using `account_id` or `role=account_manager` for direct lookup.
 
 **Premature NONE_CLARIFICATION:**
 - Agents may abandon search after initial empty results without attempting date-range or contextual narrowing. In task t43, the agent searched three times with no matches, then listed `/01_capture/influential` and stalled, ultimately returning `NONE_CLARIFICATION` — but never calculated that "37 days ago" from <date> correlates to approximately <date>, then searched for or filtered captured files by that date window.
@@ -94,11 +121,16 @@ When searching with a combined query (e.g., country + industry + account type), 
 - **Empty pattern search for person lookup**: When person name search fails (e.g., "Möller Ines"), an empty pattern search can locate the contact file by matching against names indexed in contact files (found contacts/<manager>.json:4)
 - **Search hits include line numbers for targeted reading**: Search results show specific file:line locations (e.g., contacts/<manager>.json:4) allowing direct extraction of fields from matching lines
 - **Contact files indexed by role and tags**: Searching for "account manager" returns manager contact files, enabling two-step resolution where account lookup provides manager name, then person lookup finds manager's contact file
+- **Name order variation in contact records**: Contact files store names in "FirstName LastName" format (e.g., "Pascal Heinrich") while queries may use "LastName FirstName" (e.g., "Heinrich Pascal") — both orderings can successfully locate the same contact file
+- **Search-hit filtering by account attributes**: When a search returns multiple account candidates, read each file to inspect region, industry, or country fields to determine which matches the multi-attribute query (e.g., Dutch + port-operations + logistics filters out German retail accounts)
+- **Account name search reliability**: Searching for an account name directly (e.g., "CanalPort") returns exact matches more consistently than searching for descriptors like "port-operations shipping"
+- **Role-tagged contact files for direct resolution**: Contacts with roles like "account_manager" are tagged in their file, allowing search by role to locate the appropriate contact file for two-step email resolution
+- **Account file fields encode multi-criteria matches**: Account files contain region, industry, country, and other fields that enable filtering when search returns multiple candidates — read account files to confirm the correct match before retrieving the linked contact
 
 ## Successful pattern: t16 (2026-04-30)
-<!-- researcher: t16:fa2683fb9b40 -->
+<!-- researcher: t16:cfac6c2c360f -->
 
-**Goal shape:** What is the email address of Möller Ines? Return only the email
+**Goal shape:** What is the email address of Heinrich Pascal? Return only the email
 
 **Final answer:** <email>
 
@@ -106,6 +138,8 @@ When searching with a combined query (e.g., country + industry + account type), 
 1. search
 2. search
 3. read(/contacts/<file>)
+4. search
+5. search
 
 **Key insights:**
 - (none)
@@ -113,11 +147,11 @@ When searching with a combined query (e.g., country + industry + account type), 
 **Applies when:** lookup
 
 ## Successful pattern: t34 (2026-04-30)
-<!-- researcher: t34:4e0172e51719 -->
+<!-- researcher: t34:ac1a7f8f7ef7 -->
 
-**Goal shape:** What is the exact legal name of the German Acme manufacturing account account? Answer with the exact
+**Goal shape:** What is the exact legal name of the Benelux vessel-schedule logistics customer CanalPort account? An
 
-**Final answer:** Acme Robotics GmbH
+**Final answer:** CanalPort Shipping B.V.
 
 **Trajectory:**
 1. search
@@ -129,16 +163,18 @@ When searching with a combined query (e.g., country + industry + account type), 
 **Applies when:** lookup
 
 ## Successful pattern: t38 (2026-04-30)
-<!-- researcher: t38:871dd60f5aea -->
+<!-- researcher: t38:19b7a08c2414 -->
 
-**Goal shape:** What is the email of the primary contact for the German ecommerce retail logo Silverline account? Re
+**Goal shape:** What is the email of the primary contact for the Dutch port-operations shipping account account? Ret
 
 **Final answer:** <email>
 
 **Trajectory:**
 1. search
-2. read(/accounts/<file>)
-3. read(/contacts/<file>)
+2. search
+3. read(/accounts/<file>)
+4. read(/accounts/<file>)
+5. read(/contacts/<file>)
 
 **Key insights:**
 - (none)
@@ -146,9 +182,9 @@ When searching with a combined query (e.g., country + industry + account type), 
 **Applies when:** lookup
 
 ## Successful pattern: t39 (2026-04-30)
-<!-- researcher: t39:8f70fbdc7179 -->
+<!-- researcher: t39:167bf28f37f5 -->
 
-**Goal shape:** What is the email address of the account manager for the German clinic-ops account Nordlicht account
+**Goal shape:** What is the email address of the account manager for the Benelux vessel-schedule logistics customer
 
 **Final answer:** <email>
 

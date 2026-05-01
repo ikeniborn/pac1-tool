@@ -23,3 +23,4 @@ data/wiki/fragments/
 .superpowers
 .worktrees/
 .cache
+tmp/

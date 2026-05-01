@@ -1,8 +1,8 @@
 <!-- wiki:meta
 category: email
 quality: developing
-fragment_count: 6
-fragment_ids: [t04_20260430T133605Z, t12_20260430T133948Z, t14_20260430T133947Z, t35_20260430T140056Z, t04_20260430T163800Z, t12_20260430T164151Z]
+fragment_count: 10
+fragment_ids: [t04_20260430T133605Z, t12_20260430T133948Z, t14_20260430T133947Z, t35_20260430T140056Z, t04_20260430T163800Z, t12_20260430T164151Z, t04_20260430T210407Z, t11_20260430T210451Z, t12_20260430T210410Z, t14_20260430T210458Z]
 last_synthesized: 2026-04-30
 aspects_covered: workflow_steps,pitfalls,shortcuts
 -->
@@ -14,6 +14,11 @@ aspects_covered: workflow_steps,pitfalls,shortcuts
 - **Efficient search within directory:** Rather than reading every contact file sequentially, search by filename pattern or use directory metadata. Sequential reads across all contacts caused 12+ stall steps in t12 without result.
 - **OUTCOME_NONE_CLARIFICATION handling:** If no matching contact is found after thorough search, the task cannot proceed; signal clarification needed rather than continuing to explore unrelated directories.
 - **No /outbox/ in this vault:** Verified absence of `/outbox/<file> or `/contacts/<file> structures in the root; contact data lives under `/contacts/<file> and outbox operations may require additional directory creation or different path conventions.
+- **Contact file naming convention:** Contact records are stored as `cont_*.json` files (e.g., `<contact>.json`), not as `<name>.json`. Read `/contacts/<file> to confirm the structure before attempting lookups.
+- **Outbox structure discovered:** Write operations target two files: `/outbox/<file> stores the next message ID (`{"id":84589}`), and the actual email is written to `/outbox/<file> using fields `to`, `subject`, `body`, and `sent` (boolean).
+- **Account-to-contact flow for organizations:** When given an organization name, search `/accounts/<file> first to find the account file, then read `primary_contact_id` from the account to locate the correct contact file under `/contacts/<file> This bypasses name-matching ambiguity.
+- **Direct email fallback:** If a specific email address is provided in the task (e.g., `<email>`), the contact file is optional; write directly to outbox using the provided address. The `/contacts/<file> lookup is only required when finding an email from a person or company name.
+- **Email file schema:** Outbox messages use JSON with `to` (email string), `subject` (string), `body` (string), and `sent` (set to `false` initially). The sequence ID increments monotonically and must be read from `seq.json` before each write.
 
 ## Key pitfalls
 - Ambiguous or missing recipient identifiers cause task abortion. When a task refers to a recipient by an informal or partial name (e.g., "Sam") and no contact file for that person exists, the agent stalls and produces no output. The stall-hint warning shows repeated listing operations without any write, indicating the agent could not resolve the reference.
@@ -27,6 +32,14 @@ aspects_covered: workflow_steps,pitfalls,shortcuts
 - Verification behavior on missing directories. In t04, after failing to find "Maya" with vault-wide search, the agent explicitly verified that `/contacts/<file> and `/outbox/<file> directories do not exist. This shows the agent confirming absence rather than pivoting to alternative resolution paths such as checking inbox entries, project directories for contact references, or other sources where a recipient identifier might appear.
 
 - Exhaustive linear scanning as fallback when searches fail. This behavior produces extended stalls with repeated sequential reads across contact files (<contact> through <contact> in t12) rather than improving the search strategy or triggering clarification.
+
+- Concrete email addresses enable task completion even when contact files are absent or unfound. In t11, when given "<email>" directly, the agent successfully wrote the email without finding a contact file, demonstrating that direct identifiers bypass contact lookup failures entirely.
+
+- Organization-to-contact resolution via accounts lookup succeeds where direct contact search fails. In t14, the agent resolved "Aperture AI Labs" by searching accounts, finding the account record with a primary_contact_id, reading the linked contact file, and completing the task. This shows that accounts serve as a valid resolution path when the recipient is an organization rather than a named individual.
+
+- README reads without subsequent lookup refinement. In t11, after reading `/contacts/<file> to understand the contact file format, the agent did not use that knowledge to continue searching but instead pivoted to using the email address directly from the task. This suggests README reading may serve as context-gathering rather than driving continued lookup effort.
+
+- Partial linear scanning followed by stall. In t12, after searching exact name, partial name, and surname without matches, the agent listed contacts (finding 10+ files) but then read only the first contact file before stalling. The stall occurred before exhausting the directory or attempting alternative search strategies, indicating the agent abandoned resolution prematurely rather than continuing the scan or reconsidering approach.
 
 - Recovery gap
 
@@ -48,6 +61,10 @@ None of the stalled tasks triggered a clarification request or a "recipient unkn
 - **Check manager files for additional contacts (t12)**: The `/contacts/<file> folder may contain `mgr_*.json` files separate from `cont_*.json` sequence. When standard contacts don't yield a match, search manager files by first name or partial string. Even partial matches like "Alex" → "Alexander" may surface relevant contacts, though verify the matched person is actually the intended recipient.
 
 - **Name mismatch doesn't always mean contact missing (t12)**: When searching for a name like "Alex Meyer" returns no direct match, the person may exist under a different full name. Exhausting standard contacts without finding a name variant is grounds for acknowledging the contact cannot be located within the vault.
+
+- **Email address known = skip lookup entirely (t11)**: When the task specifies an email address directly (e.g., "<email>"), the contact search step is unnecessary. Retrieve the next outbox ID from `/outbox/<file> and write the email directly. The email address itself is the sufficient identifier.
+
+- **Accounts contain contact references (t14)**: Searching accounts (not just `/contacts`) can surface contact information via the `primary_contact_id` field. In t14, searching for "Aperture AI Labs" in accounts revealed `<account>.json`, which contained `"primary_contact_id": "<contact>"`. This links account records to their corresponding contact files, providing an alternative lookup path when direct contact searches fail.
 
 ## Proven Step Sequences → OUTCOME_OK
 ### Pattern: Contact Lookup via Account → Outbox Write
@@ -132,11 +149,11 @@ write /outbox/<file> → SUCCESS
 **Applies when:** email
 
 ## Successful pattern: t14 (2026-04-30)
-<!-- researcher: t14:bf79fde996c8 -->
+<!-- researcher: t14:eb69b556dd9b -->
 
-**Goal shape:** Send email to Blue Harbor Bank with subject "Security review follow-up" and body "Checking in on the
+**Goal shape:** Send email to Aperture AI Labs with subject "Security review follow-up" and body "Checking in on the
 
-**Final answer:** Email sent to Blue Harbor Bank at <email> with subject 'Security review follow-up' and body 'Checking in on the open security review. Happy to answer questions and alig
+**Final answer:** Email sent to Aperture AI Labs (Sanne van den Heuvel) with subject 'Security review follow-up' and body 'Checking in on the open security review. Happy to answer questions and align on next steps.'
 
 **Trajectory:**
 1. search
@@ -182,6 +199,34 @@ write /outbox/<file> → SUCCESS
 3. read(/contacts/<file>)
 4. read(/outbox/<file>)
 5. write(/outbox/<file>)
+
+**Key insights:**
+- (none)
+
+**Applies when:** email
+
+## Successful pattern: t11 (2026-04-30)
+<!-- researcher: t11:a6b2bcf751d9 -->
+
+**Goal shape:** Write a brief email to "<email>" with subject "Quick update" and body "Thanks."
+
+**Final answer:** Email written to /outbox/<file>
+- To: <email>
+- Subject: Quick update
+- Body: Thanks.
+
+Evidence:
+- /outbox/<file> read showing id: 84589
+- /outbox/<file> written with correct reci
+
+**Trajectory:**
+1. read(/outbox/<file>)
+2. search
+3. search
+4. read(/contacts/<file>)
+5. stall
+6. write(/outbox/<file>)
+7. read(/outbox/<file>)
 
 **Key insights:**
 - (none)
