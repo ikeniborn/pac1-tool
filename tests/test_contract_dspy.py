@@ -227,6 +227,20 @@ def test_evaluator_review_has_planner_strategy_field():
     assert "planner_strategy" in sig_str
 
 
+def test_contract_negotiation_module_importable():
+    from agent.optimization.contract_negotiation_module import ContractNegotiationModule
+    import dspy
+    assert issubclass(ContractNegotiationModule, dspy.Module)
+
+
+def test_contract_negotiation_module_has_three_predictors():
+    from agent.optimization.contract_negotiation_module import ContractNegotiationModule
+    m = ContractNegotiationModule()
+    assert hasattr(m, "planner")
+    assert hasattr(m, "executor")
+    assert hasattr(m, "evaluator")
+
+
 def test_load_compiled_programs_fail_open(tmp_path):
     """_load_compiled_programs returns False when program files are missing."""
     import agent.contract_phase as cp
