@@ -1620,6 +1620,7 @@ def _pre_dispatch(
     task_type: str,
     vm: PcmRuntimeClientSync,
     st: _LoopState,
+    _security_agent=None,
 ) -> str | None:
     """FIX-201: Pre-dispatch preparation and guards, extracted from _run_step.
     Runs preparation (auto-list before delete, track listed dirs) always.
@@ -1916,7 +1917,16 @@ def _pre_dispatch(
 
     # Guard: FIX-208 write-scope — system path protection + email allow-list
     if isinstance(job.function, (Req_Write, Req_Delete, Req_MkDir, Req_Move)):
-        _scope_err = _check_write_scope(job.function, action_name, task_type)
+        if _security_agent is not None:
+            from agent.contracts import SecurityRequest
+            _sc = _security_agent.check_write_scope(SecurityRequest(
+                tool_name=action_name,
+                tool_args=job.function.model_dump(),
+                task_type=task_type,
+            ))
+            _scope_err = None if _sc.passed else _sc.detail
+        else:
+            _scope_err = _check_write_scope(job.function, action_name, task_type)
         if _scope_err:
             print(f"{CLI_YELLOW}[write-scope] {_scope_err}{CLI_CLR}")
             return f"[write-scope] {_scope_err}"
@@ -1926,7 +1936,14 @@ def _pre_dispatch(
     if (isinstance(job.function, Req_Write)
             and job.function.content
             and not (job.function.path or "").endswith(".json")):
-        if _check_write_payload_injection(job.function.content):
+        if _security_agent is not None:
+            _pc = _security_agent.check_write_payload(
+                job.function.content, job.function.path
+            )
+            _payload_blocked = not _pc.passed
+        else:
+            _payload_blocked = _check_write_payload_injection(job.function.content)
+        if _payload_blocked:
             _payload_path = job.function.path or "?"
             _sec_msg = (
                 f"[security] FIX-321: Write payload injection detected in '{_payload_path}'. "
@@ -2027,6 +2044,7 @@ def _run_step(
     max_tokens: int,
     task_start: float,
     st: _LoopState,
+    _security_agent=None,
 ) -> bool:
     """Execute one agent loop step.  # FIX-195
     Returns True if task is complete (report_completion received or fatal error)."""
@@ -2140,7 +2158,7 @@ def _run_step(
     })
 
     # FIX-201: pre-dispatch preparation and guards
-    _guard_msg = _pre_dispatch(job, task_type, vm, st)
+    _guard_msg = _pre_dispatch(job, task_type, vm, st, _security_agent=_security_agent)
     if _guard_msg is not None:
         st.log.append({"role": "user", "content": _guard_msg})
         st.steps_since_write += 1
@@ -2530,7 +2548,8 @@ def run_loop(vm: PcmRuntimeClientSync, model: str, _task_text: str,
 
     # Main loop — up to `loop_cap` steps (30 default; override via max_steps)
     for i in range(loop_cap):
-        if _run_step(i, vm, model, cfg, task_type, max_tokens, task_start, st):
+        if _run_step(i, vm, model, cfg, task_type, max_tokens, task_start, st,
+                     _security_agent=_security_agent):
             break
 
     result = _st_to_result(st)
