@@ -5,6 +5,17 @@ from unittest.mock import patch
 from agent.contract_models import Contract
 
 
+def _make_planner_json():
+    """Minimal planner Round 0 response."""
+    import json
+    return json.dumps({
+        "search_scope": ["/01_capture"],
+        "interpretation": "test task",
+        "critical_paths": [],
+        "ambiguities": [],
+    })
+
+
 def _make_executor_json(agreed=False, steps=None):
     return json.dumps({
         "plan_steps": steps or ["list /", "write /out/1.json"],
@@ -31,6 +42,7 @@ def _make_evaluator_json(agreed=False, objections=None, blocking_objections=None
 def test_consensus_on_round_1(mock_llm):
     """Both agents agree on round 1 → contract finalized, is_default=False."""
     mock_llm.side_effect = [
+        _make_planner_json(),
         _make_executor_json(agreed=True),
         _make_evaluator_json(agreed=True),
     ]
@@ -55,6 +67,7 @@ def test_consensus_on_round_1(mock_llm):
 def test_consensus_on_round_2(mock_llm):
     """Evaluator objects on round 1, agrees on round 2 → rounds_taken=2."""
     mock_llm.side_effect = [
+        _make_planner_json(),
         _make_executor_json(agreed=False),
         _make_evaluator_json(agreed=False, objections=["missing read step"]),
         _make_executor_json(agreed=True, steps=["list /", "read /f.json", "write /out/1.json"]),
@@ -119,9 +132,11 @@ def test_token_counting(mock_llm):
             token_out["input"] = 100
             token_out["output"] = 50
         call_count += 1
-        if call_count % 2 == 1:  # odd = executor
+        if call_count == 1:  # Round 0 planner
+            return _make_planner_json()
+        if call_count % 2 == 0:  # call 2 = executor (even)
             return _make_executor_json(agreed=True)
-        return _make_evaluator_json(agreed=True)  # even = evaluator
+        return _make_evaluator_json(agreed=True)  # call 3 = evaluator (odd)
 
     mock_llm.side_effect = side_effect
     from agent.contract_phase import negotiate_contract
@@ -141,6 +156,7 @@ def test_consensus_with_fenced_json(mock_llm):
     executor_json = _make_executor_json(agreed=True)
     evaluator_json = _make_evaluator_json(agreed=True)
     mock_llm.side_effect = [
+        _make_planner_json(),
         f"```json\n{executor_json}\n```",
         f"```json\n{evaluator_json}\n```",
     ]
@@ -163,6 +179,7 @@ def test_consensus_with_fenced_json(mock_llm):
 def test_executor_and_evaluator_get_separate_schemas(mock_llm):
     """Each role gets a cfg with its own cc_json_schema derived from its Pydantic model."""
     mock_llm.side_effect = [
+        _make_planner_json(),
         _make_executor_json(agreed=True),
         _make_evaluator_json(agreed=True),
     ]
@@ -180,9 +197,9 @@ def test_executor_and_evaluator_get_separate_schemas(mock_llm):
         max_rounds=1,
     )  # return value not unpacked — just checking call args
 
-    assert mock_llm.call_count == 2
-    executor_call_cfg = mock_llm.call_args_list[0][0][3]   # positional arg index 3
-    evaluator_call_cfg = mock_llm.call_args_list[1][0][3]
+    assert mock_llm.call_count == 3
+    executor_call_cfg = mock_llm.call_args_list[1][0][3]   # positional arg index 3 (call 2)
+    evaluator_call_cfg = mock_llm.call_args_list[2][0][3]  # call 3
 
     ex_schema = executor_call_cfg["cc_options"]["cc_json_schema"]
     ev_schema = evaluator_call_cfg["cc_options"]["cc_json_schema"]
@@ -222,6 +239,7 @@ def test_cc_tier_skips_negotiation_no_llm_calls(mock_llm):
 def test_negotiate_returns_rounds_transcript(mock_llm):
     """negotiate_contract returns 4-tuple with list containing one ContractRound dict."""
     mock_llm.side_effect = [
+        _make_planner_json(),
         _make_executor_json(agreed=True),
         _make_evaluator_json(agreed=True),
     ]
@@ -268,6 +286,7 @@ def test_effective_model_uses_env(monkeypatch):
 def test_vault_tree_injected_into_llm_prompt(mock_llm):
     """vault_tree appears in the user prompt sent to both executor and evaluator."""
     mock_llm.side_effect = [
+        _make_planner_json(),
         _make_executor_json(agreed=True),
         _make_evaluator_json(agreed=True),
     ]
@@ -283,7 +302,8 @@ def test_vault_tree_injected_into_llm_prompt(mock_llm):
         cfg={},
         max_rounds=3,
     )
-    for call_args in mock_llm.call_args_list:
+    # Skip call 0 (planner) — check executor and evaluator calls for vault_tree
+    for call_args in mock_llm.call_args_list[1:]:
         user_msg = call_args[0][1]
         assert "01_capture" in user_msg, f"vault_tree missing from prompt: {user_msg[:200]}"
 
@@ -296,6 +316,7 @@ def test_parse_retry_succeeds_on_third_attempt(mock_llm):
     good_evaluator = _make_evaluator_json(agreed=True)
     # Round 1: executor fails 2x, succeeds 3rd; then evaluator succeeds
     mock_llm.side_effect = [
+        _make_planner_json(),
         bad_executor, bad_executor, good_executor,
         good_evaluator,
     ]
@@ -315,6 +336,7 @@ def test_parse_retry_exhausted_continues_to_next_round(mock_llm):
     good_evaluator = _make_evaluator_json(agreed=True)
     # Round 1: executor fails 3x (exhausted); Round 2: both succeed
     mock_llm.side_effect = [
+        _make_planner_json(),
         bad_executor, bad_executor, bad_executor,
         good_executor, good_evaluator,
     ]
@@ -330,6 +352,7 @@ def test_parse_retry_exhausted_continues_to_next_round(mock_llm):
 def test_partial_fallback_from_last_round(mock_llm):
     """max_rounds exceeded but transcript non-empty → non-default contract from last round."""
     mock_llm.side_effect = [
+        _make_planner_json(),
         _make_executor_json(agreed=False),
         _make_evaluator_json(agreed=False, objections=["not satisfied"]),
         _make_executor_json(agreed=False),
@@ -349,6 +372,7 @@ def test_partial_fallback_from_last_round(mock_llm):
 def test_evaluator_only_consensus_sets_flag(mock_llm):
     """Evaluator-only consensus (executor.agreed=False) → contract.evaluator_only=True."""
     mock_llm.side_effect = [
+        _make_planner_json(),
         _make_executor_json(agreed=False, steps=["read /inbox/msg.txt", "report"]),
         _make_evaluator_json(agreed=True),
     ]
@@ -370,6 +394,7 @@ def test_evaluator_only_consensus_sets_flag(mock_llm):
 def test_full_consensus_evaluator_only_false(mock_llm):
     """Full consensus (both agreed=True) → evaluator_only=False."""
     mock_llm.side_effect = [
+        _make_planner_json(),
         _make_executor_json(agreed=True),
         _make_evaluator_json(agreed=True),
     ]
@@ -394,8 +419,10 @@ def test_constraint_checklist_in_evaluator_prompt(mock_llm):
 
     def capture(_system, user_msg, _model, _cfg, **kwargs):
         captured_calls.append(user_msg)
-        # Alternate: first call = executor, second = evaluator
+        # Call 1 = planner, call 2 = executor, call 3 = evaluator
         if len(captured_calls) == 1:
+            return _make_planner_json()
+        if len(captured_calls) == 2:
             return _make_executor_json(agreed=True)
         return _make_evaluator_json(agreed=True)
 
@@ -417,8 +444,8 @@ def test_constraint_checklist_in_evaluator_prompt(mock_llm):
             max_rounds=1,
         )
 
-    assert len(captured_calls) >= 2, "Expected at least executor + evaluator calls"
-    evaluator_prompt = captured_calls[1]
+    assert len(captured_calls) >= 3, "Expected at least planner + executor + evaluator calls"
+    evaluator_prompt = captured_calls[2]
     assert "no_vault_docs_write" in evaluator_prompt
     assert "result.txt" in evaluator_prompt
 
@@ -434,7 +461,7 @@ def test_evaluator_only_mutation_scope_empty_when_forbidden_path(mock_llm):
         "open_questions": [],
         "agreed": False,
     })
-    mock_llm.side_effect = [executor_json, _make_evaluator_json(agreed=True)]
+    mock_llm.side_effect = [_make_planner_json(), executor_json, _make_evaluator_json(agreed=True)]
 
     with patch("agent.contract_phase._load_contract_constraints") as mock_constraints:
         mock_constraints.return_value = [
@@ -472,7 +499,9 @@ def test_executor_proposal_json5_trailing_comma():
         if tok is not None:
             tok["input"] = 10
             tok["output"] = 10
-        return executor_response if call_count % 2 == 1 else evaluator_response
+        if call_count == 1:  # Round 0 planner
+            return _make_planner_json()
+        return executor_response if call_count % 2 == 0 else evaluator_response
 
     with patch("agent.contract_phase.call_llm_raw", side_effect=fake_llm):
         with patch("agent.contract_phase._load_prompt", return_value="system prompt"):
@@ -495,6 +524,7 @@ def test_caveat_notes_do_not_block_consensus(mock_llm):
     """agreed=True + objections with confirmations + blocking_objections=[]
     → consensus reached in round 1, not max_rounds."""
     mock_llm.side_effect = [
+        _make_planner_json(),
         _make_executor_json(agreed=True),
         json.dumps({
             "success_criteria": ["article found"],
@@ -525,6 +555,7 @@ def test_caveat_notes_do_not_block_consensus(mock_llm):
 def test_blocking_objections_require_extra_round(mock_llm):
     """blocking_objections non-empty → round 1 not accepted, round 2 is."""
     mock_llm.side_effect = [
+        _make_planner_json(),
         _make_executor_json(agreed=True),
         json.dumps({
             "success_criteria": ["article found"],
@@ -611,6 +642,7 @@ def test_refusal_hints_injected_into_context(mock_hints, mock_llm):
     """FIX-419: refusal hints from wiki appear in the executor prompt."""
     mock_hints.return_value = "## Verified refusal: t43\nOutcome: OUTCOME_NONE_CLARIFICATION\nWhy refuse: no article on that date."
     mock_llm.side_effect = [
+        _make_planner_json(),
         _make_executor_json(agreed=True),
         _make_evaluator_json(agreed=True),
     ]
@@ -625,6 +657,6 @@ def test_refusal_hints_injected_into_context(mock_hints, mock_llm):
         cfg={},
         max_rounds=1,
     )
-    first_call_user = mock_llm.call_args_list[0][0][1]
+    first_call_user = mock_llm.call_args_list[1][0][1]  # call 1 = executor (call 0 = planner)
     assert "OUTCOME_NONE_CLARIFICATION" in first_call_user
     assert "Verified refusal" in first_call_user
