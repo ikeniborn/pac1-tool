@@ -126,7 +126,7 @@ def test_fallback_to_direct_call_when_no_agent():
     st = _make_loop_state()
 
     with patch("agent.loop._check_write_scope", return_value=None) as mock_scope, \
-         patch("agent.loop._check_write_payload_injection", return_value=False) as mock_payload:
+         patch("agent.loop._check_write_payload_injection", return_value=False):
         result = _pre_dispatch(job, "capture", vm, st, _security_agent=None)
 
     mock_scope.assert_called_once()
