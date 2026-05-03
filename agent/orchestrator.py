@@ -10,11 +10,16 @@ import os
 from bitgn.vm.pcm_connect import PcmRuntimeClientSync
 
 from agent.agents.classifier_agent import ClassifierAgent
+from agent.agents.compaction_agent import CompactionAgent
+from agent.agents.executor_agent import ExecutorAgent
 from agent.agents.planner_agent import PlannerAgent
+from agent.agents.security_agent import SecurityAgent
+from agent.agents.stall_agent import StallAgent
+from agent.agents.step_guard_agent import StepGuardAgent
+from agent.agents.verifier_agent import VerifierAgent
 from agent.agents.wiki_graph_agent import WikiGraphAgent
 from agent.classifier import ModelRouter, TASK_PREJECT
-from agent.contracts import PlannerInput, TaskInput, WikiReadRequest
-from agent.loop import run_loop
+from agent.contracts import ExecutorInput, ExecutionPlan, PlannerInput, TaskInput, WikiContext, WikiReadRequest
 from agent.prephase import run_prephase
 from agent.prompt import build_system_prompt
 from agent.wiki import format_fragment, write_fragment
@@ -38,8 +43,40 @@ def run_agent(router: ModelRouter, harness_url: str, task_text: str) -> dict:
     if task_type == TASK_PREJECT:
         pre.log[0]["content"] = build_system_prompt(task_type)
         pre.preserve_prefix[0]["content"] = pre.log[0]["content"]
-        stats = run_loop(vm, model, task_text, pre, cfg, task_type=task_type,
-                         evaluator_model=evaluator_model, evaluator_cfg=evaluator_cfg)
+        preject_plan = ExecutionPlan(
+            base_prompt=pre.log[0]["content"],
+            addendum="",
+            contract=None,
+            route="EXECUTE",
+            in_tokens=0,
+            out_tokens=0,
+        )
+        executor = ExecutorAgent(
+            security=SecurityAgent(),
+            stall=StallAgent(),
+            compaction=CompactionAgent(),
+            step_guard=StepGuardAgent(),
+            verifier=VerifierAgent(model=evaluator_model, cfg=evaluator_cfg),
+        )
+        result = executor.run(ExecutorInput(
+            task_input=task_input,
+            plan=preject_plan,
+            wiki_context=WikiContext(patterns_text="", graph_section="", injected_node_ids=[]),
+            prephase=pre,
+            harness_url=harness_url,
+            task_type=task_type,
+            model=model,
+            model_cfg=cfg,
+            evaluator_model=evaluator_model,
+            evaluator_cfg=evaluator_cfg,
+        ))
+        stats = {
+            "outcome": result.outcome,
+            "step_facts": result.step_facts,
+            "graph_injected_node_ids": result.injected_node_ids,
+            "eval_rejection_count": result.rejection_count,
+            **result.token_stats,
+        }
         stats["model_used"] = model
         stats["task_type"] = task_type
         stats["builder_used"] = False
@@ -70,17 +107,32 @@ def run_agent(router: ModelRouter, harness_url: str, task_text: str) -> dict:
         prephase=pre,
     ))
 
-    stats = run_loop(
-        vm,
-        model,
-        task_text,
-        pre,
-        cfg,
+    executor = ExecutorAgent(
+        security=SecurityAgent(),
+        stall=StallAgent(),
+        compaction=CompactionAgent(),
+        step_guard=StepGuardAgent(),
+        verifier=VerifierAgent(model=evaluator_model, cfg=evaluator_cfg),
+    )
+    result = executor.run(ExecutorInput(
+        task_input=task_input,
+        plan=plan,
+        wiki_context=wiki_context,
+        prephase=pre,
+        harness_url=harness_url,
         task_type=task_type,
+        model=model,
+        model_cfg=cfg,
         evaluator_model=evaluator_model,
         evaluator_cfg=evaluator_cfg,
-        contract=plan.contract,
-    )
+    ))
+    stats = {
+        "outcome": result.outcome,
+        "step_facts": result.step_facts,
+        "graph_injected_node_ids": result.injected_node_ids,
+        "eval_rejection_count": result.rejection_count,
+        **result.token_stats,
+    }
     stats["model_used"] = model
     stats["task_type"] = task_type
     stats["builder_used"] = bool(plan.addendum)
