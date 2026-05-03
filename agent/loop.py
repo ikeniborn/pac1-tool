@@ -672,8 +672,28 @@ def _handle_stall_retry(
     step_facts: "list[_StepFact]",
     stall_active: bool,
     contract_plan_steps: "list[str] | None" = None,
+    _stall_agent=None,
 ) -> "tuple":
-    """Wrapper: injects _call_llm (defined in this module) into stall.py's handler."""
+    """Wrapper: injects _call_llm (defined in this module) into stall.py's handler.
+
+    When _stall_agent is provided it handles DETECTION only via StallAgent.check().
+    If no stall is detected, returns early without running the full retry logic.
+    If a stall is detected (or _stall_agent is None), falls through to the existing
+    _handle_stall_retry_base which issues the LLM retry call.
+    """
+    if _stall_agent is not None:
+        from agent.contracts import StallRequest
+        sr = _stall_agent.check(StallRequest(
+            step_index=len(fingerprints),
+            fingerprints=list(fingerprints),
+            error_counts=dict(error_counts),
+            steps_without_write=steps_since_write,
+            step_facts_dicts=[],
+            contract_plan_steps=contract_plan_steps,
+        ))
+        if not sr.detected:
+            return job, stall_active, False, 0, 0, 0, 0, 0, 0, 0
+
     return _handle_stall_retry_base(
         job, log, model, max_tokens, cfg,
         fingerprints, steps_since_write, error_counts, step_facts,
@@ -2154,6 +2174,7 @@ def _run_step(
     task_start: float,
     st: _LoopState,
     _security_agent=None,
+    _stall_agent=None,
     _compaction_agent=None,
     _step_guard_agent=None,
     _verifier_agent=None,
@@ -2252,6 +2273,7 @@ def _run_step(
         st.action_fingerprints, st.steps_since_write, st.error_counts, st.step_facts,
         st.stall_hint_active,
         contract_plan_steps=st.contract.plan_steps if st.contract else None,
+        _stall_agent=_stall_agent,
     )
     if _stall_fired:
         _st_accum(st, _se, _si, _so, _sev_c, _sev_ms, _scc, _scr)
@@ -2667,6 +2689,7 @@ def run_loop(vm: PcmRuntimeClientSync, model: str, _task_text: str,
     for i in range(loop_cap):
         if _run_step(i, vm, model, cfg, task_type, max_tokens, task_start, st,
                      _security_agent=_security_agent,
+                     _stall_agent=_stall_agent,
                      _compaction_agent=_compaction_agent,
                      _step_guard_agent=_step_guard_agent,
                      _verifier_agent=_verifier_agent):

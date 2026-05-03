@@ -191,3 +191,113 @@ def test_verifier_uses_agent_when_injected():
     )
     ver.verify.assert_called_once()
     assert result.approved is True
+
+
+def test_stall_agent_check_called_when_injected():
+    """_handle_stall_retry calls _stall_agent.check for detection when injected."""
+    from collections import deque, Counter
+    from agent.loop import _handle_stall_retry
+    from agent.contracts import StallRequest
+    from agent.models import NextStep, Req_Tree
+
+    stall_agent = MagicMock()
+    no_stall = MagicMock()
+    no_stall.detected = False
+    stall_agent.check.return_value = no_stall
+
+    job = NextStep(
+        current_state="testing",
+        plan_remaining_steps_brief=["list"],
+        done_operations=[],
+        task_completed=False,
+        function=Req_Tree(tool="tree", path="/"),
+    )
+    fingerprints = deque(["tree:{}"] * 2)
+
+    result = _handle_stall_retry(
+        job, log=[], model="m", max_tokens=100, cfg={},
+        fingerprints=fingerprints, steps_since_write=2,
+        error_counts=Counter(), step_facts=[],
+        stall_active=False,
+        _stall_agent=stall_agent,
+    )
+
+    # Agent was called with a StallRequest
+    stall_agent.check.assert_called_once()
+    call_arg = stall_agent.check.call_args[0][0]
+    assert isinstance(call_arg, StallRequest)
+    assert call_arg.steps_without_write == 2
+
+    # No stall detected → short-circuit, fired=False, all zeros
+    job_out, stall_active_out, fired, *rest = result
+    assert fired is False
+    assert all(v == 0 for v in rest)
+
+
+def test_stall_agent_no_stall_skips_existing_logic():
+    """When _stall_agent.detected=False, existing _check_stall logic is bypassed."""
+    from collections import deque, Counter
+    from unittest.mock import patch
+    from agent.loop import _handle_stall_retry
+    from agent.models import NextStep, Req_Tree
+
+    stall_agent = MagicMock()
+    no_stall = MagicMock()
+    no_stall.detected = False
+    stall_agent.check.return_value = no_stall
+
+    job = NextStep(
+        current_state="testing",
+        plan_remaining_steps_brief=["list"],
+        done_operations=[],
+        task_completed=False,
+        function=Req_Tree(tool="tree", path="/"),
+    )
+    # Simulate a stall condition that _check_stall would normally catch
+    fingerprints = deque(["tree:{}"] * 4)
+
+    with patch("agent.loop._handle_stall_retry_base") as mock_base:
+        _handle_stall_retry(
+            job, log=[], model="m", max_tokens=100, cfg={},
+            fingerprints=fingerprints, steps_since_write=6,
+            error_counts=Counter(), step_facts=[],
+            stall_active=False,
+            _stall_agent=stall_agent,
+        )
+        # Base (existing) logic should NOT be called when agent detects no stall
+        mock_base.assert_not_called()
+
+
+def test_stall_agent_detected_falls_through_to_existing_logic():
+    """When _stall_agent.detected=True, existing _handle_stall_retry_base is called."""
+    from collections import deque, Counter
+    from unittest.mock import patch
+    from agent.loop import _handle_stall_retry
+    from agent.models import NextStep, Req_Tree
+
+    stall_agent = MagicMock()
+    stall_result = MagicMock()
+    stall_result.detected = True
+    stall_agent.check.return_value = stall_result
+
+    job = NextStep(
+        current_state="testing",
+        plan_remaining_steps_brief=["list"],
+        done_operations=[],
+        task_completed=False,
+        function=Req_Tree(tool="tree", path="/"),
+    )
+    fingerprints = deque(["tree:{}"] * 4)
+    expected_return = (job, False, False, 0, 0, 0, 0, 0, 0, 0)
+
+    with patch("agent.loop._handle_stall_retry_base", return_value=expected_return) as mock_base:
+        result = _handle_stall_retry(
+            job, log=[], model="m", max_tokens=100, cfg={},
+            fingerprints=fingerprints, steps_since_write=6,
+            error_counts=Counter(), step_facts=[],
+            stall_active=False,
+            _stall_agent=stall_agent,
+        )
+        # Base logic IS called when agent detects a stall
+        mock_base.assert_called_once()
+        assert result == expected_return
