@@ -56,8 +56,8 @@ def test_orchestrator_uses_executor_agent(monkeypatch):
     router.configs = {}
     router.default = "test-model"
     router.evaluator = "test-model"
-    router.prompt_builder = None
-    router.classifier = None
+    router.prompt_builder = ""
+    router.classifier = ""
 
     orch.run_agent(router, "http://localhost", "test task")
     assert len(calls) == 1
