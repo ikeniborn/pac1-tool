@@ -555,6 +555,57 @@ def test_blocking_objections_require_extra_round(mock_llm):
 
 
 @patch("agent.contract_phase.call_llm_raw")
+def test_round_0_planner_runs_before_negotiation(mock_llm):
+    """FIX-426: Round 0 PlannerStrategize fires before executor/evaluator; contract.planner_strategy != ''."""
+    planner_json = json.dumps({"strategy": "discover then write", "priorities": ["check inbox"]})
+    mock_llm.side_effect = [
+        planner_json,                          # Round 0: planner
+        _make_executor_json(agreed=True),      # Round 1: executor
+        _make_evaluator_json(agreed=True),     # Round 1: evaluator
+    ]
+    with patch("agent.contract_phase._load_prompt") as mock_load_prompt:
+        mock_load_prompt.side_effect = lambda role, _tt: "system prompt" if role != "planner" else "planner system"
+        from agent.contract_phase import negotiate_contract
+        contract, _, _, _ = negotiate_contract(
+            task_text="Process inbox",
+            task_type="inbox",
+            agents_md="",
+            wiki_context="",
+            graph_context="",
+            model="test-model",
+            cfg={},
+            max_rounds=3,
+        )
+    assert mock_llm.call_count == 3
+    assert contract.planner_strategy != ""
+
+
+@patch("agent.contract_phase.call_llm_raw")
+def test_round_0_fail_open_on_planner_error(mock_llm):
+    """FIX-426: If planner LLM returns None, negotiation still succeeds with planner_strategy=''."""
+    mock_llm.side_effect = [
+        None,                                  # Round 0: planner fails
+        _make_executor_json(agreed=True),      # Round 1: executor
+        _make_evaluator_json(agreed=True),     # Round 1: evaluator
+    ]
+    with patch("agent.contract_phase._load_prompt") as mock_load_prompt:
+        mock_load_prompt.side_effect = lambda role, _tt: "system prompt" if role != "planner" else "planner system"
+        from agent.contract_phase import negotiate_contract
+        contract, _, _, _ = negotiate_contract(
+            task_text="Process inbox",
+            task_type="inbox",
+            agents_md="",
+            wiki_context="",
+            graph_context="",
+            model="test-model",
+            cfg={},
+            max_rounds=3,
+        )
+    assert contract.is_default is False
+    assert contract.planner_strategy == ""
+
+
+@patch("agent.contract_phase.call_llm_raw")
 @patch("agent.contract_phase._load_refusal_hints")
 def test_refusal_hints_injected_into_context(mock_hints, mock_llm):
     """FIX-419: refusal hints from wiki appear in the executor prompt."""

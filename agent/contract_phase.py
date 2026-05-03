@@ -26,6 +26,7 @@ _LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
 
 _EXECUTOR_PROGRAM_PATH = _DATA / "contract_executor_program.json"
 _EVALUATOR_PROGRAM_PATH = _DATA / "contract_evaluator_program.json"
+_PLANNER_PROGRAM_PATH = _DATA / "contract_planner_program.json"
 
 
 def _effective_model(caller_model: str) -> str:
@@ -35,11 +36,12 @@ def _effective_model(caller_model: str) -> str:
 
 _executor_predictor = None
 _evaluator_predictor = None
+_planner_predictor = None
 
 
 def _load_compiled_programs() -> bool:
     """Load compiled DSPy programs at module startup. Returns True on success, False on fail-open."""
-    global _executor_predictor, _evaluator_predictor
+    global _executor_predictor, _evaluator_predictor, _planner_predictor
     if not (_EXECUTOR_PROGRAM_PATH.exists() and _EVALUATOR_PROGRAM_PATH.exists()):
         return False
     try:
@@ -53,6 +55,16 @@ def _load_compiled_programs() -> bool:
         _evaluator_predictor = evp
         if _LOG_LEVEL == "DEBUG":
             print("[contract] Loaded compiled executor/evaluator programs")
+        # FIX-426: planner program is optional — fail-open if missing
+        if _PLANNER_PROGRAM_PATH.exists():
+            try:
+                from .optimization.contract_modules import PlannerStrategize
+                pp = dspy.Predict(PlannerStrategize)
+                pp.load(str(_PLANNER_PROGRAM_PATH))
+                _planner_predictor = pp
+            except Exception as exc:
+                if _LOG_LEVEL == "DEBUG":
+                    print(f"[contract] Failed to load planner program: {exc}")
         return True
     except Exception as exc:
         if _LOG_LEVEL == "DEBUG":
@@ -180,9 +192,32 @@ def negotiate_contract(
     rounds_transcript: list[dict] = []
     _PARSE_RETRIES = 3
 
+    # FIX-426: Round 0 — PlannerStrategize: one LLM call to produce a strategy
+    # before the executor/evaluator loop. Fail-open: empty strategy → skip injection.
+    planner_strategy = ""
+    _planner_system = _load_prompt("planner", task_type)
+    if _planner_system:
+        _planner_user = f"TASK: {task_text}{context_block}\n\nProduce a strategy JSON."
+        _planner_tok: dict = {}
+        try:
+            _raw_planner = call_llm_raw(
+                _planner_system, _planner_user, negotiation_model, cfg,
+                max_tokens=600, token_out=_planner_tok,
+            )
+            total_in += _planner_tok.get("input", 0)
+            total_out += _planner_tok.get("output", 0)
+            if _raw_planner:
+                _extracted_planner = _extract_json_from_text(_raw_planner)
+                planner_strategy = json.dumps(_extracted_planner) if _extracted_planner else _raw_planner
+        except Exception as exc:
+            if _LOG_LEVEL == "DEBUG":
+                print(f"[contract] Round 0 planner failed: {exc}")
+
     for round_num in range(1, max_rounds + 1):
         # --- Executor turn ---
         executor_user = f"TASK: {task_text}{context_block}"
+        if planner_strategy:
+            executor_user += f"\n\nPLANNER STRATEGY:\n{planner_strategy}"
         if last_evaluator_response:
             executor_user += f"\n\nEVALUATOR RESPONSE (round {round_num - 1}):\n{last_evaluator_response}"
         executor_user += "\n\nPropose your execution plan as JSON."
@@ -225,8 +260,10 @@ def negotiate_contract(
             continue
 
         # --- Evaluator turn ---
-        evaluator_user = (
-            f"TASK: {task_text}{context_block}\n\n"
+        evaluator_user = f"TASK: {task_text}{context_block}\n\n"
+        if planner_strategy:
+            evaluator_user += f"PLANNER STRATEGY:\n{planner_strategy}\n\n"
+        evaluator_user += (
             f"EXECUTOR PROPOSAL (round {round_num}):\n{raw_executor}\n\n"
             "Review the plan and respond with your criteria as JSON."
         )
@@ -313,6 +350,7 @@ def negotiate_contract(
                 mutation_scope=_allowed,
                 forbidden_mutations=[p for p in _planned if p not in _allowed],
                 evaluator_only=_evaluator_only,
+                planner_strategy=planner_strategy,
                 is_default=False,
                 rounds_taken=round_num,
             )
@@ -339,6 +377,7 @@ def negotiate_contract(
             mutation_scope=[],
             forbidden_mutations=[],
             evaluator_only=True,
+            planner_strategy=planner_strategy,
             is_default=False,
             rounds_taken=max_rounds,
         ), total_in, total_out, rounds_transcript

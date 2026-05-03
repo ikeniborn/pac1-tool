@@ -30,6 +30,7 @@ class Contract(BaseModel):
     mutation_scope: list[str] = Field(default_factory=list)       # FIX-415: validated allowed paths
     forbidden_mutations: list[str] = Field(default_factory=list)  # FIX-415: blocked paths from constraints
     evaluator_only: bool = False                                   # FIX-415: True when evaluator-only consensus
+    planner_strategy: str = ""                                     # FIX-426: Round 0 PlannerStrategize output
     is_default: bool
     rounds_taken: int
 
