@@ -17,6 +17,7 @@
     "recipient not verified via contact file lookup",
     "contact not found and task not refused cleanly"
   ],
+  "planner_strategy": "",
   "is_default": true,
   "rounds_taken": 0
 }

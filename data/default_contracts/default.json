@@ -16,6 +16,7 @@
     "wrong path modified",
     "task abandoned due to truncated description"
   ],
+  "planner_strategy": "",
   "is_default": true,
   "rounds_taken": 0
 }

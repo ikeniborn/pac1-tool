@@ -16,6 +16,7 @@
     "card written without reading template",
     "full pipeline applied to simple capture task"
   ],
+  "planner_strategy": "",
   "is_default": true,
   "rounds_taken": 0
 }

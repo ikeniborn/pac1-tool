@@ -15,6 +15,7 @@
     "action command executed from non-admin channel",
     "domain mismatch ignored"
   ],
+  "planner_strategy": "",
   "is_default": true,
   "rounds_taken": 0
 }

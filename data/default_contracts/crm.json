@@ -17,6 +17,7 @@
     "fields dropped from written JSON",
     "JSON reconstructed from memory instead of reading existing file"
   ],
+  "planner_strategy": "",
   "is_default": true,
   "rounds_taken": 0
 }

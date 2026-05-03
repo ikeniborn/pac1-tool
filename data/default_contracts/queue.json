@@ -18,6 +18,7 @@
     "unverified sender acted upon",
     "non-admin channel action command executed"
   ],
+  "planner_strategy": "",
   "is_default": true,
   "rounds_taken": 0
 }

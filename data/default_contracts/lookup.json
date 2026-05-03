@@ -1,6 +1,7 @@
 {
   "plan_steps": [
     "search for the target entity by name or use list+filter for attribute-based lookup",
+    "if not found in primary folder, search related folders (contacts, accounts, distill)",
     "read the matching file to extract the requested field",
     "if cross-referencing accounts and contacts: extract primary_contact_id then read contact file",
     "return the requested value"
@@ -10,12 +11,16 @@
     "no write operations performed",
     "correct entity identified without ambiguity"
   ],
-  "required_evidence": [],
+  "required_evidence": [
+    "list or find output showing search was performed",
+    "matched filename or nearest alternative if no exact match"
+  ],
   "failure_conditions": [
     "declared failure after single empty search without retry",
     "wrong entity selected due to name ambiguity",
     "write operation performed on lookup task"
   ],
+  "planner_strategy": "",
   "is_default": true,
   "rounds_taken": 0
 }

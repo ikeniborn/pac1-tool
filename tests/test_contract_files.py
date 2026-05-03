@@ -39,7 +39,7 @@ def test_default_contract_valid(task_type):
     assert contract.plan_steps, "plan_steps must be non-empty"
     assert contract.success_criteria, "success_criteria must be non-empty"
     assert contract.failure_conditions, "failure_conditions must be non-empty"
-    assert contract.required_evidence == [], "required_evidence must be []"
+    assert isinstance(contract.required_evidence, list), "required_evidence must be a list"
 
 
 def test_load_prompt_returns_nonempty_for_all_types():

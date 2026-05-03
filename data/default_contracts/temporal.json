@@ -1,22 +1,28 @@
 {
   "plan_steps": [
-    "list capture folders to discover available artifact dates",
+    "list all capture subfolders under /01_capture/ to discover available artifact dates",
     "derive ESTIMATED_TODAY using FIX-357 priority: artifact-anchored, then vault-content, then arithmetic",
     "compute target date window from ESTIMATED_TODAY",
-    "match vault contents against target window",
+    "match vault contents across ALL capture subfolders against target window",
     "report result or nearest candidates if exact match absent"
   ],
   "success_criteria": [
     "date arithmetic correct relative to derived ESTIMATED_TODAY",
-    "vault explored before computing target date",
+    "ALL subfolders of /01_capture/ explored before computing target date",
     "nearest candidates reported if exact match absent"
   ],
-  "required_evidence": [],
+  "required_evidence": [
+    "ESTIMATED_TODAY value stated explicitly before arithmetic",
+    "TARGET_DATE computation shown (e.g. ESTIMATED_TODAY - N days = YYYY-MM-DD)",
+    "list results from at least 2 capture subfolders or root /01_capture/"
+  ],
   "failure_conditions": [
     "refused after single probe without full vault exploration",
     "target date computed before vault exploration",
-    "exact-match-only search with no fallback to nearest candidates"
+    "exact-match-only search with no fallback to nearest candidates",
+    "only one capture subfolder searched when multiple exist"
   ],
+  "planner_strategy": "",
   "is_default": true,
   "rounds_taken": 0
 }

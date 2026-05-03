@@ -15,6 +15,7 @@
     "output written to wrong path",
     "no synthesis performed"
   ],
+  "planner_strategy": "",
   "is_default": true,
   "rounds_taken": 0
 }

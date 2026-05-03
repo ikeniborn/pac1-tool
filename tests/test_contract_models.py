@@ -195,3 +195,41 @@ def test_contract_mutation_scope_nonempty():
         evaluator_only=True,
     )
     assert "/outbox/1.json" in c.mutation_scope
+
+
+def test_contract_has_planner_strategy_field():
+    from agent.contract_models import Contract
+    c = Contract(
+        plan_steps=["step 1"],
+        success_criteria=["done"],
+        required_evidence=[],
+        failure_conditions=[],
+        is_default=True,
+        rounds_taken=0,
+    )
+    assert hasattr(c, "planner_strategy")
+    assert c.planner_strategy == ""
+
+
+def test_default_temporal_contract_has_required_evidence():
+    import json
+    from pathlib import Path
+    data = json.loads(Path("data/default_contracts/temporal.json").read_text())
+    assert "planner_strategy" in data
+    assert len(data.get("required_evidence", [])) >= 3
+
+
+def test_default_lookup_contract_has_required_evidence():
+    import json
+    from pathlib import Path
+    data = json.loads(Path("data/default_contracts/lookup.json").read_text())
+    assert "planner_strategy" in data
+    assert len(data.get("required_evidence", [])) >= 2
+
+
+def test_all_default_contracts_have_planner_strategy():
+    import json
+    from pathlib import Path
+    for f in sorted(Path("data/default_contracts").glob("*.json")):
+        data = json.loads(f.read_text())
+        assert "planner_strategy" in data, f"Missing planner_strategy in {f.name}"
