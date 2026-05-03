@@ -582,65 +582,14 @@ def _write_summary(scores: list, run_start: float) -> None:
             print(f"  {m_short:<35} {cnt:>5}  {mt['in']:>10,}  {avg_i:>10,}  {avg_o:>9,}  {avg_e:>8.1f}s  {m_tps:>6.0f}")
 
 
-def _auto_purge_graph() -> None:
-    """FIX-422: auto-purge contaminated/duplicate graph nodes before each run.
-
-    Replaces the manual 'purge then re-run' workflow. Runs purge_research_contamination
-    in apply mode and then removes exact-text duplicate nodes (same text, different
-    type prefix). Fail-open: any error is printed but does not abort the run.
-    """
-    try:
-        import importlib.util, subprocess, sys as _sys
-        result = subprocess.run(
-            [_sys.executable, "scripts/purge_research_contamination.py", "--apply"],
-            capture_output=True, text=True,
-        )
-        if result.stdout.strip():
-            for line in result.stdout.strip().splitlines():
-                print(f"[graph-purge] {line}")
-    except Exception as exc:
-        print(f"[graph-purge] contamination purge skipped: {exc}")
-
-    try:
-        import json
-        from pathlib import Path as _Path
-        _gp = _Path("data/wiki/graph.json")
-        if not _gp.exists():
-            return
-        _g = json.loads(_gp.read_text())
-        _by_text: dict[str, list[str]] = {}
-        for _nid, _n in _g.get("nodes", {}).items():
-            _key = (_n.get("text") or "").strip().lower()
-            if _key:
-                _by_text.setdefault(_key, []).append(_nid)
-        _removed = 0
-        for _text, _ids in _by_text.items():
-            if len(_ids) <= 1:
-                continue
-            # Keep node with highest uses; break ties by confidence, then keep first
-            _ids_sorted = sorted(
-                _ids,
-                key=lambda i: (_g["nodes"][i].get("uses", 1), _g["nodes"][i].get("confidence", 0.0)),
-                reverse=True,
-            )
-            for _dup in _ids_sorted[1:]:
-                del _g["nodes"][_dup]
-                _removed += 1
-        if _removed:
-            _before = len(_g["edges"])
-            _g["edges"] = [e for e in _g["edges"] if e.get("from") in _g["nodes"] and e.get("to") in _g["nodes"]]
-            _gp.write_text(json.dumps(_g, ensure_ascii=False, indent=2))
-            print(f"[graph-purge] removed {_removed} duplicate-text nodes, edges {_before}→{len(_g['edges'])}")
-    except Exception as exc:
-        print(f"[graph-purge] dedup pass skipped: {exc}")
-
-
 def main() -> None:
     # Split comma-joined args: "t01,t02,t03" → ['t01', 't02', 't03']
     task_filter = [t for arg in sys.argv[1:] for t in arg.split(",") if t]
 
-    # FIX-422: auto-purge graph contamination and duplicates before each run
-    _auto_purge_graph()
+    # FIX-427: lifecycle hooks — preflight before tasks, postrun after
+    if os.getenv("PREFLIGHT_ENABLED", "0") == "1":
+        from agent.preflight import run_preflight
+        run_preflight()
 
     scores = []
     scores_lock = threading.Lock()
@@ -696,6 +645,11 @@ def main() -> None:
                     _run_wiki_lint(model=_model_wiki, cfg=MODEL_CONFIGS.get(_model_wiki, {}))
                 except Exception as _wiki_exc:
                     print(f"[wiki-lint-after] skipped: {_wiki_exc}")
+
+            # FIX-427: postrun maintenance — purge, wiki lint, distill, candidates, optimize
+            if os.getenv("POSTRUN_ENABLED", "0") == "1":
+                from agent.postrun import run_postrun
+                run_postrun()
 
     except ConnectError as exc:
         print(f"{exc.code}: {exc.message}")
