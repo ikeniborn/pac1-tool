@@ -229,7 +229,7 @@ def test_stall_agent_check_called_when_injected():
     assert call_arg.steps_without_write == 2
 
     # No stall detected → short-circuit, fired=False, all zeros
-    job_out, stall_active_out, fired, *rest = result
+    _, _, fired, *rest = result
     assert fired is False
     assert all(v == 0 for v in rest)
 
