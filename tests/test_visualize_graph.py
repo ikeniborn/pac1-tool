@@ -5,6 +5,9 @@ from pathlib import Path
 
 import pytest
 
+pytest.importorskip("fastapi", reason="viz group not installed (uv sync --group viz)")
+pytest.importorskip("uvicorn", reason="viz group not installed (uv sync --group viz)")
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
 from fastapi.testclient import TestClient
