@@ -2035,6 +2035,115 @@ def _pre_dispatch(
     return None
 
 
+# ---------------------------------------------------------------------------
+# Agent-wired helpers for compaction, step-guard, and verifier
+# ---------------------------------------------------------------------------
+
+def _do_compaction(
+    messages: list,
+    *,
+    preserve_prefix: list,
+    step_facts: list,
+    token_limit: int,
+    compact_threshold_pct: float = 0.70,
+    _compaction_agent=None,
+) -> list:
+    """Compact the message log, delegating to _compaction_agent if injected."""
+    if _compaction_agent is not None:
+        from agent.contracts import CompactionRequest
+        req = CompactionRequest(
+            messages=messages,
+            preserve_prefix=preserve_prefix,
+            step_facts_dicts=[sf.__dict__ if hasattr(sf, "__dict__") else sf for sf in step_facts],
+            token_limit=token_limit,
+        )
+        result = _compaction_agent.compact(req)
+        return result.messages
+    return _compact_log(messages, preserve_prefix=preserve_prefix,
+                        step_facts=step_facts, token_limit=token_limit,
+                        compact_threshold_pct=compact_threshold_pct)
+
+
+def _check_contract_step(
+    contract,
+    *,
+    done_ops: list[str],
+    step_count: int,
+    _step_guard_agent=None,
+) -> "str | None":
+    """Validate last op against contract, delegating to _step_guard_agent if injected.
+
+    Returns a warning string if the step deviates from the plan, else None.
+    """
+    if _step_guard_agent is not None:
+        from agent.contracts import StepGuardRequest
+        req = StepGuardRequest(
+            step_index=step_count,
+            tool_name=done_ops[-1] if done_ops else "",
+            tool_args={},
+            contract=contract,
+        )
+        result = _step_guard_agent.check(req)
+        if not result.valid:
+            return result.deviation or "contract deviation"
+        return None
+    return _contract_check_step(contract, done_ops, step_count)
+
+
+def _run_evaluator(
+    report,
+    *,
+    task_text: str,
+    task_type: str,
+    done_ops: list[str],
+    digest_str: str,
+    contract,
+    evaluator_model: str,
+    evaluator_cfg: dict,
+    rejection_count: int,
+    account_evidence: str = "",
+    inbox_evidence: str = "",
+    _verifier_agent=None,
+):
+    """Run evaluator review, delegating to _verifier_agent if injected.
+
+    Returns an EvalVerdict-like object with .approved, .correction_hint, .issues.
+    """
+    if _verifier_agent is not None:
+        from agent.contracts import CompletionRequest, WikiContext
+        req = CompletionRequest(
+            report=report,
+            task_type=task_type,
+            task_text=task_text,
+            wiki_context=WikiContext(patterns_text="", graph_section="", injected_node_ids=[]),
+            contract=contract,
+            done_ops=done_ops,
+            digest_str=digest_str,
+            evaluator_model=evaluator_model,
+            evaluator_cfg=evaluator_cfg,
+            rejection_count=rejection_count,
+        )
+        ver_result = _verifier_agent.verify(req)
+        # Normalise to EvalVerdict-compatible shape
+        from types import SimpleNamespace
+        return SimpleNamespace(
+            approved=ver_result.approved,
+            issues=[ver_result.feedback] if ver_result.feedback else [],
+            correction_hint=ver_result.feedback or "",
+            hard_gate=ver_result.hard_gate_triggered,
+        )
+    return evaluate_completion(
+        task_text=task_text, task_type=task_type,
+        report=report, done_ops=done_ops,
+        digest_str=digest_str,
+        model=evaluator_model, cfg=evaluator_cfg,
+        skepticism=_EVAL_SKEPTICISM, efficiency=_EVAL_EFFICIENCY,
+        account_evidence=account_evidence,
+        inbox_evidence=inbox_evidence,
+        contract=contract,
+    )
+
+
 def _run_step(
     i: int,
     vm: PcmRuntimeClientSync,
@@ -2045,6 +2154,9 @@ def _run_step(
     task_start: float,
     st: _LoopState,
     _security_agent=None,
+    _compaction_agent=None,
+    _step_guard_agent=None,
+    _verifier_agent=None,
 ) -> bool:
     """Execute one agent loop step.  # FIX-195
     Returns True if task is complete (report_completion received or fatal error)."""
@@ -2075,9 +2187,10 @@ def _run_step(
         print(f"[warn] ctx_window missing for model {model!r} — defaulting to 180000")
         _ctx_window = 180_000
     _compact_pct = float(os.getenv("CTX_COMPACT_THRESHOLD_PCT", "0.70"))
-    st.log = _compact_log(st.log, preserve_prefix=st.preserve_prefix,
-                          step_facts=st.step_facts, token_limit=_ctx_window,
-                          compact_threshold_pct=_compact_pct)
+    st.log = _do_compaction(st.log, preserve_prefix=st.preserve_prefix,
+                            step_facts=st.step_facts, token_limit=_ctx_window,
+                            compact_threshold_pct=_compact_pct,
+                            _compaction_agent=_compaction_agent)
 
     # --- LLM call ---
     job, elapsed_ms, in_tok, out_tok, _, ev_c, ev_ms, cache_cr, cache_rd = _call_llm(st.log, model, max_tokens, cfg)
@@ -2301,15 +2414,17 @@ def _run_step(
                     "hard_gate": "crm_date_anchor",
                 })
                 return False
-        verdict = evaluate_completion(
+        verdict = _run_evaluator(
+            job.function,
             task_text=st.task_text, task_type=task_type,
-            report=job.function, done_ops=_eval_done_ops,  # FIX-223
+            done_ops=_eval_done_ops,  # FIX-223
             digest_str=_digest,
-            model=st.evaluator_model, cfg=st.evaluator_cfg,
-            skepticism=_EVAL_SKEPTICISM, efficiency=_EVAL_EFFICIENCY,
+            contract=st.contract,
+            evaluator_model=st.evaluator_model, evaluator_cfg=st.evaluator_cfg,
+            rejection_count=st.eval_rejections,
             account_evidence=_acct_evidence,  # FIX-243
             inbox_evidence=_inbox_evidence,  # FIX-258
-            contract=st.contract,
+            _verifier_agent=_verifier_agent,
         )
         _eval_ms = int((time.time() - _eval_start) * 1000)
         st.evaluator_call_count += 1
@@ -2404,8 +2519,10 @@ def _run_step(
             if (st.contract is not None and not st.contract.is_default
                     and st.contract_monitor_warnings < 3):
                 try:
-                    _cm_warning = _contract_check_step(
-                        st.contract, st.done_ops, st.step_count
+                    _cm_warning = _check_contract_step(
+                        st.contract,
+                        done_ops=st.done_ops, step_count=st.step_count,
+                        _step_guard_agent=_step_guard_agent,
                     )
                     if _cm_warning:
                         st.contract_monitor_warnings += 1
@@ -2549,7 +2666,10 @@ def run_loop(vm: PcmRuntimeClientSync, model: str, _task_text: str,
     # Main loop — up to `loop_cap` steps (30 default; override via max_steps)
     for i in range(loop_cap):
         if _run_step(i, vm, model, cfg, task_type, max_tokens, task_start, st,
-                     _security_agent=_security_agent):
+                     _security_agent=_security_agent,
+                     _compaction_agent=_compaction_agent,
+                     _step_guard_agent=_step_guard_agent,
+                     _verifier_agent=_verifier_agent):
             break
 
     result = _st_to_result(st)

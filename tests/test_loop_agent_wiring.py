@@ -131,3 +131,63 @@ def test_fallback_to_direct_call_when_no_agent():
 
     mock_scope.assert_called_once()
     assert result is None
+
+
+def test_compaction_uses_agent_when_injected():
+    """When _compaction_agent provided, _do_compaction calls agent.compact."""
+    from agent.loop import _do_compaction
+    comp = MagicMock()
+    comp.compact.return_value = MagicMock()
+    comp.compact.return_value.messages = [{"role": "system", "content": "s"}]
+
+    msgs = [{"role": "system", "content": "s"}, {"role": "user", "content": "u"}]
+    result = _do_compaction(msgs, preserve_prefix=msgs[:1], step_facts=[],
+                            token_limit=10000, _compaction_agent=comp)
+    comp.compact.assert_called_once()
+    assert result == comp.compact.return_value.messages
+
+
+def test_step_guard_uses_agent_when_injected():
+    """When _step_guard_agent provided, _check_contract_step calls agent.check."""
+    from agent.loop import _check_contract_step
+    from agent.contract_models import Contract
+    guard = MagicMock()
+    guard.check.return_value = MagicMock()
+    guard.check.return_value.valid = False
+    guard.check.return_value.deviation = "unexpected step"
+
+    contract = Contract(
+        plan_steps=["list /"], success_criteria=["done"],
+        required_evidence=[], failure_conditions=[],
+        is_default=False, rounds_taken=1,
+    )
+    warning = _check_contract_step(contract, done_ops=["DELETED: /x.md"],
+                                   step_count=2, _step_guard_agent=guard)
+    guard.check.assert_called_once()
+    assert warning is not None
+
+
+def test_verifier_uses_agent_when_injected():
+    """When _verifier_agent provided, _run_evaluator calls agent.verify."""
+    from agent.loop import _run_evaluator
+    from agent.models import ReportTaskCompletion
+    ver = MagicMock()
+    ver.verify.return_value = MagicMock()
+    ver.verify.return_value.approved = True
+    ver.verify.return_value.feedback = ""
+    ver.verify.return_value.hard_gate_triggered = False
+
+    report = ReportTaskCompletion(
+        tool="report_completion",
+        outcome="OUTCOME_OK",
+        message="done",
+        completed_steps_laconic=[],
+    )
+    result = _run_evaluator(
+        report, task_text="test", task_type="lookup",
+        done_ops=[], digest_str="",
+        contract=None, evaluator_model="m", evaluator_cfg={},
+        rejection_count=0, _verifier_agent=ver,
+    )
+    ver.verify.assert_called_once()
+    assert result.approved is True
