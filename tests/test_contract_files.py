@@ -51,6 +51,16 @@ def test_load_prompt_returns_nonempty_for_all_types():
             assert result, f"_load_prompt('{role}', '{task_type}') returned empty"
 
 
+def test_planner_prompt_exists_for_priority_types():
+    from pathlib import Path
+    for task_type in ("temporal", "lookup", "queue", "default"):
+        p = Path(f"data/prompts/{task_type}/planner_contract.md")
+        assert p.exists(), f"Missing planner_contract.md for {task_type}"
+        content = p.read_text()
+        assert len(content) > 100, f"planner_contract.md for {task_type} is too short"
+        assert "search_scope" in content or "JSON" in content, f"planner_contract.md for {task_type} should reference JSON output"
+
+
 def test_load_default_contract_for_all_types():
     """Integration: _load_default_contract must return file-based contract (not hardcoded stub)."""
     from agent.contract_phase import _load_default_contract
