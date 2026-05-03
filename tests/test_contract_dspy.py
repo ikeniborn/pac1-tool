@@ -201,6 +201,32 @@ def test_optimize_contract_target_in_cli_choices():
     assert "contract" in result.stdout
 
 
+def test_planner_strategize_signature_exists():
+    from agent.optimization.contract_modules import PlannerStrategize
+    import dspy
+    assert issubclass(PlannerStrategize, dspy.Signature)
+
+
+def test_planner_strategize_has_required_fields():
+    from agent.optimization.contract_modules import PlannerStrategize
+    sig_str = str(PlannerStrategize)
+    for field in ("task_text", "task_type", "vault_tree", "agents_md",
+                  "search_scope", "interpretation", "critical_paths", "ambiguities"):
+        assert field in sig_str, f"Missing field: {field}"
+
+
+def test_executor_propose_has_planner_strategy_field():
+    from agent.optimization.contract_modules import ExecutorPropose
+    sig_str = str(ExecutorPropose)
+    assert "planner_strategy" in sig_str
+
+
+def test_evaluator_review_has_planner_strategy_field():
+    from agent.optimization.contract_modules import EvaluatorReview
+    sig_str = str(EvaluatorReview)
+    assert "planner_strategy" in sig_str
+
+
 def test_load_compiled_programs_fail_open(tmp_path):
     """_load_compiled_programs returns False when program files are missing."""
     import agent.contract_phase as cp
