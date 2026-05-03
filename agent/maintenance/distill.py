@@ -7,7 +7,12 @@ from pathlib import Path
 
 log = logging.getLogger(__name__)
 
-_TOP_N = 5
+_TOP_N: dict[str, int] = {
+    "plan_steps": 6,
+    "success_criteria": 4,
+    "required_evidence": 3,
+    "failure_conditions": 4,
+}
 
 
 @dataclass
@@ -45,7 +50,7 @@ def run_distill(
         if task_type and t != task_type:
             continue
         all_types_seen.add(t)
-        if ex.get("score", 0.0) < 1.0:
+        if float(ex.get("score", 0.0)) < 1.0 or ex.get("is_default", False):
             continue
         by_type.setdefault(t, []).append(ex)
 
@@ -53,33 +58,32 @@ def run_distill(
         examples = by_type.get(t, [])
         if len(examples) < min_examples:
             result.types_skipped.append(t)
-            log.info("[distill] %s: %d examples < min_examples=%d, skipping", t, len(examples), min_examples)
+            log.info("[distill] %s: %d good examples < min_examples=%d, skipping", t, len(examples), min_examples)
             continue
 
         contract = _distill_one(examples)
         result.types_processed.append(t)
 
         if apply:
+            if t == "default":
+                log.info("[distill] skipping default — default.json is reserved")
+                continue
             contracts_dir.mkdir(parents=True, exist_ok=True)
             out = contracts_dir / f"{t}.json"
-            out.write_text(json.dumps(contract, indent=2, ensure_ascii=False), encoding="utf-8")
+            payload = {**contract, "is_default": True, "rounds_taken": 0}
+            out.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
             log.info("[distill] %s: wrote %s", t, out)
 
     return result
 
 
 def _distill_one(examples: list[dict]) -> dict:
-    def top_n(field_name: str) -> list[str]:
-        items: list[str] = []
+    def top_n(field_name: str, n: int) -> list[str]:
+        counter: Counter = Counter()
         for ex in examples:
-            val = ex.get(field_name, [])
-            if isinstance(val, list):
-                items.extend(val)
-        return [item for item, _ in Counter(items).most_common(_TOP_N)]
+            fc = ex.get("final_contract", {})
+            for item in fc.get(field_name, []):
+                counter[str(item).lower().strip()] += 1
+        return [item for item, _ in counter.most_common(n)]
 
-    return {
-        "plan_steps": top_n("plan_steps"),
-        "success_criteria": top_n("success_criteria"),
-        "required_evidence": top_n("required_evidence"),
-        "failure_conditions": top_n("failure_conditions"),
-    }
+    return {f: top_n(f, n) for f, n in _TOP_N.items()}
