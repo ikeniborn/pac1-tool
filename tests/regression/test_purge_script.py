@@ -1,10 +1,10 @@
-"""Regression tests for scripts/purge_research_contamination.py (FIX-377)."""
+"""Regression tests for purge contamination logic (FIX-377, migrated to agent/maintenance/purge.py — FIX-427)."""
 from __future__ import annotations
 
 import json
 from pathlib import Path
 
-from scripts.purge_research_contamination import main as purge_main
+from agent.maintenance.purge import run_purge
 
 
 def _make_graph(path: Path) -> None:
@@ -59,27 +59,18 @@ def _make_graph(path: Path) -> None:
     path.write_text(json.dumps(graph, indent=2), encoding="utf-8")
 
 
-def _common_args(tmp_path: Path, *, apply: bool) -> list[str]:
-    args = [
-        "--graph-path", str(tmp_path / "graph.json"),
-        "--archive-path", str(tmp_path / "graph_archive.json"),
-        "--pages-dir", str(tmp_path / "pages"),
-        "--fragments-dir", str(tmp_path / "fragments" / "research"),
-    ]
-    if apply:
-        args.append("--apply")
-    return args
-
-
-def test_dry_run_finds_three_candidates(tmp_path, capsys):
+def test_dry_run_finds_three_candidates(tmp_path):
     _make_graph(tmp_path / "graph.json")
     (tmp_path / "pages").mkdir()
-    rc = purge_main(_common_args(tmp_path, apply=False))
-    assert rc == 0
-    out = capsys.readouterr().out
-    assert out.count("[CANDIDATE]") == 3
-    assert "candidates: 3" in out
-    # Graph file untouched.
+    result = run_purge(
+        graph_path=tmp_path / "graph.json",
+        archive_path=tmp_path / "graph_archive.json",
+        pages_dir=tmp_path / "pages",
+        fragments_dir=tmp_path / "fragments" / "research",
+        apply=False,
+    )
+    assert len(result.removed_node_ids) == 3
+    # Dry-run: graph file untouched
     g = json.loads((tmp_path / "graph.json").read_text())
     assert len(g["nodes"]) == 5
 
@@ -87,25 +78,39 @@ def test_dry_run_finds_three_candidates(tmp_path, capsys):
 def test_apply_archives_and_prunes_edges(tmp_path):
     _make_graph(tmp_path / "graph.json")
     (tmp_path / "pages").mkdir()
-    rc = purge_main(_common_args(tmp_path, apply=True))
-    assert rc == 0
+    result = run_purge(
+        graph_path=tmp_path / "graph.json",
+        archive_path=tmp_path / "graph_archive.json",
+        pages_dir=tmp_path / "pages",
+        fragments_dir=tmp_path / "fragments" / "research",
+        apply=True,
+    )
+    assert result.applied
     g = json.loads((tmp_path / "graph.json").read_text())
     assert set(g["nodes"].keys()) == {"n_ok1", "n_ok2"}
     # Edge n_bad1->n_ok1 dropped; n_ok1->n_ok2 retained.
     assert g["edges"] == [{"from": "n_ok1", "rel": "precedes", "to": "n_ok2"}]
     archive = json.loads((tmp_path / "graph_archive.json").read_text())
-    assert set(archive.keys()) == {"n_bad1", "n_bad2", "n_bad3"}
-    for v in archive.values():
+    archived_nodes = archive.get("nodes", archive)  # support both flat and graph-wrapped formats
+    assert set(archived_nodes.keys()) == {"n_bad1", "n_bad2", "n_bad3"}
+    for v in archived_nodes.values():
         assert v["confidence"] == 0
 
 
 def test_apply_is_idempotent(tmp_path):
     _make_graph(tmp_path / "graph.json")
     (tmp_path / "pages").mkdir()
-    purge_main(_common_args(tmp_path, apply=True))
+    kwargs = dict(
+        graph_path=tmp_path / "graph.json",
+        archive_path=tmp_path / "graph_archive.json",
+        pages_dir=tmp_path / "pages",
+        fragments_dir=tmp_path / "fragments" / "research",
+        apply=True,
+    )
+    run_purge(**kwargs)
     g1 = (tmp_path / "graph.json").read_text()
     a1 = (tmp_path / "graph_archive.json").read_text()
-    purge_main(_common_args(tmp_path, apply=True))
+    run_purge(**kwargs)
     g2 = (tmp_path / "graph.json").read_text()
     a2 = (tmp_path / "graph_archive.json").read_text()
     assert g1 == g2
@@ -128,8 +133,13 @@ def test_pages_block_removal(tmp_path):
         "- verify: outbox address matches\n",
         encoding="utf-8",
     )
-    rc = purge_main(_common_args(tmp_path, apply=True))
-    assert rc == 0
+    result = run_purge(
+        graph_path=tmp_path / "graph.json",
+        archive_path=tmp_path / "graph_archive.json",
+        pages_dir=pages,
+        fragments_dir=tmp_path / "fragments" / "research",
+        apply=True,
+    )
     after = md.read_text(encoding="utf-8")
     assert "t99" not in after
     assert "t14" in after

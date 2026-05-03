@@ -1,6 +1,8 @@
-"""Tests for contract distillation script."""
+"""Regression tests for contract distillation (FIX-377, migrated to agent/maintenance/distill.py — FIX-427)."""
 import json
 from pathlib import Path
+
+from agent.maintenance.distill import run_distill
 
 
 def _write_examples(path: Path, examples: list[dict]) -> None:
@@ -20,8 +22,6 @@ def _make_email_example(plan_steps=None, success_criteria=None, score=1.0):
             "success_criteria": success_criteria or ["file written to /outbox/"],
             "required_evidence": ["/outbox/1.json"],
             "failure_conditions": ["no write to /outbox/"],
-            "is_default": False,
-            "rounds_taken": 1,
         },
         "is_default": False,
         "rounds_taken": 1,
@@ -33,47 +33,46 @@ def _make_email_example(plan_steps=None, success_criteria=None, score=1.0):
 
 def test_distill_selects_top_n_plan_steps(tmp_path):
     """Most frequent plan_steps are selected, up to 6."""
-    from scripts.distill_contracts import distill_task_type
-
     common = ["search /contacts", "read /contacts/alice.json", "write /outbox/1.json"]
     rare = ["list /archive"]
     examples = [_make_email_example(plan_steps=common) for _ in range(5)]
     examples.append(_make_email_example(plan_steps=common + rare))
 
-    result = distill_task_type(examples, min_examples=5)
-    assert "search /contacts" in result["plan_steps"]
-    assert "write /outbox/1.json" in result["plan_steps"]
-    assert len(result["plan_steps"]) <= 6
+    ex_path = tmp_path / "examples.jsonl"
+    _write_examples(ex_path, examples)
+    result = run_distill(min_examples=5, examples_path=ex_path, contracts_dir=tmp_path / "c", apply=True)
+    data = json.loads((tmp_path / "c" / "email.json").read_text())
+    assert "search /contacts" in data["plan_steps"]
+    assert "write /outbox/1.json" in data["plan_steps"]
+    assert len(data["plan_steps"]) <= 6
 
 
 def test_distill_skips_low_score(tmp_path):
     """Examples with score < 1.0 are excluded."""
-    from scripts.distill_contracts import distill_task_type
-
     examples = [
         _make_email_example(plan_steps=["step-good"], score=1.0),
         _make_email_example(plan_steps=["step-bad"], score=0.5),
     ]
-    result = distill_task_type(examples, min_examples=1)
-    assert "step-good" in result["plan_steps"]
-    assert not any("step-bad" in s for s in result["plan_steps"])
+    ex_path = tmp_path / "examples.jsonl"
+    _write_examples(ex_path, examples)
+    result = run_distill(min_examples=1, examples_path=ex_path, contracts_dir=tmp_path / "c", apply=True)
+    data = json.loads((tmp_path / "c" / "email.json").read_text())
+    assert "step-good" in data["plan_steps"]
+    assert not any("step-bad" in s for s in data["plan_steps"])
 
 
 def test_distill_returns_none_below_min_examples(tmp_path):
-    """Fewer than min_examples good examples → returns None (skip)."""
-    from scripts.distill_contracts import distill_task_type
-
+    """Fewer than min_examples good examples → type skipped."""
     examples = [_make_email_example() for _ in range(3)]
-    result = distill_task_type(examples, min_examples=10)
-    assert result is None
+    ex_path = tmp_path / "examples.jsonl"
+    _write_examples(ex_path, examples)
+    result = run_distill(min_examples=10, examples_path=ex_path, contracts_dir=tmp_path / "c", apply=True)
+    assert "email" in result.types_skipped
+    assert "email" not in result.types_processed
 
 
 def test_distill_apply_writes_file(tmp_path):
-    """--apply writes data/default_contracts/{task_type}.json."""
-    import sys
-    sys.path.insert(0, str(Path(__file__).parent.parent))
-    from scripts.distill_contracts import run_distillation
-
+    """apply=True writes data/default_contracts/{task_type}.json."""
     examples_path = tmp_path / "dspy_contract_examples.jsonl"
     contracts_dir = tmp_path / "default_contracts"
     contracts_dir.mkdir()
@@ -83,12 +82,11 @@ def test_distill_apply_writes_file(tmp_path):
     examples = [_make_email_example() for _ in range(10)]
     _write_examples(examples_path, examples)
 
-    run_distillation(
+    run_distill(
+        min_examples=5,
         examples_path=examples_path,
         contracts_dir=contracts_dir,
         apply=True,
-        min_examples=5,
-        task_type_filter=None,
     )
 
     email_file = contracts_dir / "email.json"
@@ -102,9 +100,7 @@ def test_distill_apply_writes_file(tmp_path):
 
 
 def test_distill_dry_run_no_files_written(tmp_path):
-    """Without --apply, no files are written."""
-    from scripts.distill_contracts import run_distillation
-
+    """apply=False, no files are written."""
     examples_path = tmp_path / "dspy_contract_examples.jsonl"
     contracts_dir = tmp_path / "default_contracts"
     contracts_dir.mkdir()
@@ -112,21 +108,18 @@ def test_distill_dry_run_no_files_written(tmp_path):
     examples = [_make_email_example() for _ in range(10)]
     _write_examples(examples_path, examples)
 
-    run_distillation(
+    run_distill(
+        min_examples=5,
         examples_path=examples_path,
         contracts_dir=contracts_dir,
         apply=False,
-        min_examples=5,
-        task_type_filter=None,
     )
 
     assert not (contracts_dir / "email.json").exists()
 
 
 def test_distill_apply_skips_default_type(tmp_path):
-    """task_type='default' is never written even with --apply."""
-    from scripts.distill_contracts import run_distillation
-
+    """task_type='default' is never written even with apply=True."""
     examples_path = tmp_path / "dspy_contract_examples.jsonl"
     contracts_dir = tmp_path / "default_contracts"
     contracts_dir.mkdir()
@@ -134,32 +127,25 @@ def test_distill_apply_skips_default_type(tmp_path):
 
     examples = []
     for _ in range(10):
-        examples.append(json.dumps({
+        examples.append({
             "task_text": "task",
             "task_type": "default",
-            "rounds": [],
             "final_contract": {
                 "plan_steps": ["step1"],
                 "success_criteria": ["done"],
                 "required_evidence": [],
                 "failure_conditions": [],
-                "is_default": False,
-                "rounds_taken": 1,
             },
             "is_default": False,
-            "rounds_taken": 1,
             "score": 1.0,
-            "stall_detected": False,
-            "write_scope_violations": False,
-        }))
-    examples_path.write_text("\n".join(examples) + "\n")
+        })
+    examples_path.write_text("\n".join(json.dumps(e) for e in examples) + "\n")
 
-    run_distillation(
+    run_distill(
+        min_examples=5,
         examples_path=examples_path,
         contracts_dir=contracts_dir,
         apply=True,
-        min_examples=5,
-        task_type_filter=None,
     )
 
     # default.json must be unchanged

@@ -76,13 +76,7 @@ Behavior branches that reference specific types (preject short-circuit in `agent
 4. If `status: "soft"` → run `uv run python scripts/optimize_prompts.py --target classifier` to recompile DSPy program with the new enum.
 5. If the type needs bespoke system-prompt guidance → add an entry to `_TASK_BLOCKS` in `agent/prompt.py`. Otherwise it inherits the `default` block (warn-once on startup).
 
-**Soft-label workflow (open-set):** when the LLM classifier proposes a type outside `VALID_TYPES`, it's logged to `data/task_type_candidates.jsonl` (zero extra LLM calls). Aggregate + promote via:
-
-```bash
-uv run python scripts/analyze_task_types.py                     # summary
-uv run python scripts/analyze_task_types.py --promote           # interactive add
-uv run python scripts/analyze_task_types.py --min-count 3       # override threshold
-```
+**Soft-label workflow (open-set):** when the LLM classifier proposes a type outside `VALID_TYPES`, it's logged to `data/task_type_candidates.jsonl` (zero extra LLM calls). Passive summary via `agent/maintenance/candidates.py` (`log_candidates()`). Interactive promotion requires editing `data/task_types.json` manually.
 
 Promoted types start with `status: "soft"` — they're in the enum and system prompt, but the compiled DSPy classifier won't predict them until recompiled.
 
