@@ -145,6 +145,8 @@ class CompletionRequest(BaseModel):
     evaluator_model: str = ""
     evaluator_cfg: dict = {}
     rejection_count: int = 0
+    account_evidence: str = ""
+    inbox_evidence: str = ""
 
 
 class VerificationResult(BaseModel):

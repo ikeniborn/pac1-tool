@@ -77,5 +77,5 @@ class ExecutorAgent:
             token_stats={k: v for k, v in stats.items() if "tok" in k},
             step_facts=stats.get("step_facts", []),
             injected_node_ids=stats.get("graph_injected_node_ids", []),
-            rejection_count=stats.get("eval_rejection_count", 0),
+            rejection_count=stats.get("evaluator_rejections", 0),
         )

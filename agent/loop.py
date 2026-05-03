@@ -2142,6 +2142,8 @@ def _run_evaluator(
             evaluator_model=evaluator_model,
             evaluator_cfg=evaluator_cfg,
             rejection_count=rejection_count,
+            account_evidence=account_evidence or "",
+            inbox_evidence=inbox_evidence or "",
         )
         ver_result = _verifier_agent.verify(req)
         # Normalise to EvalVerdict-compatible shape
