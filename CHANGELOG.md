@@ -5,6 +5,15 @@ Each hardcoded fix gets a sequential label `FIX-N` in code comments.
 ## [Unreleased]
 
 ### Added
+- FIX-432: bare-paths required_evidence instruction in evaluator_contract.md + actionable rejection message (agent/evaluator.py)
+- FIX-431: add CRM fast_path regex for reschedule/reconnect tasks (data/task_types.json)
+
+- FIX-430: replace fixed temporal gap with multi-signal ESTIMATED_TODAY triangulation (agent/prompt.py)
+
+- FIX-429: postrun optimize non-fatal (log.warning not sys.exit), sys.executable, stdout+stderr capture; optimize_prompts.py graceful return on no examples (agent/postrun.py, scripts/optimize_prompts.py)
+
+- FIX-428: convert _StepFact dataclasses to dict in ExecutorAgent.run() — fixes Pydantic ValidationError that blocked DSPy example collection every run
+
 - FIX-427 (scripts lifecycle automation): `agent/maintenance/` package + `agent/preflight.py` + `agent/postrun.py`. Migrated 4 scripts into `agent/maintenance/` (health.py, purge.py, distill.py, candidates.py). Created `run_preflight()` (health check → auto-purge → wiki integrity, fail-closed when `PREFLIGHT_ENABLED=1`) and `run_postrun()` (purge → wiki lint → distill → candidate log → optional optimize subprocess, fail-closed when `POSTRUN_ENABLED=1`). Wired into `main.py`; replaced `_auto_purge_graph()` (FIX-422) subprocess with direct module calls. Env vars: `PREFLIGHT_ENABLED`, `POSTRUN_ENABLED`, `POSTRUN_DISTILL_MIN_EXAMPLES`, `POSTRUN_PROMOTE_MIN_COUNT`, `POSTRUN_OPTIMIZE`. Tests: `tests/test_maintenance_*.py` (27 tests) + `tests/test_lifecycle.py` (14 tests).
 
 - FIX-425 (CRM date anchor gate): `agent/loop.py` + `agent/prompt.py`. CRM task t13 computed `due_on` without the +8-day CRM offset — evaluator (mid skepticism) didn't catch the arithmetic error. Added `_check_crm_date_anchor(report)` helper: for CRM OUTCOME_OK, requires `completed_steps_laconic` to explicitly mention both VAULT_DATE and +8 offset (keywords: "+8", "total_days", "crm offset", "8 day"). Gate fires before evaluator call, shares `_MAX_EVAL_REJECTIONS` budget. Updated `_CRM` prompt block to instruct agent to include the derivation string. Tests: 4 tests in `tests/test_loop_mutation_gate.py`.

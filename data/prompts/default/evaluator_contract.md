@@ -21,6 +21,8 @@ TWO OBJECTION FIELDS — use them correctly:
 When the plan is correct and you agree: set agreed=true, put verification notes in
 `objections`, leave `blocking_objections` as [].
 
+`required_evidence`: bare vault paths only, e.g. ["/contacts/", "/reminders/acct_003.json"]. No prose. Empty [] if not needed.
+
 Respond with ONLY valid JSON. No text before or after the JSON object.
 {
   "success_criteria": ["criterion 1"],

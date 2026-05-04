@@ -460,7 +460,7 @@ def optimize_builder(model: str, cfg: dict, min_score: float = 0.8, max_per_type
     all_trainset = _builder_trainset(min_score=min_score, max_per_type=max_per_type)
     if not all_trainset:
         print("[optimize] No training examples found. Run main.py first to collect examples.")
-        sys.exit(1)
+        return
 
     print(f"[optimize] Builder trainset: {len(all_trainset)} examples total, model: {model}")
 
@@ -517,7 +517,7 @@ def optimize_evaluator(model: str, cfg: dict, max_per_type: int | None = None) -
     global_trainset = _evaluator_trainset(max_per_type=max_per_type)
     if not global_trainset:
         print("[optimize] No evaluator training examples found. Run main.py first.")
-        sys.exit(1)
+        return
     _run_target(
         lambda: dspy.ChainOfThought(EvaluateCompletion),
         global_trainset, evaluator_metric,
@@ -562,7 +562,7 @@ def optimize_classifier(model: str, cfg: dict, min_score: float = 0.8, max_per_t
     trainset = _classifier_trainset(min_score=min_score, max_per_type=max_per_type)
     if not trainset:
         print("[optimize] No classifier training examples found. Run main.py first to collect examples.")
-        sys.exit(1)
+        return
 
     print(f"[optimize] Classifier trainset: {len(trainset)} examples, model: {model}")
     _run_target(

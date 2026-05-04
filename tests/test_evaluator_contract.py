@@ -1,6 +1,9 @@
 # tests/test_evaluator_contract.py
+from pathlib import Path
 from unittest.mock import patch, MagicMock
 from agent.contract_models import Contract
+
+_ROOT = Path(__file__).parents[1]
 
 
 def _make_contract(failure_conditions=None):
@@ -144,3 +147,35 @@ def test_contract_required_evidence_rejects_when_path_not_in_refs():
 
     assert verdict.approved is False
     assert "/accounts/acct_001.json" in " ".join(verdict.issues)
+
+
+def test_rejection_message_is_actionable():
+    """FIX-432: Rejection message must not say 'Contract required_evidence';
+    must guide the agent to add paths to grounding_refs."""
+    source = (_ROOT / "agent/evaluator.py").read_text()
+    assert "Contract required_evidence" not in source
+    assert "grounding_refs" in source
+    # Must contain an actionable phrase telling the agent what to do
+    assert (
+        "add these paths to grounding_refs" in source
+        or "Before re-submitting, add" in source
+    )
+
+
+def test_evaluator_contract_md_bare_paths_instruction():
+    """FIX-432: All evaluator_contract.md files must instruct that
+    required_evidence values must be bare vault paths."""
+    prompts_dir = _ROOT / "data/prompts"
+    contract_files = list(prompts_dir.glob("*/evaluator_contract.md"))
+    assert contract_files, "No evaluator_contract.md files found"
+
+    missing = []
+    for f in sorted(contract_files):
+        content = f.read_text()
+        if "bare vault path" not in content:
+            missing.append(str(f))
+
+    assert not missing, (
+        f"These evaluator_contract.md files lack bare-paths instruction:\n"
+        + "\n".join(missing)
+    )

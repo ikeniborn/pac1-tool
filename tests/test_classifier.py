@@ -41,15 +41,24 @@ def test_temporal_fast_path_avoids_false_positives():
     # Vault-lookup with relative date → NOT temporal (has a verb on vault data).
     assert c("which article did i capture 47 days ago") == "default"
     assert c("Which article did I capture 44 days ago?") == "default"
-    # CRM reschedule mentions "two weeks" but without "from today/now" form.
-    assert c("Nordlicht Health asked to reconnect in two weeks. Reschedule") == "default"
-    assert c("reschedule the follow-up by 2 weeks") == "default"
+    # CRM reschedule mentions "two weeks" but without "from today/now" form → crm (FIX-431).
+    assert c("Nordlicht Health asked to reconnect in two weeks. Reschedule") == "crm"
+    assert c("reschedule the follow-up by 2 weeks") == "crm"
+
+
+def test_crm_fast_path():
+    c = _classify()
+    # Exact t13 task text
+    assert c("Nordlicht Health asked to reconnect in two weeks. Reschedule the follow-up accordingly.") == "crm"
+    assert c("reschedule the follow-up with John") == "crm"
+    assert c("reconnect reminder for next week") == "crm"
+    assert c("rebook the follow-up") == "crm"
 
 
 def test_non_fastpath_returns_default():
     """Types without a high-confidence fast_path fall through to 'default'."""
     c = _classify()
-    # inbox/queue/lookup/distill/crm have no regex fast_path — resolved by LLM.
+    # inbox/queue/lookup/distill have no regex fast_path — resolved by LLM.
     assert c("check inbox for new messages") == "default"
     assert c("process the inbox") == "default"
     assert c("what is the email of David Linke") == "default"

@@ -53,6 +53,7 @@ class ExecutorAgent:
         """
         from agent.loop import run_loop
         from bitgn.vm.pcm_connect import PcmRuntimeClientSync
+        import dataclasses
 
         vm = PcmRuntimeClientSync(inp.harness_url)
         stats = run_loop(
@@ -71,11 +72,15 @@ class ExecutorAgent:
             _step_guard_agent=self._step_guard,
             _verifier_agent=self._verifier,
         )
+        _raw_facts = stats.get("step_facts", [])
         return ExecutionResult(
             status=_status_from_outcome(stats.get("outcome", "")),
             outcome=stats.get("outcome", ""),
             token_stats={k: v for k, v in stats.items() if "tok" in k},
-            step_facts=stats.get("step_facts", []),
+            step_facts=[
+                dataclasses.asdict(sf) if dataclasses.is_dataclass(sf) and not isinstance(sf, type) else sf  # FIX-428
+                for sf in _raw_facts
+            ],
             injected_node_ids=stats.get("graph_injected_node_ids", []),
             rejection_count=stats.get("evaluator_rejections", 0),
         )

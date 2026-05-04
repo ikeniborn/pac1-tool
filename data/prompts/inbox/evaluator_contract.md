@@ -13,6 +13,8 @@ INBOX FAILURE CONDITIONS:
 - Sender domain mismatch ignored.
 - Inbox item not read before acting.
 
+`required_evidence`: bare vault paths only, e.g. ["/contacts/", "/reminders/acct_003.json"]. No prose. Empty [] if not needed.
+
 Respond with ONLY valid JSON. No text before or after the JSON object.
 {
   "success_criteria": ["criterion 1", "criterion 2"],

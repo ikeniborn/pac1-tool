@@ -115,6 +115,7 @@ class TestPostrun:
         mock_sub.assert_not_called()  # POSTRUN_OPTIMIZE not set
 
     def test_optimize_subprocess_called_when_enabled(self, monkeypatch):
+        import sys
         monkeypatch.setenv("POSTRUN_OPTIMIZE", "1")
 
         with patch("agent.postrun.run_purge", return_value=PurgeResult(applied=True)), \
@@ -127,10 +128,27 @@ class TestPostrun:
             import agent.postrun as pr
             pr.run_postrun()
 
-        mock_run.assert_called_once_with(
-            ["python", "scripts/optimize_prompts.py", "--target", "all"],
-            check=True, capture_output=True, text=True,
-        )
+        called_cmd = mock_run.call_args[0][0]
+        assert called_cmd[0] == sys.executable
+        assert called_cmd[1:] == ["scripts/optimize_prompts.py", "--target", "all"]
+
+    def test_optimize_failure_is_non_fatal(self, monkeypatch):
+        """Optimizer failure (exit 1) must log a warning, not sys.exit(1)."""
+        monkeypatch.setenv("POSTRUN_OPTIMIZE", "1")
+        import subprocess
+
+        exc = subprocess.CalledProcessError(1, "optimize")
+        exc.stdout = "No training examples found.\n"
+        exc.stderr = ""
+
+        with patch("agent.postrun.run_purge", return_value=PurgeResult(applied=True)), \
+             patch("agent.postrun.run_wiki_lint"), \
+             patch("agent.postrun.run_distill"), \
+             patch("agent.postrun.log_candidates"), \
+             patch("agent.postrun._count_contract_examples", return_value=0), \
+             patch("subprocess.run", side_effect=exc):
+            import agent.postrun as pr
+            pr.run_postrun()  # must NOT raise SystemExit
 
     def test_optimize_not_called_by_default(self, monkeypatch):
         monkeypatch.delenv("POSTRUN_OPTIMIZE", raising=False)
