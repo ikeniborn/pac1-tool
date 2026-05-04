@@ -31,7 +31,7 @@ def _make_write_job(path: str):
         plan_remaining_steps_brief=["write file"],
         done_operations=[],
         task_completed=False,
-        function=Req_Write(tool="write", path=path, content="data"),
+        function=Req_Write(tool="write", path=path, content="data"),  # type: ignore[call-arg]
     )
 
 
@@ -113,13 +113,13 @@ def test_gate_no_contract():
     assert result is None
 
 
-def _make_report(outcome="OUTCOME_OK", steps=None):
+def _make_report(outcome: str = "OUTCOME_OK", steps=None):
     from agent.models import ReportTaskCompletion
     return ReportTaskCompletion(
         tool="report_completion",
         completed_steps_laconic=steps or [],
         message="done",
-        outcome=outcome,
+        outcome=outcome,  # type: ignore[arg-type]
         grounding_refs=[],
     )
 

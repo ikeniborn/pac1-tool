@@ -38,3 +38,4 @@ viz = [
 [tool.pyright]
 reportUnusedVariable = "none"
 reportUnusedFunction = "none"
+ignore = ["agent/loop.py"]

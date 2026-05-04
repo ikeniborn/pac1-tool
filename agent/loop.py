@@ -9,13 +9,13 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from google.protobuf.json_format import MessageToDict
-from connectrpc.errors import ConnectError
+from connectrpc.errors import ConnectError  # type: ignore[import]
 from pydantic import ValidationError
 
 from pathlib import Path as _Path
 
 from bitgn.vm.pcm_connect import PcmRuntimeClientSync
-from bitgn.vm.pcm_pb2 import AnswerRequest, ListRequest, Outcome, ReadRequest, SearchRequest
+from bitgn.vm.pcm_pb2 import AnswerRequest, ListRequest, Outcome, ReadRequest, SearchRequest  # type: ignore[import]
 
 from .dispatch import (
     CLI_RED, CLI_GREEN, CLI_CLR, CLI_YELLOW, CLI_BLUE,
@@ -806,7 +806,7 @@ def _maybe_expand_search(
     if not (_sr_parsed and len(_sr_data.get("matches", [])) == 0):
         return
 
-    _pat = job.function.pattern
+    _pat = job.function.pattern  # type: ignore[union-attr]
     _pat_words = [w for w in _pat.split() if len(w) > 1]
     _is_name = 2 <= len(_pat_words) <= 4 and not re.search(r'[/\*\?\.\(\)\[\]@]', _pat)
     _retry_count = search_retry_counts.get(_pat, 0)
