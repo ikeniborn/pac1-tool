@@ -37,3 +37,4 @@ viz = [
 
 [tool.pyright]
 reportUnusedVariable = "none"
+reportUnusedFunction = "none"

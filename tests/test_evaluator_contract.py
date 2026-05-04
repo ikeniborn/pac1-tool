@@ -195,7 +195,7 @@ def _make_contract_with_evidence_standard(standard: str) -> Contract:
         required_evidence=["/reminders/ (list and read for dates)"],
         failure_conditions=["wrong date"],
         mutation_scope=[],
-        evidence_standard=standard,
+        evidence_standard=standard,  # type: ignore[call-arg]
         is_default=False,
         rounds_taken=1,
     )
@@ -211,14 +211,14 @@ def test_calculation_only_skips_grounding_check():
         grounding_refs=[],  # empty — would normally trigger grounding check
     )
     contract = _make_contract_with_evidence_standard("calculation_only")
-    from agent.evaluator import _check_grounding_refs
+    from agent.evaluator import _check_grounding_refs  # type: ignore[attr-defined]
     verdict = _check_grounding_refs(report, contract)
     assert verdict is None, "calculation_only should skip grounding check, got rejection instead"
 
 
 def test_vault_required_rejects_missing_grounding():
     """evidence_standard=vault_required (default) → grounding check fires and rejects empty refs."""
-    from agent.evaluator import _check_grounding_refs
+    from agent.evaluator import _check_grounding_refs  # type: ignore[attr-defined]
     report = ReportTaskCompletion(
         tool="report_completion",
         completed_steps_laconic=["found account"],
