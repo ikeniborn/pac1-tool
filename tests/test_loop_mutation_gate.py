@@ -230,3 +230,23 @@ def test_crm_date_anchor_gate_skips_for_none_clarification():
 
     result = _check_crm_date_anchor(report)
     assert result is None
+
+
+def test_consecutive_contract_blocks_counter_increments():
+    """_pre_dispatch increments st.consecutive_contract_blocks on each blocked write."""
+    contract = _make_contract(evaluator_only=True, mutation_scope=[])
+    st = _make_loop_state(contract)
+    assert st.consecutive_contract_blocks == 0
+
+    # Use a path that won't trigger FIX-350 (force-read-before-write guard)
+    job = _make_write_job("/result.txt")
+    vm = MagicMock()
+
+    from agent.loop import _pre_dispatch
+    result = _pre_dispatch(job, "crm", vm, st)
+    assert result is not None, "gate should fire"
+    assert st.consecutive_contract_blocks == 1
+
+    result2 = _pre_dispatch(job, "crm", vm, st)
+    assert result2 is not None, "gate should fire again"
+    assert st.consecutive_contract_blocks == 2

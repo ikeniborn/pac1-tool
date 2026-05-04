@@ -247,6 +247,7 @@ class _LoopState:
     llm_call_count: int = 0
     contract: "Any" = None  # FIX-392
     contract_monitor_warnings: int = 0  # cap: 3 per task
+    consecutive_contract_blocks: int = 0   # FIX-437: force NONE_CLARIFICATION after ≥2
 
 
 # _extract_fact, build_digest, _compact_log — imported from agent/log_compaction.py above
@@ -1922,6 +1923,7 @@ def _pre_dispatch(
             path = job.function.from_name
         scope = st.contract.mutation_scope
         if not scope or path not in scope:
+            st.consecutive_contract_blocks += 1  # FIX-437
             _gate_msg = (
                 f"[contract-gate] FIX-415: evaluator-only contract — mutation to '{path}' "
                 f"is outside agreed scope {scope or '[]'}. "
@@ -2297,9 +2299,23 @@ def _run_step(
     # FIX-201: pre-dispatch preparation and guards
     _guard_msg = _pre_dispatch(job, task_type, vm, st, _security_agent=_security_agent)
     if _guard_msg is not None:
-        st.log.append({"role": "user", "content": _guard_msg})
-        st.steps_since_write += 1
-        return False
+        # FIX-437: after 2 consecutive contract blocks force OUTCOME_NONE_CLARIFICATION
+        if st.consecutive_contract_blocks >= 2:
+            print(f"{CLI_YELLOW}[contract-gate] FIX-437: 2 consecutive blocks — force OUTCOME_NONE_CLARIFICATION{CLI_CLR}")
+            _forced = ReportTaskCompletion(
+                tool="report_completion",
+                completed_steps_laconic=["contract gate blocked write operations"],
+                message="Task requires mutations that were not approved in the execution contract.",
+                outcome="OUTCOME_NONE_CLARIFICATION",
+                grounding_refs=[],
+            )
+            job.function = _forced
+            st.consecutive_contract_blocks = 0
+            # Fall through to normal report_completion handling below
+        else:
+            st.log.append({"role": "user", "content": _guard_msg})
+            st.steps_since_write += 1
+            return False
 
     # FIX-232: grounding_refs auto-population for lookup/inbox tasks
     # Benchmark requires grounding_refs to list files used; agent often leaves it empty
