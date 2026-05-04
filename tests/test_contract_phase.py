@@ -126,7 +126,7 @@ def test_token_counting(mock_llm):
     """in_tok and out_tok are populated from LLM calls."""
     call_count = 0
 
-    def side_effect(_system, _user_msg, _model, _cfg, max_tokens=800, token_out=None, **_kwargs):
+    def side_effect(_system, _user_msg, _model, _cfg, _max_tokens=800, token_out=None, **_kwargs):
         nonlocal call_count
         if token_out is not None:
             token_out["input"] = 100
