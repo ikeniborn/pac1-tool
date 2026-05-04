@@ -112,6 +112,34 @@ if st.consecutive_contract_blocks >= 2:
 
 ---
 
+### Блок E — DSPy postrun optimize: включить и стабилизировать
+
+**Диагноз:** `eval_program = [missing]` и `builder_program = [missing]` во всех прогонах не из-за ошибки — optimize просто не запускается. В `agent/postrun.py` явная проверка: `if os.getenv("POSTRUN_OPTIMIZE", "0") != "1": return`. В `.env.example` строка закомментирована, в `.env` не установлена.
+
+**Изменения:**
+
+1. Установить `POSTRUN_OPTIMIZE=1` в `.env`.
+
+2. Добавить минимальный порог примеров перед запуском optimize. Сейчас distill имеет `POSTRUN_DISTILL_MIN_EXAMPLES=10`, у optimize порога нет. Если примеров мало — optimize упадёт тихо (exit 1 с пустым stdout). Добавить:
+
+```python
+def _do_optimize_if_enabled() -> None:
+    if os.getenv("POSTRUN_OPTIMIZE", "0") != "1":
+        return
+    min_ex = int(os.getenv("POSTRUN_OPTIMIZE_MIN_EXAMPLES", "10"))
+    count = _count_dspy_examples()
+    if count < min_ex:
+        log.info("[postrun] optimize skipped: %d examples < min=%d", count, min_ex)
+        return
+    # ... subprocess.run(...)
+```
+
+3. Добавить `_count_dspy_examples()` — аналог `_count_contract_examples()` для `data/dspy_examples.jsonl`.
+
+4. Добавить `POSTRUN_OPTIMIZE_MIN_EXAMPLES=10` в `.env.example`.
+
+---
+
 ## Что проверяем после изменений
 
 1. **Чистый граф + очищенный промпт:** первые прогоны дадут базовый балл без доменных знаний. Ожидаемо низкий.
@@ -126,4 +154,4 @@ if st.consecutive_contract_blocks >= 2:
 
 - Первые прогоны после очистки промпта дадут регрессию — агент не знает доменных стратегий. Это ожидаемо и является частью теста.
 - Граф накапливает через wiki-lint (LLM-синтез) и pattern-extractor (score=1.0). Если minimax не генерирует корректный JSON для graph_deltas — накопление будет медленным. Нужно мониторить `fence: missing` в логах.
-- DSPy postrun optimize по-прежнему не работает (нет traceback). Это отдельная проблема, не входит в этот спек.
+- После включения `POSTRUN_OPTIMIZE=1` первые прогоны с чистым графом могут не набрать 10 примеров — optimize пропустится до накопления достаточного числа данных.
