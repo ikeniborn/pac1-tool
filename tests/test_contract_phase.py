@@ -126,7 +126,7 @@ def test_token_counting(mock_llm):
     """in_tok and out_tok are populated from LLM calls."""
     call_count = 0
 
-    def side_effect(_system, _user_msg, _model, _cfg, _max_tokens=800, token_out=None, **_kwargs):
+    def side_effect(*_, token_out=None, **__):
         nonlocal call_count
         if token_out is not None:
             token_out["input"] = 100
@@ -259,7 +259,7 @@ def test_negotiate_returns_rounds_transcript(mock_llm):
 
 
 @patch("agent.contract_phase.call_llm_raw")
-def test_default_fallback_returns_empty_rounds(_mock_llm):
+def test_default_fallback_returns_empty_rounds(_):
     """CC-tier model path returns empty rounds list."""
     from agent.contract_phase import negotiate_contract
     contract, _, _, rounds = negotiate_contract(
@@ -418,7 +418,7 @@ def test_constraint_checklist_in_evaluator_prompt(mock_llm):
     """Constraint checklist appears in the evaluator's user prompt when wiki has constraints."""
     captured_calls = []
 
-    def capture(_system, user_msg, _model, _cfg, **kwargs):
+    def capture(_, user_msg, *__, **kwargs):
         captured_calls.append(user_msg)
         # Call 1 = planner, call 2 = executor, call 3 = evaluator
         if len(captured_calls) == 1:
