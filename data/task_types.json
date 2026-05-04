@@ -101,11 +101,15 @@
       ]
     },
     "crm": {
-      "description": "reschedule follow-up, reconnect date, fix follow-up regression, date arithmetic + write",
+      "description": "reschedule follow-up, reconnect date, fix follow-up regression, date arithmetic + write. NOT preject: reschedule/reconnect without external URL/tool = crm",
       "model_env": "MODEL_CRM",
       "fallback_chain": ["default"],
       "wiki_folder": "crm",
-      "fast_path": null,
+      "fast_path": {
+        "pattern": "\\b(reschedule|reconnect|rebook|re-schedule)\\b.{0,80}\\b(follow.?up|reminder|account|contact|reschedule|rebook)\\b|\\b(follow.?up|reminder)\\b.{0,80}\\b(reschedule|reconnect|rebook)\\b",
+        "flags": ["IGNORECASE", "DOTALL"],
+        "confidence": "high"
+      },
       "needs_builder": true,
       "status": "hard",
       "knowledge_aspects": [

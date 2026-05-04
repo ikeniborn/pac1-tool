@@ -5,6 +5,8 @@ Each hardcoded fix gets a sequential label `FIX-N` in code comments.
 ## [Unreleased]
 
 ### Added
+- FIX-431: add CRM fast_path regex for reschedule/reconnect tasks (data/task_types.json)
+
 - FIX-430: replace fixed temporal gap with multi-signal ESTIMATED_TODAY triangulation (agent/prompt.py)
 
 - FIX-428: convert _StepFact dataclasses to dict in ExecutorAgent.run() — fixes Pydantic ValidationError that blocked DSPy example collection every run
