@@ -78,7 +78,7 @@ class ExecutorAgent:
             outcome=stats.get("outcome", ""),
             token_stats={k: v for k, v in stats.items() if "tok" in k},
             step_facts=[
-                dataclasses.asdict(sf) if dataclasses.is_dataclass(sf) and not isinstance(sf, type) else sf
+                dataclasses.asdict(sf) if dataclasses.is_dataclass(sf) and not isinstance(sf, type) else sf  # FIX-428
                 for sf in _raw_facts
             ],
             injected_node_ids=stats.get("graph_injected_node_ids", []),
