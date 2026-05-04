@@ -14,6 +14,7 @@ from agent.wiki import run_wiki_lint
 log = logging.getLogger(__name__)
 
 _CONTRACT_EXAMPLES = Path("data/dspy_contract_examples.jsonl")
+_DSPY_EXAMPLES = Path("data/dspy_examples.jsonl")
 
 
 def run_postrun() -> None:
@@ -77,9 +78,21 @@ def _do_log_candidates() -> None:
         log.warning("[postrun] candidates log failed (non-critical): %s", exc)
 
 
+def _count_dspy_examples() -> int:
+    if not _DSPY_EXAMPLES.exists():
+        return 0
+    return sum(1 for ln in _DSPY_EXAMPLES.read_text(encoding="utf-8").splitlines() if ln.strip())
+
+
 def _do_optimize_if_enabled() -> None:
     # FIX-429: non-fatal optimizer with sys.executable and full stdout+stderr capture
+    # FIX-438: min_examples threshold to skip optimize when too few examples collected
     if os.getenv("POSTRUN_OPTIMIZE", "0") != "1":
+        return
+    min_ex = int(os.getenv("POSTRUN_OPTIMIZE_MIN_EXAMPLES", "10"))
+    count = _count_dspy_examples()
+    if count < min_ex:
+        log.info("[postrun] optimize skipped: %d dspy examples < min=%d", count, min_ex)
         return
     try:
         proc = subprocess.run(
