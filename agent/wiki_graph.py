@@ -371,7 +371,9 @@ def _score_candidates(
         ):
             continue
         tags = set(node.get("tags", []))
-        tag_score = 2.0 if (task_type in tags or "all_types" in tags) else 0.0
+        if task_type not in tags and "all_types" not in tags and "general" not in tags:
+            continue  # FIX-433: hard filter — cross-type nodes excluded from retrieval
+        tag_score = 2.0
         text_tokens = set(_normalize(node.get("text", "")).split())
         overlap = len(task_tokens & text_tokens) * 0.5
         uses = max(1, int(node.get("uses", 1)))
