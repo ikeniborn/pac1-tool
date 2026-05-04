@@ -78,11 +78,12 @@ def _do_log_candidates() -> None:
 
 
 def _do_optimize_if_enabled() -> None:
+    # FIX-429: non-fatal optimizer with sys.executable and full stdout+stderr capture
     if os.getenv("POSTRUN_OPTIMIZE", "0") != "1":
         return
     try:
         proc = subprocess.run(
-            ["python", "scripts/optimize_prompts.py", "--target", "all"],
+            [sys.executable, "scripts/optimize_prompts.py", "--target", "all"],
             check=True,
             capture_output=True,
             text=True,
@@ -90,9 +91,9 @@ def _do_optimize_if_enabled() -> None:
         tail = proc.stdout[-500:] if proc.stdout else ""
         log.info("[postrun] optimize done: %s", tail)
     except subprocess.CalledProcessError as exc:
-        tail = exc.stderr[-500:] if exc.stderr else ""
-        log.error("[postrun] optimize failed (exit %d): %s", exc.returncode, tail)
-        sys.exit(1)
+        out = (exc.stdout or "")[-500:]
+        err = (exc.stderr or "")[-300:]
+        log.warning("[postrun] optimize skipped (exit %d): stdout=%s stderr=%s", exc.returncode, out, err)
 
 
 def _count_contract_examples() -> int:
