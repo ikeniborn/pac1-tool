@@ -40,3 +40,11 @@ def test_temporal_prompt_has_task_context_warning():
     from agent.prompt import _TEMPORAL
     assert "TASK CONTEXT" in _TEMPORAL
     assert "system" in _TEMPORAL.lower() or "clock" in _TEMPORAL.lower()
+
+
+def test_temporal_prompt_has_triangulation():
+    """FIX-430: _TEMPORAL must contain multi-signal ESTIMATED_TODAY triangulation logic."""
+    from agent.prompt import _TEMPORAL
+    assert "TRIANGULATE" in _TEMPORAL
+    assert "MEDIAN" in _TEMPORAL
+    assert "VAULT_DATE + 10" in _TEMPORAL

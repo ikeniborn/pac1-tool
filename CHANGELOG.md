@@ -10,6 +10,8 @@ Each hardcoded fix gets a sequential label `FIX-N` in code comments.
 
 - FIX-430: replace fixed temporal gap with multi-signal ESTIMATED_TODAY triangulation (agent/prompt.py)
 
+- FIX-429: postrun optimize non-fatal (log.warning not sys.exit), sys.executable, stdout+stderr capture; optimize_prompts.py graceful return on no examples (agent/postrun.py, scripts/optimize_prompts.py)
+
 - FIX-428: convert _StepFact dataclasses to dict in ExecutorAgent.run() — fixes Pydantic ValidationError that blocked DSPy example collection every run
 
 - FIX-427 (scripts lifecycle automation): `agent/maintenance/` package + `agent/preflight.py` + `agent/postrun.py`. Migrated 4 scripts into `agent/maintenance/` (health.py, purge.py, distill.py, candidates.py). Created `run_preflight()` (health check → auto-purge → wiki integrity, fail-closed when `PREFLIGHT_ENABLED=1`) and `run_postrun()` (purge → wiki lint → distill → candidate log → optional optimize subprocess, fail-closed when `POSTRUN_ENABLED=1`). Wired into `main.py`; replaced `_auto_purge_graph()` (FIX-422) subprocess with direct module calls. Env vars: `PREFLIGHT_ENABLED`, `POSTRUN_ENABLED`, `POSTRUN_DISTILL_MIN_EXAMPLES`, `POSTRUN_PROMOTE_MIN_COUNT`, `POSTRUN_OPTIMIZE`. Tests: `tests/test_maintenance_*.py` (27 tests) + `tests/test_lifecycle.py` (14 tests).
