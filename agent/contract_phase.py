@@ -95,6 +95,7 @@ def _load_default_contract(task_type: str) -> Contract:
                 data = json.loads(p.read_text(encoding="utf-8"))
                 data["is_default"] = True
                 data.setdefault("rounds_taken", 0)
+                data.setdefault("evidence_standard", "vault_required")
                 return Contract(**data)
             except Exception:
                 pass
@@ -350,6 +351,7 @@ def negotiate_contract(
                     mutation_scope=_allowed,
                     forbidden_mutations=[p for p in _planned if p not in _allowed],
                     evaluator_only=False,
+                    evidence_standard=getattr(proposal, "evidence_standard", "vault_required"),
                     planner_strategy=planner_strategy,
                     is_default=False,
                     rounds_taken=round_num,
@@ -376,6 +378,7 @@ def negotiate_contract(
             mutation_scope=[],
             forbidden_mutations=[],
             evaluator_only=False,
+            evidence_standard="vault_required",
             planner_strategy=planner_strategy,
             is_default=False,
             rounds_taken=max_rounds,

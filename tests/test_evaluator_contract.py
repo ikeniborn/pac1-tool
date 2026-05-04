@@ -179,3 +179,54 @@ def test_evaluator_contract_md_bare_paths_instruction():
         f"These evaluator_contract.md files lack bare-paths instruction:\n"
         + "\n".join(missing)
     )
+
+
+# ---------------------------------------------------------------------------
+# FIX-436: evidence_standard tests
+# ---------------------------------------------------------------------------
+
+from agent.models import ReportTaskCompletion
+
+
+def _make_contract_with_evidence_standard(standard: str) -> Contract:
+    return Contract(
+        plan_steps=["compute date"],
+        success_criteria=["date returned"],
+        required_evidence=["/reminders/ (list and read for dates)"],
+        failure_conditions=["wrong date"],
+        mutation_scope=[],
+        evidence_standard=standard,
+        is_default=False,
+        rounds_taken=1,
+    )
+
+
+def test_calculation_only_skips_grounding_check():
+    """evidence_standard=calculation_only → grounding_refs check skipped even if required_evidence set."""
+    report = ReportTaskCompletion(
+        tool="report_completion",
+        completed_steps_laconic=["computed date from vault_date + 2"],
+        message="24-03-2026",
+        outcome="OUTCOME_OK",
+        grounding_refs=[],  # empty — would normally trigger grounding check
+    )
+    contract = _make_contract_with_evidence_standard("calculation_only")
+    from agent.evaluator import _check_grounding_refs
+    verdict = _check_grounding_refs(report, contract)
+    assert verdict is None, "calculation_only should skip grounding check, got rejection instead"
+
+
+def test_vault_required_rejects_missing_grounding():
+    """evidence_standard=vault_required (default) → grounding check fires and rejects empty refs."""
+    from agent.evaluator import _check_grounding_refs
+    report = ReportTaskCompletion(
+        tool="report_completion",
+        completed_steps_laconic=["found account"],
+        message="done",
+        outcome="OUTCOME_OK",
+        grounding_refs=[],  # empty
+    )
+    contract = _make_contract_with_evidence_standard("vault_required")
+    verdict = _check_grounding_refs(report, contract)
+    assert verdict is not None, "vault_required should reject empty grounding_refs"
+    assert not verdict.approved

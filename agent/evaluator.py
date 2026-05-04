@@ -403,6 +403,36 @@ def _load_graph_insights(task_type: str, task_text: str, top_k: int) -> str:
 
 
 # ---------------------------------------------------------------------------
+# FIX-436: grounding_refs helper — extracted so it can be gated on evidence_standard
+# ---------------------------------------------------------------------------
+
+def _check_grounding_refs(report, contract: "Contract | None") -> "EvalVerdict | None":
+    """Return EvalVerdict rejection if required_evidence is not covered by grounding_refs, else None.
+
+    Returns None immediately when:
+    - contract is None / is_default / has no required_evidence
+    - evidence_standard == "calculation_only" (temporal tasks that compute from VAULT_DATE)
+    """
+    if contract is None or contract.is_default or not contract.required_evidence:
+        return None
+    if getattr(contract, "evidence_standard", "vault_required") == "calculation_only":
+        return None  # FIX-436: calculation tasks skip vault evidence check
+    refs = [str(r) for r in (getattr(report, "grounding_refs", None) or [])]
+    missing = [
+        e for e in contract.required_evidence
+        if not any(ref.lower() in e.lower() for ref in refs)
+    ]
+    if missing:
+        _issue = (
+            f"Required reads missing from grounding_refs. "
+            f"Before re-submitting, add these paths to grounding_refs: {missing}. "
+            "Re-read them if needed."
+        )
+        return EvalVerdict(approved=False, issues=[_issue], correction_hint=_issue)
+    return None
+
+
+# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
@@ -442,29 +472,11 @@ def evaluate_completion(
     if not _gr_ok:
         return EvalVerdict(approved=False, issues=[_gr_issue], correction_hint=_gr_issue)
 
-    # Contract hard-gate: required_evidence must appear in grounding_refs
-    # FIX-423: inverted check — evidence entries are descriptive strings that
-    # contain paths (e.g. "Final listing of /path/ showing empty"). Check that
-    # at least one grounding_ref path appears as a substring of each entry,
-    # instead of checking if the full description appears in the joined refs.
-    # Empty refs: if agent provided no grounding_refs, all evidence is missing —
-    # correct rejection; upstream validate_grounding_refs already catches the
-    # vault-ID case, so reaching here with empty refs means agent skipped
-    # required reads entirely.
-    if contract is not None and not contract.is_default and contract.required_evidence:
-        refs = [str(r) for r in (getattr(report, "grounding_refs", None) or [])]
-        missing = [
-            e for e in contract.required_evidence
-            if not any(ref.lower() in e.lower() for ref in refs)
-        ]
-        if missing:
-            # FIX-432: actionable message — agent doesn't know what a "contract" is
-            _issue = (
-                f"Required reads missing from grounding_refs. "
-                f"Before re-submitting, add these paths to grounding_refs: {missing}. "
-                "Re-read them if needed."
-            )
-            return EvalVerdict(approved=False, issues=[_issue], correction_hint=_issue)
+    # FIX-423/FIX-436: Contract hard-gate — required_evidence must appear in grounding_refs.
+    # Gated on evidence_standard: "calculation_only" skips this check.
+    _grounding_issue = _check_grounding_refs(report, contract)
+    if _grounding_issue is not None:
+        return _grounding_issue
 
     max_tok = _EFFICIENCY_MAX_TOKENS.get(efficiency, 512)
 

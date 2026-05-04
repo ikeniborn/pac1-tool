@@ -8,6 +8,7 @@ class ExecutorProposal(BaseModel):
     expected_outcome: str
     required_tools: list[str]
     planned_mutations: list[str] = Field(default_factory=list)  # FIX-415: explicit write/delete paths
+    evidence_standard: str = "vault_required"  # FIX-436: "vault_required" | "calculation_only"
     open_questions: list[str]
     agreed: bool
 
@@ -30,6 +31,7 @@ class Contract(BaseModel):
     mutation_scope: list[str] = Field(default_factory=list)       # FIX-415: validated allowed paths
     forbidden_mutations: list[str] = Field(default_factory=list)  # FIX-415: blocked paths from constraints
     evaluator_only: bool = False                                   # FIX-415: True when evaluator-only consensus
+    evidence_standard: str = "vault_required"                      # FIX-436: "vault_required" | "calculation_only"
     planner_strategy: str = ""                                     # FIX-426: Round 0 PlannerStrategize output
     is_default: bool
     rounds_taken: int
