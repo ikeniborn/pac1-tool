@@ -15,7 +15,7 @@ def test_new_node_uses1_has_nonzero_base():
     })
     results = _score_candidates(g, "email", "foo bar task", 0.0, None, False)
     assert len(results) == 1
-    score, nid, _ = results[0]
+    score, _, _ = results[0]
     # base = 0.5 * log(1+1) = 0.5 * log(2) ≈ 0.347
     # tag_score = 2.0, overlap ≥ 1.0 (foo, bar match)
     assert score > 2.0 + 0.3   # conservatively above tag+base only
