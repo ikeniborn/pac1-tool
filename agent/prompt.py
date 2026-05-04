@@ -214,7 +214,7 @@ WILL work. Never report NONE_* based on assumed unavailability.
     No other text in the message field — the benchmark checks for the exact word."""
 
 
-# Temporal / date-arithmetic block  # FIX-305, FIX-327
+# Temporal / date-arithmetic block  # FIX-305, FIX-327, FIX-430
 _TEMPORAL = """
 ## Temporal and date tasks
 
@@ -252,17 +252,35 @@ Neither is today as-is. Derive it from observable vault signals.
        e. If none match: OUTCOME_NONE_CLARIFICATION.
 
   3. **Pure arithmetic with no artifact** ("what day is tomorrow", "what's
-     today", "what's in 3 weeks", "what's 5 days from today"): derive
-     `ESTIMATED_TODAY` from VAULT_DATE using the source-dependent gap:
-       - Source = inbox/capture filename prefixes OR past-anchored field
-         (`last_*_on`, `closed_on`, `updated_on`): `gap = +5 days` (median
-         of observed 1–9 day gaps across runs).
-       - Source = future-anchored field (`due_on`, `next_follow_up_on`):
-         `gap = −3 days` (field is ≥ today).
-     `BASE = ESTIMATED_TODAY`, `RESULT = BASE ± N`. State the derivation in
-     `current_state`: "VAULT_DATE=X (source=S), gap=±G, ESTIMATED_TODAY=Y,
-     BASE±N=Z". `currentDate` (system clock) is the LAST resort — only when
-     VAULT_DATE is absent.
+     today", "what's in 3 weeks", "what's 5 days from today"): TRIANGULATE
+     `ESTIMATED_TODAY` from multiple vault signals — do NOT apply a fixed gap.
+
+     a. **Collect ≥3 date anchors** from the vault:
+        - YYYY-MM-DD__ filename prefixes in /00_inbox/ or /01_capture/
+        - `updated_on`, `last_contact_on`, `closed_on` fields in JSON files
+          (list /accounts/ or /contacts/, read 2–3 files)
+        - `due_on`, `next_follow_up_on` fields (future-anchored)
+
+     b. **Compute implied_today per anchor**:
+        - Past-anchored (filename prefix, `last_*_on`, `closed_on`,
+          `updated_on`): `implied_today = D + offset`, where offset is the
+          estimated lag between the event and now (typically 1–9 days).
+          Use the spread across anchors to narrow this: if anchor A is 2026-03-10
+          and anchor B is 2026-03-12, the real gap is between 1 and 9 for each,
+          giving an overlapping window for ESTIMATED_TODAY.
+        - Future-anchored (`due_on`, `next_follow_up_on`):
+          `implied_today = D − 3` (field records a near-future date).
+
+     c. **ESTIMATED_TODAY = MEDIAN of all implied_today values.**
+        If only one anchor: use it with offset=5.
+        If anchors spread > 14 days apart: discard the outlier, re-median.
+        ESTIMATED_TODAY MUST fall in [VAULT_DATE, VAULT_DATE + 14].
+        If not: OUTCOME_NONE_CLARIFICATION.
+
+     `BASE = ESTIMATED_TODAY`, `RESULT = BASE ± N`.
+     State derivation in `current_state`:
+     "anchors=[D1(src1)→T1, D2(src2)→T2, ...], median=ESTIMATED_TODAY, BASE±N=Z".
+     `currentDate` (system clock) is LAST resort — only when VAULT_DATE absent.
 
 **TASK CONTEXT date is system clock:** If TASK CONTEXT contains "today",
 "current date", or a date — this is the real-world system clock, NOT the
