@@ -24,6 +24,8 @@ from .wiki import load_refusal_hints as _load_refusal_hints
 _DATA = Path(__file__).parent.parent / "data"
 _LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
 
+MUTATION_REQUIRED_TYPES: frozenset[str] = frozenset({"crm", "capture", "inbox"})
+
 _EXECUTOR_PROGRAM_PATH = _DATA / "contract_executor_program.json"
 _EVALUATOR_PROGRAM_PATH = _DATA / "contract_evaluator_program.json"
 _PLANNER_PROGRAM_PATH = _DATA / "contract_planner_program.json"
@@ -322,42 +324,39 @@ def negotiate_contract(
                 f"blocking_objections={response.blocking_objections}"
             )
 
-        # FIX-406: partial consensus — evaluator is authority on success criteria.
-        # FIX-415: track evaluator-only flag and filter mutation_scope on forbidden paths.
-        # FIX-418: blocking_objections are true blockers; objections are non-blocking notes.
+        # FIX-435: only full consensus — evaluator-only path removed.
         evaluator_accepts = response.agreed and not response.blocking_objections
         full_consensus = proposal.agreed and evaluator_accepts
-        if full_consensus or evaluator_accepts:
-            _evaluator_only = not full_consensus
 
-            # FIX-415: build mutation_scope from proposal.planned_mutations.
-            # On evaluator-only consensus, block mutations matching forbidden constraint keywords.
+        if full_consensus:
             _planned = list(proposal.planned_mutations)
-            _forbidden_keywords = {"result.txt", ".disposition.json"}
-            if _evaluator_only:
-                _allowed = [
-                    p for p in _planned
-                    if not any(kw in p for kw in _forbidden_keywords)
-                ]
+            # FIX-435 C2: mutation-required types must declare planned_mutations
+            if task_type in MUTATION_REQUIRED_TYPES and not _planned:
+                if _LOG_LEVEL == "DEBUG":
+                    print(
+                        f"[contract] round {round_num}: {task_type} requires mutations "
+                        "but planned_mutations empty — continuing rounds"
+                    )
+                # Don't finalize — loop continues to next round
             else:
-                _allowed = _planned
+                _forbidden_keywords = {"result.txt", ".disposition.json"}
+                _allowed = [p for p in _planned if not any(kw in p for kw in _forbidden_keywords)]
 
-            contract = Contract(
-                plan_steps=proposal.plan_steps,
-                success_criteria=response.success_criteria,
-                required_evidence=response.required_evidence,
-                failure_conditions=response.failure_conditions,
-                mutation_scope=_allowed,
-                forbidden_mutations=[p for p in _planned if p not in _allowed],
-                evaluator_only=_evaluator_only,
-                planner_strategy=planner_strategy,
-                is_default=False,
-                rounds_taken=round_num,
-            )
-            if _LOG_LEVEL == "DEBUG":
-                mode = "full consensus" if full_consensus else "evaluator-only consensus"
-                print(f"[contract] {mode} reached in {round_num} round(s)")
-            return contract, total_in, total_out, rounds_transcript
+                contract = Contract(
+                    plan_steps=proposal.plan_steps,
+                    success_criteria=response.success_criteria,
+                    required_evidence=response.required_evidence,
+                    failure_conditions=response.failure_conditions,
+                    mutation_scope=_allowed,
+                    forbidden_mutations=[p for p in _planned if p not in _allowed],
+                    evaluator_only=False,
+                    planner_strategy=planner_strategy,
+                    is_default=False,
+                    rounds_taken=round_num,
+                )
+                if _LOG_LEVEL == "DEBUG":
+                    print(f"[contract] full consensus reached in {round_num} round(s)")
+                return contract, total_in, total_out, rounds_transcript
 
     # Max rounds exceeded — use partial contract from last round if available
     if _LOG_LEVEL == "DEBUG":
@@ -376,7 +375,7 @@ def negotiate_contract(
             failure_conditions=er.get("failure_conditions", []),
             mutation_scope=[],
             forbidden_mutations=[],
-            evaluator_only=True,
+            evaluator_only=False,
             planner_strategy=planner_strategy,
             is_default=False,
             rounds_taken=max_rounds,

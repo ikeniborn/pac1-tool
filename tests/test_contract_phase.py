@@ -369,8 +369,8 @@ def test_partial_fallback_from_last_round(mock_llm):
 
 
 @patch("agent.contract_phase.call_llm_raw")
-def test_evaluator_only_consensus_sets_flag(mock_llm):
-    """Evaluator-only consensus (executor.agreed=False) → contract.evaluator_only=True."""
+def test_evaluator_only_consensus_no_longer_finalizes(mock_llm):
+    """FIX-435: evaluator-only consensus (executor.agreed=False) → no longer finalizes; fallback after max_rounds=1."""
     mock_llm.side_effect = [
         _make_planner_json(),
         _make_executor_json(agreed=False, steps=["read /inbox/msg.txt", "report"]),
@@ -379,15 +379,16 @@ def test_evaluator_only_consensus_sets_flag(mock_llm):
     from agent.contract_phase import negotiate_contract
     contract, _, _, _ = negotiate_contract(
         task_text="Review inbox",
-        task_type="inbox",
+        task_type="default",
         agents_md="",
         wiki_context="",
         graph_context="",
         model="test-model",
         cfg={},
-        max_rounds=3,
+        max_rounds=1,
     )
-    assert contract.evaluator_only is True
+    # Fallback contract — no full consensus reached
+    assert contract.evaluator_only is False
 
 
 @patch("agent.contract_phase.call_llm_raw")
@@ -451,15 +452,15 @@ def test_constraint_checklist_in_evaluator_prompt(mock_llm):
 
 
 @patch("agent.contract_phase.call_llm_raw")
-def test_evaluator_only_mutation_scope_empty_when_forbidden_path(mock_llm):
-    """Evaluator-only consensus with planned_mutations containing result.txt → mutation_scope=[]."""
+def test_full_consensus_forbidden_path_filtered(mock_llm):
+    """FIX-435: full consensus with planned_mutations containing result.txt → filtered from mutation_scope."""
     executor_json = json.dumps({
         "plan_steps": ["read /docs/task-completion.md", "write /result.txt"],
         "expected_outcome": "done",
         "required_tools": ["read", "write"],
         "planned_mutations": ["/result.txt"],
         "open_questions": [],
-        "agreed": False,
+        "agreed": True,
     })
     mock_llm.side_effect = [_make_planner_json(), executor_json, _make_evaluator_json(agreed=True)]
 
@@ -479,8 +480,9 @@ def test_evaluator_only_mutation_scope_empty_when_forbidden_path(mock_llm):
             max_rounds=1,
         )
 
-    assert contract.evaluator_only is True
+    assert contract.evaluator_only is False
     assert contract.mutation_scope == []
+    assert "/result.txt" in contract.forbidden_mutations
 
 
 def test_executor_proposal_json5_trailing_comma():
@@ -599,7 +601,7 @@ def test_round_0_planner_runs_before_negotiation(mock_llm):
         from agent.contract_phase import negotiate_contract
         contract, _, _, _ = negotiate_contract(
             task_text="Process inbox",
-            task_type="inbox",
+            task_type="email",  # non-mutation-required type so empty planned_mutations is fine
             agents_md="",
             wiki_context="",
             graph_context="",
@@ -624,7 +626,7 @@ def test_round_0_fail_open_on_planner_error(mock_llm):
         from agent.contract_phase import negotiate_contract
         contract, _, _, _ = negotiate_contract(
             task_text="Process inbox",
-            task_type="inbox",
+            task_type="email",  # non-mutation-required type so empty planned_mutations is fine
             agents_md="",
             wiki_context="",
             graph_context="",
@@ -660,3 +662,71 @@ def test_refusal_hints_injected_into_context(mock_hints, mock_llm):
     first_call_user = mock_llm.call_args_list[1][0][1]  # call 1 = executor (call 0 = planner)
     assert "OUTCOME_NONE_CLARIFICATION" in first_call_user
     assert "Verified refusal" in first_call_user
+
+
+@patch("agent.contract_phase.call_llm_raw")
+def test_evaluator_only_consensus_continues_rounds(mock_llm):
+    """evaluator agrees but executor doesn't → rounds continue, no contract returned yet."""
+    import json as _json
+    import json as _json
+    round2_executor = _json.dumps({
+        "plan_steps": ["list /accounts", "write /accounts/a.json"],
+        "expected_outcome": "updated",
+        "required_tools": ["list", "write"],
+        "planned_mutations": ["/accounts/a.json"],
+        "open_questions": [],
+        "agreed": True,
+    })
+    mock_llm.side_effect = [
+        _make_planner_json(),
+        _make_executor_json(agreed=False),    # round 1: executor disagrees
+        _make_evaluator_json(agreed=True),    # round 1: evaluator agrees — NOT enough
+        round2_executor,                      # round 2: executor agrees with mutations
+        _make_evaluator_json(agreed=True),
+    ]
+    from agent.contract_phase import negotiate_contract
+    contract, _, _, _ = negotiate_contract(
+        task_text="reschedule nordlicht",
+        task_type="crm",
+        agents_md="", wiki_context="", graph_context="",
+        model="test-model", cfg={}, max_rounds=3,
+    )
+    assert not contract.is_default
+    assert not contract.evaluator_only, "evaluator-only path must not be taken"
+
+
+@patch("agent.contract_phase.call_llm_raw")
+def test_mutation_required_type_without_mutations_continues(mock_llm):
+    """crm task with both agreed=True but empty planned_mutations → round continues."""
+    import json as _json
+    mock_llm.side_effect = [
+        _make_planner_json(),
+        # Round 1: both agree but executor has no planned_mutations — should NOT finalize
+        _json.dumps({
+            "plan_steps": ["search contacts", "write reminder"],
+            "expected_outcome": "updated",
+            "required_tools": ["search", "write"],
+            "planned_mutations": [],
+            "open_questions": [],
+            "agreed": True,
+        }),
+        _make_evaluator_json(agreed=True),
+        # Round 2: executor declares mutations
+        _json.dumps({
+            "plan_steps": ["search contacts", "write reminder"],
+            "expected_outcome": "updated",
+            "required_tools": ["search", "write"],
+            "planned_mutations": ["/reminders/rem_001.json", "/accounts/acct_001.json"],
+            "open_questions": [],
+            "agreed": True,
+        }),
+        _make_evaluator_json(agreed=True),
+    ]
+    from agent.contract_phase import negotiate_contract
+    contract, _, _, _ = negotiate_contract(
+        task_text="reschedule nordlicht in 2 weeks",
+        task_type="crm",
+        agents_md="", wiki_context="", graph_context="",
+        model="test-model", cfg={}, max_rounds=3,
+    )
+    assert contract.mutation_scope == ["/reminders/rem_001.json", "/accounts/acct_001.json"]
