@@ -263,18 +263,15 @@ Neither is today as-is. Derive it from observable vault signals.
 
      b. **Compute implied_today per anchor**:
         - Past-anchored (filename prefix, `last_*_on`, `closed_on`,
-          `updated_on`): `implied_today = D + offset`, where offset is the
-          estimated lag between the event and now (typically 1–9 days).
-          Use the spread across anchors to narrow this: if anchor A is 2026-03-10
-          and anchor B is 2026-03-12, the real gap is between 1 and 9 for each,
-          giving an overlapping window for ESTIMATED_TODAY.
+          `updated_on`): `implied_today = D + 5` (midpoint of the
+          observed 1–9 day lag range).
         - Future-anchored (`due_on`, `next_follow_up_on`):
           `implied_today = D − 3` (field records a near-future date).
 
      c. **ESTIMATED_TODAY = MEDIAN of all implied_today values.**
         If only one anchor: use it with offset=5.
         If anchors spread > 14 days apart: discard the outlier, re-median.
-        ESTIMATED_TODAY MUST fall in [VAULT_DATE, VAULT_DATE + 14].
+        ESTIMATED_TODAY MUST fall in [VAULT_DATE, VAULT_DATE + 10].
         If not: OUTCOME_NONE_CLARIFICATION.
 
      `BASE = ESTIMATED_TODAY`, `RESULT = BASE ± N`.
