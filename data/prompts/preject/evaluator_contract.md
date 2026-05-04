@@ -13,6 +13,8 @@ PREJECT FAILURE CONDITIONS:
 - Fix applied to multiple files when only one was required.
 - JSON field modified without reading the existing file first.
 
+`required_evidence`: bare vault paths only, e.g. ["/contacts/", "/reminders/acct_003.json"]. No prose. Empty [] if not needed.
+
 Respond with ONLY valid JSON. No text before or after the JSON object.
 {
   "success_criteria": ["criterion 1", "criterion 2"],

@@ -5,6 +5,7 @@ Each hardcoded fix gets a sequential label `FIX-N` in code comments.
 ## [Unreleased]
 
 ### Added
+- FIX-432: bare-paths required_evidence instruction in evaluator_contract.md + actionable rejection message (agent/evaluator.py)
 - FIX-431: add CRM fast_path regex for reschedule/reconnect tasks (data/task_types.json)
 
 - FIX-430: replace fixed temporal gap with multi-signal ESTIMATED_TODAY triangulation (agent/prompt.py)

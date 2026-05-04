@@ -13,6 +13,8 @@ CRM FAILURE CONDITIONS:
 - Excessive reads before first write (6+ read-only steps triggers stall warning).
 - Wrong reminder file updated (search matched wrong account).
 
+`required_evidence`: bare vault paths only, e.g. ["/contacts/", "/reminders/acct_003.json"]. No prose. Empty [] if not needed.
+
 Respond with ONLY valid JSON. No text before or after the JSON object.
 {
   "success_criteria": ["criterion 1", "criterion 2"],

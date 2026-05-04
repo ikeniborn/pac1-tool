@@ -13,6 +13,8 @@ CAPTURE FAILURE CONDITIONS:
 - Full pipeline (Pattern B) applied to a simple capture task.
 - Content written to wrong vault path.
 
+`required_evidence`: bare vault paths only, e.g. ["/contacts/", "/reminders/acct_003.json"]. No prose. Empty [] if not needed.
+
 Respond with ONLY valid JSON. No text before or after the JSON object.
 {
   "success_criteria": ["criterion 1", "criterion 2"],

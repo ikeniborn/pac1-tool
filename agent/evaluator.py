@@ -458,9 +458,11 @@ def evaluate_completion(
             if not any(ref.lower() in e.lower() for ref in refs)
         ]
         if missing:
+            # FIX-432: actionable message — agent doesn't know what a "contract" is
             _issue = (
-                f"Contract required_evidence missing from grounding_refs: {missing}. "
-                "Add the missing paths to grounding_refs before reporting completion."
+                f"Required reads missing from grounding_refs. "
+                f"Before re-submitting, add these paths to grounding_refs: {missing}. "
+                "Re-read them if needed."
             )
             return EvalVerdict(approved=False, issues=[_issue], correction_hint=_issue)
 
