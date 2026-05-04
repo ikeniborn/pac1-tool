@@ -35,16 +35,20 @@ def test_agents_md_date_in_middle_of_line_not_matched():
     assert _extract_explicit_vault_date(content) == ""
 
 
-def test_temporal_prompt_has_task_context_warning():
-    """_TEMPORAL prompt must warn that TASK CONTEXT date is system clock, not vault date."""
-    from agent.prompt import _TEMPORAL
-    assert "TASK CONTEXT" in _TEMPORAL
-    assert "system" in _TEMPORAL.lower() or "clock" in _TEMPORAL.lower()
+def test_temporal_prompt_no_domain_knowledge():
+    """FIX-434: temporal type uses _CORE + _LOOKUP only — no hardcoded domain formulas."""
+    from agent.prompt import build_system_prompt
+    p = build_system_prompt("temporal")
+    # Domain formulas removed from system prompt (now accumulated in graph/wiki)
+    assert "TRIANGULATE" not in p
+    assert "MEDIAN" not in p
+    assert "PAC1 rule" not in p
+    assert "TOTAL_DAYS" not in p
 
 
-def test_temporal_prompt_has_triangulation():
-    """FIX-430: _TEMPORAL must contain multi-signal ESTIMATED_TODAY triangulation logic."""
-    from agent.prompt import _TEMPORAL
-    assert "TRIANGULATE" in _TEMPORAL
-    assert "MEDIAN" in _TEMPORAL
-    assert "VAULT_DATE + 10" in _TEMPORAL
+def test_crm_prompt_no_domain_knowledge():
+    """FIX-434: crm type uses _CORE + _LOOKUP only — no hardcoded CRM step formulas."""
+    from agent.prompt import build_system_prompt
+    p = build_system_prompt("crm")
+    assert "PAC1 rule" not in p
+    assert "TOTAL_DAYS" not in p
