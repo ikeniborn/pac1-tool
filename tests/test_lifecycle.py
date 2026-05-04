@@ -194,12 +194,12 @@ import subprocess
 def test_count_dspy_examples_empty(tmp_path):
     """_count_dspy_examples returns 0 when file does not exist."""
     import agent.postrun as pr
-    original = pr._DSPY_EXAMPLES
-    pr._DSPY_EXAMPLES = tmp_path / "dspy_examples.jsonl"
+    original = pr._DSPY_EXAMPLES  # type: ignore[attr-defined]
+    pr._DSPY_EXAMPLES = tmp_path / "dspy_examples.jsonl"  # type: ignore[attr-defined]
     try:
-        assert pr._count_dspy_examples() == 0
+        assert pr._count_dspy_examples() == 0  # type: ignore[attr-defined]
     finally:
-        pr._DSPY_EXAMPLES = original
+        pr._DSPY_EXAMPLES = original  # type: ignore[attr-defined]
 
 
 def test_count_dspy_examples_counts_lines(tmp_path):
@@ -207,12 +207,12 @@ def test_count_dspy_examples_counts_lines(tmp_path):
     import agent.postrun as pr
     f = tmp_path / "dspy_examples.jsonl"
     f.write_text('{"a": 1}\n{"b": 2}\n\n{"c": 3}\n', encoding="utf-8")
-    original = pr._DSPY_EXAMPLES
-    pr._DSPY_EXAMPLES = f
+    original = pr._DSPY_EXAMPLES  # type: ignore[attr-defined]
+    pr._DSPY_EXAMPLES = f  # type: ignore[attr-defined]
     try:
-        assert pr._count_dspy_examples() == 3
+        assert pr._count_dspy_examples() == 3  # type: ignore[attr-defined]
     finally:
-        pr._DSPY_EXAMPLES = original
+        pr._DSPY_EXAMPLES = original  # type: ignore[attr-defined]
 
 
 def test_optimize_skipped_below_min_examples(tmp_path, monkeypatch):
@@ -222,12 +222,12 @@ def test_optimize_skipped_below_min_examples(tmp_path, monkeypatch):
     monkeypatch.setenv("POSTRUN_OPTIMIZE_MIN_EXAMPLES", "10")
     f = tmp_path / "dspy_examples.jsonl"
     f.write_text('{"a": 1}\n', encoding="utf-8")  # only 1 example
-    original = pr._DSPY_EXAMPLES
-    pr._DSPY_EXAMPLES = f
+    original = pr._DSPY_EXAMPLES  # type: ignore[attr-defined]
+    pr._DSPY_EXAMPLES = f  # type: ignore[attr-defined]
     calls = []
     monkeypatch.setattr(subprocess, "run", lambda *a, **kw: calls.append(a))
     try:
-        pr._do_optimize_if_enabled()
+        pr._do_optimize_if_enabled()  # type: ignore[attr-defined]
     finally:
-        pr._DSPY_EXAMPLES = original
+        pr._DSPY_EXAMPLES = original  # type: ignore[attr-defined]
     assert len(calls) == 0, "subprocess.run should not be called with < min_examples"
