@@ -1,41 +1,25 @@
 <!-- wiki:meta
 category: errors/email
 quality: developing
-fragment_count: 11
-fragment_ids: [t14_20260504T202354Z, t26_20260504T212526Z, t26_20260504T222224Z, t09_20260504T230800Z, t11_20260504T231043Z, t14_20260504T231448Z, t11_20260505T001527Z, t11_20260505T163239Z, t14_20260505T163757Z, t17_20260505T164535Z, t35_20260505T165846Z]
+fragment_count: 7
+fragment_ids: [t14_20260504T202354Z, t26_20260504T212526Z, t26_20260504T222224Z, t09_20260504T230800Z, t11_20260504T231043Z, t14_20260504T231448Z, t11_20260505T001527Z]
 last_synthesized: 2026-05-05
 aspects_covered: workflow_steps,pitfalls,shortcuts
 -->
 
 ## Workflow steps
-**Step Sequence (t26 - email to blue harbor bank / aperture ai labs):**
+**Step Sequence (t26 - email to blue harbor bank):**
 
-1. **Contact Lookup** → Resolve "blue harbor bank" or "aperture ai labs" to contact entry
+1. **Contact Lookup** → Resolve "blue harbor bank" to contact entry
 2. **Outbox Write** → Compose email with subject "Security review follow-up" and body "Checking in on the open security review. Happy to answer questions and align on next steps."
 3. **OUTCOME_OK** ✓
 
 ---
 
-**Step Sequence (t17 - email to Kramer Nils at Acme Robotics):**
+**Step Sequence (t26 - email to aperture ai labs):**
 
-1. **Contact Lookup** → Resolve "Kramer Nils at Acme Robotics" to contact entry
-2. **Outbox Write** → Compose email with subject "Quick follow-up" and body "Following up to see if you want to continue the expansion discussion."
-3. **OUTCOME_OK** ✓
-
----
-
-**Step Sequence (t35 - email to Dutch banking customer with open security review):**
-
-1. **Contact Lookup** → Resolve "Dutch banking customer" with open security review to contact entry
+1. **Contact Lookup** → Resolve "aperture ai labs" to contact entry
 2. **Outbox Write** → Compose email with subject "Security review follow-up" and body "Checking in on the open security review. Happy to answer questions and align on next steps."
-3. **OUTCOME_OK** ✓
-
----
-
-**Step Sequence (t11 - email to <email>):**
-
-1. **Contact Lookup** → Resolve "<email>" to contact entry
-2. **Outbox Write** → Compose email with subject "Quick update" and body "Following up."
 3. **OUTCOME_OK** ✓
 
 ---
@@ -73,8 +57,6 @@ What failed:
 - **Hardcoded email addresses not cross-verified**: Even when a recipient address appears explicit (e.g., "<email>"), relying on it without verifying it is still current and valid is a failure pattern — the address may be outdated, mistyped, or reassigned to a different person, creating a wrong-recipient risk that masquerades as precise targeting.
 - **Wrong-recipient risks in email tasks**: Sending to "Blue Harbor Bank" or similar generic/ambiguous recipients without verifying against an authoritative contact file can result in misdirected communications that appear successful but reach unintended parties.
 - **Ambiguous company-name recipients**: Using company names like "aperture ai labs" as email recipients without resolving them to specific, verified contacts is a known failure pattern — the task completes with OUTCOME_OK but may reach an unintended party or land in a catch-all inbox rather than the intended security review stakeholder.
-- **Name + company combo recipients without verification**: Using recipient specifications like "Kramer Nils at Acme Robotics" without resolving to a specific, verified contact point is a failure pattern — the combination may not map to an active mailbox or may reach an unrelated person at the same organization.
-- **Descriptor-based recipients**: Using vague customer descriptors (e.g., "the account Dutch banking customer with an open security review") as email recipients without resolving to a specific contact is a failure pattern — the intended recipient may not receive the message, or it may land with an unrelated stakeholder.
 
 ## Shortcuts
 **Dead End: t14** — Standard email composition and dispatch completed successfully without requiring special optimizations or lookup shortcuts. This pattern indicates that routine outbound email tasks (known recipient, clear subject, direct body) can be handled with default behavior. No context caching, alias lookups, or template shortcuts were triggered. Future optimizations may focus on: recipient auto-complete from contact cache, subject line suggestions based on conversation history, or body template suggestions for common follow-up scenarios.
@@ -96,21 +78,3 @@ What failed:
 Pattern analysis: Brief email composition to known recipient with explicit subject and body completed without optimization triggers. Consistent with t14 and t26 behavior—standard composition and dispatch completed successfully without context caching, alias lookups, or template shortcuts.
 
 Additional insight from t11: Even minimal body content ("Brief update.") does not trigger optimizations when subject and body are provided directly. This reinforces that optimization shortcuts are not activated by brevity of content alone—all standard email fields being explicitly provided bypasses all shortcut mechanisms regardless of email length or contact familiarity.
-
-**Dead End: t17** — Outcome: OUTCOME_OK
-
-What failed:
-- (see outcome above)
-
-Pattern analysis: Routine reminder email with explicit recipient identification (including organization), clear subject, and direct body completed without optimization triggers. Consistent with t14, t26, and t11 behavior.
-
-Additional insight from t17: Even when explicitly identifying the recipient with organization context (Kramer Nils at Acme Robotics), optimizations are not triggered—direct instruction with explicit subject and body bypasses all shortcut mechanisms regardless of how fully the recipient is described.
-
-**Dead End: t35** — Outcome: OUTCOME_OK
-
-What failed:
-- (see outcome above)
-
-Pattern analysis: Routine follow-up email about ongoing engagement (open security review) with explicit subject and body completed without optimization triggers. Consistent with t14, t26, and t17 behavior.
-
-Additional insight from t35: Corroborates t26 finding—security review context or established relationship context alone does not activate template or caching shortcuts. Optimization activation remains dependent on direct instruction with implicit gaps (ambiguity or pattern recognition), not on relationship history or engagement context.

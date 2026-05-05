@@ -65,6 +65,7 @@ def _do_graph_feedback() -> None:
         for entry in entries:
             injected = entry.get("injected") or []
             score = entry.get("score", 0.0)
+            outcome = entry.get("outcome", "")  # Block A: outcome gate
             task_id = entry.get("task_id", "")
             task_type = entry.get("task_type", "default")
             traj_dicts = entry.get("trajectory") or []
@@ -72,12 +73,16 @@ def _do_graph_feedback() -> None:
                 continue
             if score >= 1.0:
                 _wg.bump_uses(g, injected)
-                if traj_dicts:
+                # Block A: only OUTCOME_OK trajectories become pattern-nodes.
+                # Refusals (CLARIFICATION/UNSUPPORTED/DENIED) reinforce confidence
+                # via bump_uses but must not seed new "successful" patterns.
+                if traj_dicts and outcome == "OUTCOME_OK":
                     step_facts = [_Step(kind=s.get("tool", ""), path=s.get("path", "")) for s in traj_dicts]
                     traj_hash = _wg.hash_trajectory(step_facts)
                     traj = [{"tool": s.get("tool", "?"), "path": s.get("path", "")} for s in traj_dicts]
                     _wg.add_pattern_node(g, task_type, task_id, traj_hash, traj, injected)
-                log.info("[postrun] graph reinforced %d nodes (task=%s score=1.0)", len(injected), task_id)
+                log.info("[postrun] graph reinforced %d nodes (task=%s score=1.0 outcome=%s)",
+                         len(injected), task_id, outcome)
             elif score <= 0.0:
                 archived = _wg.degrade_confidence(g, injected, epsilon)
                 log.info("[postrun] graph degraded %d nodes, archived %d (task=%s score=0)", len(injected), len(archived), task_id)

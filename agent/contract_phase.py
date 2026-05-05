@@ -140,12 +140,14 @@ def negotiate_contract(
             print("[contract] prompts missing — using default contract")
         return _load_default_contract(task_type), 0, 0, []
 
-    # FIX-394: CC tier cannot produce structured JSON (tool_use blocks are stripped
-    # from result). Skip negotiation entirely — avoids 1-2 empty subprocess launches
-    # per task. Default contract is equivalent to what negotiate_contract would return.
-    if model.startswith("claude-code/"):
+    # Block F: CC tier no longer hard-skips negotiation. If MODEL_CONTRACT is
+    # set (e.g. anthropic/claude-haiku-4-5), use it as the negotiation LM —
+    # _effective_model picks it up and we run the standard executor/evaluator
+    # loop. Without MODEL_CONTRACT, keep the FIX-394 skip: CC stateless calls
+    # cannot reliably emit structured JSON for the contract schema.
+    if model.startswith("claude-code/") and not os.environ.get("MODEL_CONTRACT"):
         if _LOG_LEVEL == "DEBUG":
-            print("[contract] CC tier — skipping negotiation, using default contract")
+            print("[contract] CC tier (no MODEL_CONTRACT) — skipping negotiation")
         return _load_default_contract(task_type), 0, 0, []
 
     negotiation_model = _effective_model(model)

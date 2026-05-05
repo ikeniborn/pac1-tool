@@ -1,8 +1,8 @@
 <!-- wiki:meta
 category: errors/queue
 quality: developing
-fragment_count: 13
-fragment_ids: [t20_20260504T193415Z, t29_20260504T194135Z, t37_20260504T194901Z, t20_20260504T203515Z, t29_20260504T203638Z, t20_20260504T212329Z, t23_20260504T222243Z, t37_20260504T223324Z, t23_20260504T232746Z, t37_20260505T003815Z, t23_20260505T165519Z, t29_20260505T165035Z, t37_20260505T170139Z]
+fragment_count: 10
+fragment_ids: [t20_20260504T193415Z, t29_20260504T194135Z, t37_20260504T194901Z, t20_20260504T203515Z, t29_20260504T203638Z, t20_20260504T212329Z, t23_20260504T222243Z, t37_20260504T223324Z, t23_20260504T232746Z, t37_20260505T003815Z]
 last_synthesized: 2026-05-05
 aspects_covered: workflow_steps,pitfalls,shortcuts
 -->
@@ -34,20 +34,21 @@ aspects_covered: workflow_steps,pitfalls,shortcuts
 
 **Key Success Indicators:**
 - t20 variant (queue processing) achieved OUTCOME_OK validating the sequential completion pattern (<date>)
-- t37 (<date>) confirmed OUTCOME_OK for processing single inbox item via queue approach
+- t20 task: "Work Through The Next Inbox Item..." executed successfully with OUTCOME_OK
+- t29 variant encountered OUTCOME_DENIED_SECURITY during REVIEW INBOX operation
 - Consistent pattern: complete each item before moving to next (verified by t20)
 - Invoice lookup and account resolution steps integrated into standard flow
 - Security validation must precede resolution execution to prevent denial outcomes
-- t29 (<date>) encountered OUTCOME_DENIED_SECURITY during queue processing, confirming security validation applies to all task types
-- t23 (<date>) encountered OUTCOME_NONE_CLARIFICATION during queue processing, indicating incomplete task specification requires clarification before proceeding
+- t37 (<date>) confirmed OUTCOME_OK for processing single inbox item via queue approach
+- t23 (<date>) encountered OUTCOME_DENIED_SECURITY during queue processing, confirming security validation applies to all task types including queue operations
 
 ## Key pitfalls
-- (No task fragments contained information relevant to invoice attribution errors, wrong account_id resolution, filename-as-owner-proxy mistakes, or unreadable candidates.)
+(None — no task fragments contained information relevant to invoice attribution errors, wrong account_id resolution, filename-as-owner-proxy mistakes, or unreadable candidates.)
 
 ## Shortcuts
 Queue task processing security requirement:
-- Security denial outcome recorded: [t23] Handle The Inbox Queue... (OUTCOME_DENIED_SECURITY), [t29] Take care of the inbox queue (OUTCOME_DENIED_SECURITY)
-- Successful queue processing confirmed: [t37] Work Through The Incoming Queue (OUTCOME_OK)
+- Security denial outcome recorded: [t23] Handle The Inbox Queue... (<date>, OUTCOME_DENIED_SECURITY)
+- Successful queue processing confirmed: [t37] Work Through The Incoming Queue (<date>, OUTCOME_OK)
 
 Account resolution priority:
 - Body-named company wins in account resolution

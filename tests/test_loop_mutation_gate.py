@@ -60,8 +60,8 @@ def test_no_gate_when_full_consensus():
 
 
 def test_gate_blocks_out_of_scope_write():
-    """Evaluator-only contract with empty mutation_scope blocks all writes."""
-    contract = _make_contract(evaluator_only=True, mutation_scope=[])
+    """Negotiated contract with mutation_scope=['/expected.json'] blocks write to '/result.txt'."""
+    contract = _make_contract(evaluator_only=True, mutation_scope=["/expected.json"])
     st = _make_loop_state(contract)
     job = _make_write_job("/result.txt")
     vm = MagicMock()
@@ -70,7 +70,7 @@ def test_gate_blocks_out_of_scope_write():
     with patch("agent.loop._check_write_scope", return_value=None):
         result = _pre_dispatch(job, "queue", vm, st)
     assert result is not None
-    assert any(word in result.lower() for word in ("evaluator-only", "mutation_scope", "outside", "contract-gate"))
+    assert any(word in result.lower() for word in ("outside", "contract-gate"))
 
 
 def test_gate_allows_in_scope_write():
@@ -105,6 +105,52 @@ def test_gate_no_contract():
     st = _LoopState()
     st.contract = None
     job = _make_write_job("/result.txt")
+    vm = MagicMock()
+
+    from agent.loop import _pre_dispatch
+    with patch("agent.loop._check_write_scope", return_value=None):
+        result = _pre_dispatch(job, "queue", vm, st)
+    assert result is None
+
+
+def test_gate_active_for_negotiated_contract_with_scope():
+    """Block E: negotiated contract (is_default=False) with mutation_scope blocks out-of-scope."""
+    contract = _make_contract(evaluator_only=False, mutation_scope=["/outbox/1.json"])
+    st = _make_loop_state(contract)
+    job = _make_write_job("/wrong/path.json")
+    vm = MagicMock()
+
+    from agent.loop import _pre_dispatch
+    with patch("agent.loop._check_write_scope", return_value=None):
+        result = _pre_dispatch(job, "queue", vm, st)
+    assert result is not None
+    assert "contract-gate" in result.lower() or "outside" in result.lower()
+
+
+def test_gate_inactive_for_default_contract():
+    """Block E: default contract (is_default=True) → gate skipped even with non-empty scope."""
+    from agent.contract_models import Contract
+    from agent.loop import _LoopState, _pre_dispatch
+    contract = Contract(
+        plan_steps=["x"], success_criteria=["y"], required_evidence=[], failure_conditions=[],
+        mutation_scope=["/expected.json"],
+        is_default=True,
+        rounds_taken=0,
+    )
+    st = _LoopState()
+    st.contract = contract
+    job = _make_write_job("/anywhere.json")
+    vm = MagicMock()
+    with patch("agent.loop._check_write_scope", return_value=None):
+        result = _pre_dispatch(job, "queue", vm, st)
+    assert result is None
+
+
+def test_gate_inactive_when_no_scope_specified():
+    """Block E: negotiated contract with empty mutation_scope → no gate (no scope to enforce)."""
+    contract = _make_contract(evaluator_only=False, mutation_scope=[])
+    st = _make_loop_state(contract)
+    job = _make_write_job("/anywhere.json")
     vm = MagicMock()
 
     from agent.loop import _pre_dispatch
@@ -234,11 +280,11 @@ def test_crm_date_anchor_gate_skips_for_none_clarification():
 
 def test_consecutive_contract_blocks_counter_increments():
     """_pre_dispatch increments st.consecutive_contract_blocks on each blocked write."""
-    contract = _make_contract(evaluator_only=True, mutation_scope=[])
+    contract = _make_contract(evaluator_only=True, mutation_scope=["/expected.json"])
     st = _make_loop_state(contract)
     assert st.consecutive_contract_blocks == 0
 
-    # Use a path that won't trigger FIX-350 (force-read-before-write guard)
+    # Path /result.txt is outside scope ["/expected.json"] → gate fires.
     job = _make_write_job("/result.txt")
     vm = MagicMock()
 

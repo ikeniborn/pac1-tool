@@ -216,19 +216,26 @@ def test_executor_and_evaluator_get_separate_schemas(mock_llm):
 
 @patch("agent.contract_phase.call_llm_raw")
 def test_cc_tier_skips_negotiation_no_llm_calls(mock_llm):
-    """CC tier model → immediate default contract, zero LLM calls."""
+    """CC tier model → immediate default contract, zero LLM calls (when MODEL_CONTRACT unset)."""
+    import os
     from agent.contract_phase import negotiate_contract
 
-    contract, in_tok, out_tok, _ = negotiate_contract(
-        task_text="Write email to bob@x.com",
-        task_type="email",
-        agents_md="",
-        wiki_context="",
-        graph_context="",
-        model="claude-code/sonnet-4.6",
-        cfg={},
-        max_rounds=3,
-    )
+    # Block F: skip only fires when MODEL_CONTRACT is absent — ensure that here.
+    env_backup = os.environ.pop("MODEL_CONTRACT", None)
+    try:
+        contract, in_tok, out_tok, _ = negotiate_contract(
+            task_text="Write email to bob@x.com",
+            task_type="email",
+            agents_md="",
+            wiki_context="",
+            graph_context="",
+            model="claude-code/sonnet-4.6",
+            cfg={},
+            max_rounds=3,
+        )
+    finally:
+        if env_backup is not None:
+            os.environ["MODEL_CONTRACT"] = env_backup
     assert contract.is_default is True
     assert in_tok == 0
     assert out_tok == 0
@@ -260,15 +267,22 @@ def test_negotiate_returns_rounds_transcript(mock_llm):
 
 @patch("agent.contract_phase.call_llm_raw")
 def test_default_fallback_returns_empty_rounds(_):
-    """CC-tier model path returns empty rounds list."""
+    """CC-tier model path returns empty rounds list (when MODEL_CONTRACT unset)."""
+    import os
     from agent.contract_phase import negotiate_contract
-    contract, _, _, rounds = negotiate_contract(
-        task_text="task",
-        task_type="email",
-        agents_md="", wiki_context="", graph_context="",
-        model="claude-code/opus",
-        cfg={}, max_rounds=3,
-    )
+    # Block F: skip only fires when MODEL_CONTRACT is absent — ensure that here.
+    env_backup = os.environ.pop("MODEL_CONTRACT", None)
+    try:
+        contract, _, _, rounds = negotiate_contract(
+            task_text="task",
+            task_type="email",
+            agents_md="", wiki_context="", graph_context="",
+            model="claude-code/opus",
+            cfg={}, max_rounds=3,
+        )
+    finally:
+        if env_backup is not None:
+            os.environ["MODEL_CONTRACT"] = env_backup
     assert rounds == []
     assert contract.is_default is True
 
@@ -730,3 +744,68 @@ def test_mutation_required_type_without_mutations_continues(mock_llm):
         model="test-model", cfg={}, max_rounds=3,
     )
     assert contract.mutation_scope == ["/reminders/rem_001.json", "/accounts/acct_001.json"]
+
+
+def test_cc_tier_with_model_contract_negotiates(monkeypatch):
+    """Block F: when MODEL_CONTRACT is set, CC-tier callers run real negotiation
+    (using MODEL_CONTRACT as the negotiation LM), not the early-return default."""
+    monkeypatch.setenv("MODEL_CONTRACT", "anthropic/claude-haiku-4-5-20251001")
+    captured = {"called": False}
+
+    def fake_call_llm_raw(*args, **kwargs):
+        captured["called"] = True
+        # Return a tiny valid JSON so negotiate proceeds.
+        return '{"plan": ["s1"], "success_criteria": ["c1"], "agreed": false, "objections": ["x"]}'
+
+    monkeypatch.setattr("agent.contract_phase.call_llm_raw", fake_call_llm_raw)
+    monkeypatch.setattr(
+        "agent.contract_phase._load_prompt",
+        lambda role, task_type: "system prompt for " + role,
+    )
+
+    from agent.contract_phase import negotiate_contract
+    contract, in_t, out_t, rounds = negotiate_contract(
+        task_text="dummy",
+        task_type="default",
+        agents_md="",
+        wiki_context="",
+        graph_context="",
+        model="claude-code/sonnet-4-6",
+        cfg={},
+        max_rounds=1,
+    )
+    # Either fell back after 1 max round (returning default), or contract was
+    # extracted from LLM output. The key assertion is that the LLM was CALLED —
+    # i.e. we did NOT take the CC-skip early-return.
+    assert captured["called"], "Block F: negotiate must invoke LLM when MODEL_CONTRACT is set"
+
+
+def test_cc_tier_without_model_contract_still_skips(monkeypatch):
+    """Block F (compat): if MODEL_CONTRACT is unset, CC-tier skips negotiation
+    to avoid 1-2 empty subprocess launches (FIX-394)."""
+    monkeypatch.delenv("MODEL_CONTRACT", raising=False)
+    captured = {"called": False}
+
+    def fake_call_llm_raw(*args, **kwargs):
+        captured["called"] = True
+        return ""
+
+    monkeypatch.setattr("agent.contract_phase.call_llm_raw", fake_call_llm_raw)
+    monkeypatch.setattr(
+        "agent.contract_phase._load_prompt",
+        lambda role, task_type: "system prompt for " + role,
+    )
+
+    from agent.contract_phase import negotiate_contract
+    contract, in_t, out_t, rounds = negotiate_contract(
+        task_text="dummy",
+        task_type="default",
+        agents_md="",
+        wiki_context="",
+        graph_context="",
+        model="claude-code/sonnet-4-6",
+        cfg={},
+        max_rounds=1,
+    )
+    assert not captured["called"], "without MODEL_CONTRACT, CC tier should still skip"
+    assert contract.is_default

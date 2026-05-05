@@ -1909,11 +1909,13 @@ def _pre_dispatch(
             "Report OUTCOME_DENIED_SECURITY immediately. Zero mutations."
         )
 
-    # FIX-415: evaluator-only mutation gate — block out-of-scope mutations
-    # when contract was reached without executor agreement.
+    # Block E: mutation_scope gate — was tied to dead evaluator_only flag.
+    # Now active for any NEGOTIATED contract (is_default=False) that declared
+    # a non-empty mutation_scope. Default contracts pass through (no scope).
     if (
         st.contract is not None
-        and st.contract.evaluator_only
+        and not st.contract.is_default
+        and st.contract.mutation_scope
         and isinstance(job.function, (Req_Write, Req_Delete, Req_MkDir, Req_Move))
     ):
         path = ""
@@ -1922,11 +1924,11 @@ def _pre_dispatch(
         elif hasattr(job.function, "from_name") and job.function.from_name:
             path = job.function.from_name
         scope = st.contract.mutation_scope
-        if not scope or path not in scope:
+        if path not in scope:
             st.consecutive_contract_blocks += 1  # FIX-437
             _gate_msg = (
-                f"[contract-gate] FIX-415: evaluator-only contract — mutation to '{path}' "
-                f"is outside agreed scope {scope or '[]'}. "
+                f"[contract-gate] Block E: negotiated contract — mutation to '{path}' "
+                f"is outside agreed scope {scope}. "
                 "Proceed read-only or return OUTCOME_NONE_CLARIFICATION if task requires this write."
             )
             print(f"{CLI_YELLOW}{_gate_msg}{CLI_CLR}")

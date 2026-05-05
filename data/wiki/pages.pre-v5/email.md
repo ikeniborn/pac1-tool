@@ -1,8 +1,8 @@
 <!-- wiki:meta
 category: email
 quality: mature
-fragment_count: 19
-fragment_ids: [t12_20260504T192946Z, t14_20260504T192814Z, t17_20260504T193248Z, t35_20260504T194657Z, t12_20260504T202944Z, t17_20260504T202220Z, t26_20260504T203226Z, t35_20260504T204055Z, t11_20260504T211401Z, t12_20260504T211700Z, t35_20260504T213810Z, t12_20260504T221104Z, t35_20260504T223021Z, t17_20260504T231502Z, t26_20260504T232447Z, t12_20260505T001748Z, t17_20260505T002031Z, t26_20260505T002546Z, t26_20260505T164745Z]
+fragment_count: 18
+fragment_ids: [t12_20260504T192946Z, t14_20260504T192814Z, t17_20260504T193248Z, t35_20260504T194657Z, t12_20260504T202944Z, t17_20260504T202220Z, t26_20260504T203226Z, t35_20260504T204055Z, t11_20260504T211401Z, t12_20260504T211700Z, t35_20260504T213810Z, t12_20260504T221104Z, t35_20260504T223021Z, t17_20260504T231502Z, t26_20260504T232447Z, t12_20260505T001748Z, t17_20260505T002031Z, t26_20260505T002546Z]
 last_synthesized: 2026-05-05
 aspects_covered: workflow_steps,pitfalls,shortcuts
 -->
@@ -11,8 +11,6 @@ aspects_covered: workflow_steps,pitfalls,shortcuts
 t14, t17, t35 all succeeded as email tasks with OUTCOME_OK, each involving sending follow-up or checking-in messages to recipients. However, the step sequences for these tasks (including any contact lookup then outbox write patterns) were not captured in the provided fragment data.
 
 t17 and t26 both succeeded as email tasks on <date>, each sending follow-up or checking-in messages (respectively to Lange Erik at GreenGrid Energy and Aperture AI Labs). However, the step sequences for these tasks (including any contact lookup then outbox write patterns) were not captured in the provided fragment data.
-
-t26 specifically sent a checking-in message to Aperture AI Labs with subject "Security review follow-up" and body "Checking in on the open security review. Happy to answer questions and align on next steps." The fragment does not capture the underlying step sequence used to execute this task.
 
 ## Key pitfalls
 - **Ambiguous recipient references** — Task t35 shows a vague recipient designation ("account Benelux compliance-heavy bank account Blue Harbor") combined with extra task context ("a separate AI data-flow review") that was not in the original brief. This pattern can lead to wrong-recipient errors when the agent interprets a non-standard identifier or adds unsolicited content to a task, potentially misrouting or misframing the communication. Task t35 on <date> did complete successfully (OUTCOME_OK) sending to this ambiguous reference, suggesting the agent may successfully dispatch to non-standard identifiers even when human interpretation would find them unclear.

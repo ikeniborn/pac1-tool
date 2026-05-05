@@ -22,6 +22,7 @@ from raw fragments using category-specific prompts, not just deduplication.
 """
 from __future__ import annotations
 
+import logging
 import os
 import re
 from datetime import datetime, timezone
@@ -37,6 +38,15 @@ _FRAGMENTS_DIR = _WIKI_DIR / "fragments"
 _ARCHIVE_DIR = _WIKI_DIR / "archive"
 
 _LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
+log = logging.getLogger(__name__)
+
+# Module-level alias so tests can patch agent.wiki.call_llm_raw directly.
+# The inline `from .dispatch import call_llm_raw` inside functions still works;
+# this import just makes the name patchable at the module level.
+try:
+    from .dispatch import call_llm_raw  # type: ignore[assignment]
+except ImportError:
+    call_llm_raw = None  # type: ignore[assignment]
 
 # FIX-389: gate the normal-mode graph autobuild path; orthogonal to
 # WIKI_GRAPH_ENABLED (read-side).
@@ -884,29 +894,37 @@ def format_fragment(
     results: list[tuple[str, str]] = []
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
-    # Score-gated routing (FIX-358)
+    # Score-gated routing (FIX-358) + Block A outcome split
     if score >= 1.0:
-        # Success path: write success fragment into task_type page
         raw = _build_raw_fragment(
             outcome, task_type, task_id, task_text, today,
             step_facts, done_ops, stall_hints, eval_last_call,
         )
-        category = task_type if task_type in _TYPE_TO_PAGE else "default"
-        results.append((raw, category))
+        # Block A: only OUTCOME_OK becomes a "successful pattern" fragment.
+        # Verified-correct refusals (CLARIFICATION/UNSUPPORTED/DENIED with
+        # score=1.0) go to refusals/<type> for diagnostics — they MUST NOT
+        # bleed into the main pages/<type>.md or seed pattern-nodes.
+        if outcome == "OUTCOME_OK":
+            category = task_type if task_type in _TYPE_TO_PAGE else "default"
+            results.append((raw, category))
 
-        # Entity fragments — only on verified success
-        contact_facts = [
-            f for f in step_facts
-            if hasattr(f, "path") and "contacts/" in (f.path or "")
-        ]
-        account_facts = [
-            f for f in step_facts
-            if hasattr(f, "path") and "accounts/" in (f.path or "")
-        ]
-        if contact_facts:
-            results.append((_build_entity_raw(task_id, today, contact_facts), "contacts"))
-        if account_facts:
-            results.append((_build_entity_raw(task_id, today, account_facts), "accounts"))
+            # Entity fragments — only on verified OK
+            contact_facts = [
+                f for f in step_facts
+                if hasattr(f, "path") and "contacts/" in (f.path or "")
+            ]
+            account_facts = [
+                f for f in step_facts
+                if hasattr(f, "path") and "accounts/" in (f.path or "")
+            ]
+            if contact_facts:
+                results.append((_build_entity_raw(task_id, today, contact_facts), "contacts"))
+            if account_facts:
+                results.append((_build_entity_raw(task_id, today, account_facts), "accounts"))
+        else:
+            # Verified refusal — quarantine into refusals/<task_type>
+            domain = task_type if task_type in _TYPE_TO_PAGE else "default"
+            results.append((raw, f"refusals/{domain}"))
         return results
 
     if 0.0 <= score < 1.0:
@@ -1047,6 +1065,7 @@ def run_wiki_lint(model: str = "", cfg: dict | None = None) -> None:
         page_path = _PAGES_DIR / f"{category}.md"
         page_path.parent.mkdir(parents=True, exist_ok=True)
         page_path.write_text(merged_page, encoding="utf-8")
+        _check_page_budget(category, merged_page)
 
         archive_dir = _ARCHIVE_DIR / category
         archive_dir.mkdir(parents=True, exist_ok=True)
@@ -1294,6 +1313,14 @@ def _llm_synthesize_aspects(
     combined_new = "\n\n---\n\n".join(new_entries)
     result = dict(existing_sections)
 
+    # Block C: soft budget hint — read once before the loop
+    try:
+        page_budget = int(os.environ.get("WIKI_PAGE_MAX_LINES", "200"))
+    except ValueError:
+        page_budget = 200
+    n_aspects = max(1, len(aspects))
+    aspect_budget = max(20, page_budget // n_aspects)
+
     for aspect in aspects:
         aspect_id = aspect["id"]
         header = aspect.get("header", aspect_id.replace("_", " ").capitalize())
@@ -1316,6 +1343,9 @@ def _llm_synthesize_aspects(
             f"2. ADD new insights to the existing content — never remove existing lines\n"
             f"3. Skip new fragment content that duplicates what is already on the page\n"
             f"4. Output ONLY the merged section body (no ## header, no preamble, no commentary)\n"
+            f"5. Soft size budget: target <= {aspect_budget} lines for this section "
+            f"(whole page target <= {page_budget} lines). Prefer merging similar "
+            f"bullets and dropping redundant items over expanding text.\n"
         )
         try:
             from .dispatch import call_llm_raw
@@ -1337,6 +1367,23 @@ def _llm_synthesize_aspects(
             result[section_key] = existing_section
 
     return result
+
+
+def _check_page_budget(category: str, page_text: str) -> None:
+    """Block C: warn if synthesized page exceeds WIKI_PAGE_MAX_LINES soft limit."""
+    try:
+        budget = int(os.environ.get("WIKI_PAGE_MAX_LINES", "200"))
+    except ValueError:
+        budget = 200
+    n_lines = page_text.count("\n") + 1
+    if n_lines > budget:
+        msg = (
+            f"[wiki-lint] page '{category}' exceeds soft budget: "
+            f"{n_lines} lines > {budget} (WIKI_PAGE_MAX_LINES). "
+            f"Consider tightening synthesis prompt or raising the env."
+        )
+        log.warning(msg)
+        print(msg)
 
 
 def _assemble_page_from_sections(

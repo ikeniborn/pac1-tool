@@ -1,8 +1,8 @@
 <!-- wiki:meta
 category: crm
 quality: developing
-fragment_count: 7
-fragment_ids: [t32_20260504T194351Z, t32_20260504T204018Z, t32_20260504T213006Z, t32_20260504T223004Z, t32_20260504T233248Z, t32_20260505T003318Z, t32_20260505T165652Z]
+fragment_count: 6
+fragment_ids: [t32_20260504T194351Z, t32_20260504T204018Z, t32_20260504T213006Z, t32_20260504T223004Z, t32_20260504T233248Z, t32_20260505T003318Z]
 last_synthesized: 2026-05-05
 aspects_covered: workflow_steps,pitfalls,shortcuts
 -->
@@ -74,15 +74,6 @@ aspects_covered: workflow_steps,pitfalls,shortcuts
       "to_date": "<date>",
       "audit_ref": "docs/follow-up-audit.json",
       "note": "regression fix - corrected incorrect date entry"
-    },
-    {
-      "task_id": "t32",
-      "entity": "Blue Harbor Bank",
-      "action": "move follow-up",
-      "from_date": "<date>",
-      "to_date": "<date>",
-      "audit_ref": "docs/follow-up-audit.json",
-      "note": "regression fix - corrected incorrect date entry"
     }
   ],
   "date_arithmetic_rules": {
@@ -100,13 +91,13 @@ aspects_covered: workflow_steps,pitfalls,shortcuts
 
 ## Key pitfalls
 **Dropped Fields on Write**
-When updating task records, ensure all existing fields are preserved. A regression in the follow-up date handling for CanalPort Shipping (task t32, <date>) demonstrated that partial updates can silently drop fields not explicitly included in the write operation. Always read-modify-write with complete field sets or use merge semantics that preserve unspecified fields. For task t32 (CanalPort Shipping follow-up to <date>), the fix must keep the diff focused on the date field only, ensuring no other task metadata is inadvertently modified. Similarly, Nordlicht Health follow-up dates must only update the date field while preserving all other task attributes. For Silverline Retail follow-up to <date>, the same principle applies—read-modify-write with complete field sets to prevent silent field drops. Northstar Forecasting follow-up to <date> applies the same pattern—read-modify-write with complete field sets to prevent silent field drops. Blue Harbor Bank follow-up to <date> applies the same read-modify-write pattern—complete field sets to prevent silent field drops and preserve all task metadata.
+When updating task records, ensure all existing fields are preserved. A regression in the follow-up date handling for CanalPort Shipping (task t32, <date>) demonstrated that partial updates can silently drop fields not explicitly included in the write operation. Always read-modify-write with complete field sets or use merge semantics that preserve unspecified fields. For task t32 (CanalPort Shipping follow-up to <date>), the fix must keep the diff focused on the date field only, ensuring no other task metadata is inadvertently modified. Similarly, Nordlicht Health follow-up dates must only update the date field while preserving all other task attributes. For Silverline Retail follow-up to <date>, the same principle applies—read-modify-write with complete field sets to prevent silent field drops. Northstar Forecasting follow-up to <date> applies the same pattern—read-modify-write with complete field sets to prevent silent field drops.
 
 **Wrong Field Mutation**
-Field mutations must target the intended property only. The follow-up date regression stemmed from incorrect mutation logic that either overwrote unrelated fields or corrupted the date format. Audit trails in `docs/follow-up-audit.json` capture the mutation patterns that caused data corruption. Verify that update operations address exactly the field being modified. The t32 fix should be surgical and isolated—changing only the follow-up date while leaving all other task fields untouched. Nordlicht Health follow-up migration to <date> must use the same surgical approach. Silverline Retail's requested move to <date> must use the same surgical, isolated mutation—targeting only the date field and leaving all other task attributes untouched. Northstar Forecasting's requested move to <date> must use the same surgical, isolated mutation—targeting only the date field and leaving all other task attributes untouched. Blue Harbor Bank's requested move to <date> must use the same surgical, isolated mutation—targeting only the date field and leaving all other task attributes untouched. The fix is confirmed successful (OUTCOME_OK).
+Field mutations must target the intended property only. The follow-up date regression stemmed from incorrect mutation logic that either overwrote unrelated fields or corrupted the date format. Audit trails in `docs/follow-up-audit.json` capture the mutation patterns that caused data corruption. Verify that update operations address exactly the field being modified. The t32 fix should be surgical and isolated—changing only the follow-up date while leaving all other task fields untouched. Nordlicht Health follow-up migration to <date> must use the same surgical approach. Silverline Retail's requested move to <date> must use the same surgical, isolated mutation—targeting only the date field and leaving all other task attributes untouched. Northstar Forecasting's requested move to <date> must use the same surgical, isolated mutation—targeting only the date field and leaving all other task attributes untouched. The fix is confirmed successful (OUTCOME_OK).
 
 **Account Manager Overwrite on Reschedule**
-When rescheduling tasks (e.g., moving CanalPort Shipping follow-up to <date>), the account_manager field is at risk of unintended overwrite. Reschedule operations should preserve the original account_manager unless explicitly instructed otherwise. The regression fix required isolating the date change from other task metadata to prevent account_manager corruption during temporal updates. The fix should keep the diff focused, isolating the date change to prevent account_manager corruption during temporal updates. When moving Nordlicht Health follow-up to <date>, ensure account_manager isolation remains the priority—never allow temporal field updates to cascade into owner or assignment metadata. When moving Silverline Retail follow-up to <date>, account_manager isolation remains the priority—never allow the date update to cascade into owner or assignment metadata. When moving Northstar Forecasting follow-up to <date>, account_manager isolation remains the priority—never allow the date update to cascade into owner or assignment metadata. When moving Blue Harbor Bank follow-up to <date>, account_manager isolation remains the priority—never allow the date update to cascade into owner or assignment metadata.
+When rescheduling tasks (e.g., moving CanalPort Shipping follow-up to <date>), the account_manager field is at risk of unintended overwrite. Reschedule operations should preserve the original account_manager unless explicitly instructed otherwise. The regression fix required isolating the date change from other task metadata to prevent account_manager corruption during temporal updates. The fix should keep the diff focused, isolating the date change to prevent account_manager corruption during temporal updates. When moving Nordlicht Health follow-up to <date>, ensure account_manager isolation remains the priority—never allow temporal field updates to cascade into owner or assignment metadata. When moving Silverline Retail follow-up to <date>, account_manager isolation remains the priority—never allow the date update to cascade into owner or assignment metadata. When moving Northstar Forecasting follow-up to <date>, account_manager isolation remains the priority—never allow the date update to cascade into owner or assignment metadata.
 
 ## Shortcuts
 **CRM Field Preservation Pattern**
@@ -122,7 +113,7 @@ When adjusting follow-up dates:
 - When fixing a date regression (moving backward in time), still preserve the time component and use the existing record's full datetime as the base
 - Keep diffs focused: only the date field should change; all other record fields must remain untouched
 - Audit all date changes in `docs/follow-up-audit.json` for traceability
-- When correcting a regression (e.g., task t32: Blue Harbor Bank from <date> back to original date), verify the fix against the requestor's intent before committing
+- When correcting a regression (e.g., task t32: Northstar Forecasting from <date> back to <date>), verify the fix against the requestor's intent before committing
 
 **Reconnect Logic**
 

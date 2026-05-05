@@ -47,10 +47,33 @@ class Graph:
     edges: list = field(default_factory=list)  # [{from, rel, to}]
 
 
+_STEM_SUFFIXES = ("ing", "ed", "ies", "es", "s", "ly")
+
+
+def _stem(token: str) -> str:
+    """Block G: tiny suffix-stripper. Not Porter — collapse common forms.
+
+    Strips trailing 'e' before suffix match (so write/writing both → writ),
+    then strips one suffix and collapses doubled-consonant after ing/ed
+    (so skipped → skipp → skip).
+    """
+    base = token[:-1] if token.endswith("e") and len(token) > 3 else token
+    for suf in _STEM_SUFFIXES:
+        if len(base) > len(suf) + 2 and base.endswith(suf):
+            stem = base[: -len(suf)]
+            if suf == "ies":
+                return stem + "y"
+            if suf in ("ing", "ed") and len(stem) > 1 \
+               and stem[-1] == stem[-2] and stem[-1] not in "aeiou":
+                stem = stem[:-1]
+            return stem
+    return base
+
+
 def _normalize(text: str) -> str:
-    """Stop-word-stripped slug for fuzzy dedup."""
+    """Stop-word-stripped, stemmed slug for fuzzy dedup."""
     tokens = _NORMALIZE_RE.split(text.lower())
-    return " ".join(t for t in tokens if t and t not in _STOP_WORDS)
+    return " ".join(_stem(t) for t in tokens if t and t not in _STOP_WORDS)
 
 
 def _mk_node_id(prefix: str, text: str) -> str:
@@ -59,9 +82,11 @@ def _mk_node_id(prefix: str, text: str) -> str:
 
 
 def _token_overlap(a: str, b: str) -> float:
-    """FIX-421: Jaccard overlap of non-stop-word tokens. Used for near-dedup."""
-    ta = frozenset(t for t in _NORMALIZE_RE.split(a.lower()) if t and t not in _STOP_WORDS)
-    tb = frozenset(t for t in _NORMALIZE_RE.split(b.lower()) if t and t not in _STOP_WORDS)
+    """FIX-421 + Block G: Jaccard on stemmed tokens."""
+    ta = frozenset(_stem(t) for t in _NORMALIZE_RE.split(a.lower())
+                   if t and t not in _STOP_WORDS)
+    tb = frozenset(_stem(t) for t in _NORMALIZE_RE.split(b.lower())
+                   if t and t not in _STOP_WORDS)
     if not ta or not tb:
         return 0.0
     return len(ta & tb) / len(ta | tb)

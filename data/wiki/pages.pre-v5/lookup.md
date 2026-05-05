@@ -330,19 +330,3 @@ The agent must accurately translate relative time expressions into concrete date
 - (none)
 
 **Applies when:** lookup
-
-## Successful pattern: t30 (2026-05-05)
-<!-- researcher: t30:e3b0c44298fc -->
-
-**Goal shape:** how many accounts did I blacklist in telegram? Answer only with the number.
-
-**Final answer:** (unspecified)
-
-**Trajectory:**
-1. ?
-2. ?
-
-**Key insights:**
-- (none)
-
-**Applies when:** lookup

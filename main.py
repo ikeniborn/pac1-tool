@@ -400,6 +400,7 @@ def _run_single_task(trial_id: str, task_filter: list, router: ModelRouter) -> t
                             "task_id": task_id,
                             "task_type": token_stats.get("task_type", "default"),
                             "score": _score_f,
+                            "outcome": token_stats.get("outcome", ""),
                             "injected": _gf_injected,
                             "trajectory": _gf_traj,
                         }, ensure_ascii=False) + "\n")

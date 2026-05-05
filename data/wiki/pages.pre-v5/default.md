@@ -1,24 +1,13 @@
 <!-- wiki:meta
 category: default
 quality: mature
-fragment_count: 26
-fragment_ids: [t43_20260503T205857Z, t43_20260503T210842Z, t40_20260503T211744Z, t43_20260503T212436Z, t10_20260504T192257Z, t02_20260504T201551Z, t08_20260504T201437Z, t10_20260504T201205Z, t01_20260504T211445Z, t02_20260504T211340Z, t10_20260504T211058Z, t31_20260504T212740Z, t01_20260504T220957Z, t02_20260504T220926Z, t10_20260504T220747Z, t31_20260504T222839Z, t01_20260504T231404Z, t02_20260504T230815Z, t08_20260504T230700Z, t10_20260504T230709Z, t31_20260504T233248Z, t01_20260505T001329Z, t02_20260505T001128Z, t31_20260505T003541Z, t10_20260505T162951Z, t31_20260505T165809Z]
+fragment_count: 24
+fragment_ids: [t43_20260503T205857Z, t43_20260503T210842Z, t40_20260503T211744Z, t43_20260503T212436Z, t10_20260504T192257Z, t02_20260504T201551Z, t08_20260504T201437Z, t10_20260504T201205Z, t01_20260504T211445Z, t02_20260504T211340Z, t10_20260504T211058Z, t31_20260504T212740Z, t01_20260504T220957Z, t02_20260504T220926Z, t10_20260504T220747Z, t31_20260504T222839Z, t01_20260504T231404Z, t02_20260504T230815Z, t08_20260504T230700Z, t10_20260504T230709Z, t31_20260504T233248Z, t01_20260505T001329Z, t02_20260505T001128Z, t31_20260505T003541Z]
 last_synthesized: 2026-05-05
 aspects_covered: workflow_steps,pitfalls,shortcuts
 -->
 
 ## Workflow steps
-**Proven Step Sequences for "Create invoice SR-13 with 2 lines: 'OpenAI Subscription' - 20, 'Claude Subscription' - 20" (t10)**
-
-1. **Access invoice management system**: Navigate to the invoice creation interface
-2. **Initialize new invoice with ID SR-13**: Set up the invoice with the specified identifier
-3. **Add line item 1**: Enter "OpenAI Subscription" with amount 20
-4. **Add line item 2**: Enter "Claude Subscription" with amount 20
-5. **Verify line item details**: Confirm both items are entered correctly with proper amounts
-6. **Calculate and verify total**: Ensure the total (40) is correctly computed
-7. **Validate invoice format**: Check that invoice ID format (SR-13) matches system requirements
-8. **Save/return result**: Confirm successful creation with invoice ID and line item summary
-
 **Proven Step Sequences for "Discard thread 2026-03-23__ai-engineering-foundations entirely, don't touch anything else" (t02)**
 
 1. **Access thread management system**: Navigate to the thread database or messaging archive system
@@ -58,13 +47,17 @@ aspects_covered: workflow_steps,pitfalls,shortcuts
 7. **Return result**: Report the specific change made, verification results, and confirmation that downstream processing is restored
 
 **Critical considerations**:
-- When creating invoices, validate that invoice ID format matches system requirements (e.g., prefix, numbering scheme)
-- Verify numeric amounts are in correct currency format and total calculation is accurate before saving
 - Ensure timezone consistency when calculating "2 days ago" to avoid retrieval errors
+- If multiple articles exist from that date, clarify which one was specifically captured on that day
+- Include article metadata (date captured, source URL, capture timestamp) for verification
 - When filtering by person name, handle variations in name formatting (e.g., "Günther Klara" vs "Klara, Günther")
 - Verify case sensitivity and exact matching when querying account assignment systems
-- Verify that discard operations are scoped correctly and do not cascade to related threads or attachments
+- Ensure alphabetical sorting is performed in the correct locale-aware order if special characters are present in account names
+- When creating invoices, validate that invoice ID format matches system requirements (e.g., prefix, numbering scheme)
+- Verify numeric amounts are in correct currency format and total calculation is accurate before saving
+- When discarding threads, always double-check the thread identifier to prevent accidental deletion of the wrong thread
 - Implement a confirmation step before executing delete operations to prevent irreversible data loss
+- Verify that discard operations are scoped correctly and do not cascade to related threads or attachments
 - For bulk removal operations, explicitly list which entity types are being targeted and confirm no other data categories will be affected
 - Consider implementing a soft-delete mechanism first to allow for recovery before permanent removal of bulk items
 - When fixing regressions, use version control history to pinpoint the exact commit that introduced the regression
@@ -97,7 +90,7 @@ AI file-system agents may fail when creating structured documents with specific 
 - Add extra line items not requested or omit required ones
 - Use incorrect or duplicate document identifiers
 
-This can lead to incomplete files, data integrity issues, or failed task completion when users rely on precise document structures. Successful invoice creation (task t10) typically requires explicit document ID, exact line count, and specific line-item descriptions with associated costs.
+This can lead to incomplete files, data integrity issues, or failed task completion when users rely on precise document structures.
 
 **Truncated or Incomplete Task Descriptions**
 
@@ -117,7 +110,7 @@ AI file-system agents may fail to respect explicit scope boundaries when tasks i
 - Underreach by failing to perform necessary cleanup operations within scope
 - Misinterpret constraint language, treating warnings as suggestions rather than hard boundaries
 
-This can result in unintended data loss, corrupted state in unaffected components, or incomplete remediation when agents sanitize their intended actions to avoid crossing perceived boundaries. Agents must distinguish between protective constraints (preserving unrelated resources) and permissive boundaries (defining the full extent of allowed operations). Scope guidance like "keep focused" should be interpreted as directional (narrow scope) rather than restrictive (minimize action)—agents must still perform necessary operations within the narrowed scope.
+This can result in unintended data loss, corrupted state in unaffected components, or incomplete remediation when agents sanitize their intended actions to avoid crossing perceived boundaries. Agents must distinguish between protective constraints (preserving unrelated resources) and permissive boundaries (defining the full extent of allowed operations).
 
 ## Shortcuts
 **Temporal Reference Resolution**

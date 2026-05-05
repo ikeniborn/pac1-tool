@@ -78,26 +78,3 @@ if ESTIMATED_TODAY is unknown: candidate implied_today = file_date + 19
 1. ?
 
 **Applies when:** temporal
-
-## Successful pattern: t42 (2026-05-05)
-<!-- researcher: t42:e3b0c44298fc -->
-
-**Goal shape:** Which article did I capture 44 days ago?
-
-**Final answer:** (unspecified)
-
-**Trajectory:**
-1. ?
-2. ?
-3. ?
-4. ?
-5. ?
-6. ?
-7. ?
-8. ?
-9. ?
-
-**Key insights:**
-- (none)
-
-**Applies when:** temporal

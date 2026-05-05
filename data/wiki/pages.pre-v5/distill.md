@@ -1,8 +1,8 @@
 <!-- wiki:meta
 category: distill
 quality: nascent
-fragment_count: 3
-fragment_ids: [t08_20260504T211050Z, t08_20260505T001102Z, t03_20260505T163149Z]
+fragment_count: 2
+fragment_ids: [t08_20260504T211050Z, t08_20260505T001102Z]
 last_synthesized: 2026-05-05
 aspects_covered: workflow_steps,pitfalls,shortcuts
 -->
@@ -10,8 +10,6 @@ aspects_covered: workflow_steps,pitfalls,shortcuts
 ## Workflow steps
 - When instructed to "Delete that card" during distill operations, proceed directly without seeking clarification — the instruction is self-contained and unambiguous (task_id: t08, date: <date>)
 - When a distill operation includes "Archive the thread" (even if instruction is truncated), treat it as a self-contained directive requiring no further clarification — the system may proceed with archival based on the available context (task_id: t08, date: <date>)
-- When a distill task specifies source path, destination folder, and post-distill cleanup ("distill, and delete the inbox file when done"), treat all three steps as a single self-contained directive — execute the full sequence without requesting clarification (task_id: t03, date: <date>)
-- Include "Keep the diff focused" guidance in distill operations as a self-contained modifier indicating minimal, targeted changes during content processing (task_id: t03, date: <date>)
 
 ## Key pitfalls
 **Incomplete Analysis**
@@ -37,28 +35,3 @@ aspects_covered: workflow_steps,pitfalls,shortcuts
 - Brief task descriptions are appropriate when prior context makes them self-explanatory; verbose explanations are unnecessary for simple actions
 - Distill tasks with no clarification needed are indicators of well-scoped work — the system understood the user's intent immediately
 - Even incomplete task fragments can achieve OUTCOME_NONE_CLARIFICATION when the available context is sufficient to determine the intended action
-- Multi-step workflows (e.g., capture → distill → delete) can be consolidated into single directive cards when operations are tightly related
-- Meta-instructions like "Keep the diff focused" are valid card elements that guide execution style
-- Specific file paths and naming conventions should be included verbatim in task descriptions for precise targeting
-- Chained operations in one card demonstrate efficient card design for related work units
-
-## Successful pattern: t03 (2026-05-05)
-<!-- researcher: t03:e3b0c44298fc -->
-
-**Goal shape:** Take 00_inbox/2026-03-23__hn-agent-kernel-stateful-agents.md from inbox, capture it into into 'influ
-
-**Final answer:** (unspecified)
-
-**Trajectory:**
-1. ?
-2. ?
-3. ?
-4. ?
-5. ?
-6. ?
-7. ?
-
-**Key insights:**
-- (none)
-
-**Applies when:** distill
