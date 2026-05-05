@@ -1,0 +1,138 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "LLM Wiki Domain Map",
+  "version": "1.0.0",
+  "wiki_root": ".wiki",
+  "domains": [
+    {
+      "id": "спецификации",
+      "name": "Спецификации PAC1-Tool",
+      "description": "Дизайн-спецификации, архитектурная документация и анализ прогонов бенчмарка PAC1-Tool",
+      "source_paths": [
+        "docs/superpowers/specs",
+        "docs/architecture",
+        "docs"
+      ],
+      "wiki_folder": "спецификации",
+      "language_notes": "Смешанный язык: русский и английский. Технические термины (DSPy, Contract, Evaluator, FIX-N) — на английском. Описания и контекст — на русском.",
+      "tags": [
+        "design",
+        "architecture",
+        "dspy",
+        "contract",
+        "evaluator",
+        "classifier",
+        "wiki",
+        "graph",
+        "stall",
+        "security",
+        "dispatch",
+        "orchestrator",
+        "fix",
+        "benchmark",
+        "run-analysis"
+      ],
+      "entity_types": [
+        {
+          "type": "design-spec",
+          "description": "Дизайн-спецификация новой фичи или компонента системы с целями, архитектурным подходом и критериями успеха",
+          "extraction_cues": [
+            "design spec",
+            "дизайн",
+            "Scope:",
+            "Status: Approved",
+            "Status: Draft",
+            "Problem Statement",
+            "Success Criteria",
+            "Критерии успеха",
+            "Цели и не-цели",
+            "Approach"
+          ],
+          "min_mentions_for_page": 1,
+          "wiki_subfolder": "спецификации/дизайн-спеки"
+        },
+        {
+          "type": "architecture-doc",
+          "description": "Документация архитектурной подсистемы: потоки данных, ключевые файлы, конфигурация",
+          "extraction_cues": [
+            "архитектура",
+            "Architecture",
+            "поток выполнения",
+            "Ключевые файлы",
+            "mermaid",
+            "sequenceDiagram",
+            "module",
+            "subsystem",
+            "подсистема",
+            "конвейер"
+          ],
+          "min_mentions_for_page": 1,
+          "wiki_subfolder": "спецификации/архитектура"
+        },
+        {
+          "type": "run-analysis",
+          "description": "Анализ прогонов бенчмарка: результаты задач, диагностика сбоев, метрики score",
+          "extraction_cues": [
+            "run_analysis",
+            "прогон",
+            "score",
+            "win rate",
+            "baseline",
+            "t40",
+            "t41",
+            "t42",
+            "t43",
+            "Анализ",
+            "сводная таблица"
+          ],
+          "min_mentions_for_page": 1,
+          "wiki_subfolder": "спецификации/анализ-прогонов"
+        },
+        {
+          "type": "fix-proposal",
+          "description": "Описание конкретного патча FIX-N: проблема, изменяемые файлы, ожидаемый эффект",
+          "extraction_cues": [
+            "FIX-",
+            "фикс",
+            "патч",
+            "Files Changed",
+            "FIX Label",
+            "root cause",
+            "корневая причина",
+            "блокирующая проблема",
+            "Подход A",
+            "хирургический патч"
+          ],
+          "min_mentions_for_page": 2,
+          "wiki_subfolder": "спецификации/фиксы"
+        },
+        {
+          "type": "component",
+          "description": "Технический компонент системы с описанием роли, интерфейса и конфигурации",
+          "extraction_cues": [
+            "evaluator",
+            "classifier",
+            "stall",
+            "security",
+            "dispatch",
+            "orchestrator",
+            "prompt_builder",
+            "wiki_graph",
+            "contract",
+            "loop.py",
+            "main.py",
+            "компонент",
+            "модуль"
+          ],
+          "min_mentions_for_page": 2,
+          "wiki_subfolder": "спецификации/компоненты"
+        }
+      ]
+    }
+  ],
+  "cross_domain_rules": {
+    "description": "Правила для сущностей, встречающихся в нескольких доменах",
+    "rules": []
+  },
+  "special_source_types": {}
+}
