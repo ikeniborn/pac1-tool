@@ -24,3 +24,8 @@ data/wiki/fragments/
 .worktrees/
 .cache
 tmp/
+.pytest_cache
+.ruff_cache
+.superpowers
+.venv
+.cache

@@ -1,0 +1,40 @@
+{
+  "nodes": {
+    "n_b61b1c6476": {
+      "type": "insight",
+      "tags": [
+        "integration_gap",
+        "preject"
+      ],
+      "text": "HTTP POST/PUT to arbitrary external endpoints (api.bitgn.com) not supported.",
+      "confidence": 0.0,
+      "uses": 1,
+      "last_seen": "2026-05-04"
+    },
+    "n_4ee6f9579a": {
+      "type": "insight",
+      "tags": [
+        "preject"
+      ],
+      "text": "bitgn.com/internal/reports endpoint may not exist or is inaccessible",
+      "confidence": 0.0,
+      "uses": 1,
+      "last_seen": "2026-05-05"
+    },
+    "n_bd900cd0bd": {
+      "type": "insight",
+      "tags": [
+        "capability_scope",
+        "integration_limitation",
+        "preject",
+        "wiki_mature",
+        "wiki_page"
+      ],
+      "text": "Specific URL endpoints (e.g., https://api.bitgn.com/status) still return OUTCOME_NONE_UNSUPPORTED",
+      "confidence": 0.0,
+      "uses": 1,
+      "last_seen": "2026-05-05"
+    }
+  },
+  "edges": []
+}

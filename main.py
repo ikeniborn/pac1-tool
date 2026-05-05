@@ -114,7 +114,6 @@ from agent.classifier import ModelRouter
 from agent.dspy_examples import record_example as _record_dspy_example
 from agent.dspy_examples import record_eval_example as _record_eval_example
 from agent.dspy_examples import record_contract_example as _record_contract_example
-from agent.wiki import run_wiki_lint as _run_wiki_lint
 
 _DSPY_COLLECT = os.getenv("DSPY_COLLECT", "1") == "1"
 
@@ -124,7 +123,6 @@ BITGN_API_KEY = os.getenv("BITGN_API_KEY") or ""
 _base_run_name = os.getenv("BITGN_RUN_NAME") or ""
 BITGN_RUN_NAME = f"{_base_run_name}-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}" if _base_run_name else ""
 PARALLEL_TASKS = max(1, int(os.getenv("PARALLEL_TASKS", "1")))
-_graph_feedback_lock = threading.Lock()  # FIX-393: serialise parallel graph load/save
 
 _MODELS_JSON = Path(__file__).parent / "models.json"
 _raw = json.loads(_MODELS_JSON.read_text())
@@ -387,41 +385,26 @@ def _run_single_task(trial_id: str, task_filter: list, router: ModelRouter) -> t
                             print(f"[wiki] normal-mode refusal promoted: {task_id} ({_nm_outcome})")
                 except Exception as _nm_exc:
                     print(f"[wiki] normal-mode promotion failed: {_nm_exc}")
-            # FIX-389: confidence feedback — reinforce injected nodes on success, degrade on failure.
-            _gf_enabled = os.getenv("WIKI_GRAPH_FEEDBACK", "1") == "1"
-            _injected = token_stats.get("graph_injected_node_ids", []) or []
-            if _gf_enabled and _injected:
-                with _graph_feedback_lock:
-                    try:
-                        from agent import wiki_graph as _wg2
-                        _g2 = _wg2.load_graph()
-                        _changed = False
-                        if _score_f >= 1.0:
-                            _wg2.bump_uses(_g2, _injected)
-                            _step_facts = token_stats.get("step_facts") or []
-                            if _step_facts:
-                                _traj_hash = _wg2.hash_trajectory(_step_facts)
-                                _traj = [
-                                    {"tool": getattr(f, "kind", "?"), "path": getattr(f, "path", "")}
-                                    for f in _step_facts
-                                ]
-                                _wg2.add_pattern_node(
-                                    _g2,
-                                    token_stats.get("task_type", "default"),
-                                    task_id, _traj_hash, _traj, _injected,
-                                )
-                            _changed = True
-                            print(f"[wiki-graph] reinforced {len(_injected)} nodes (score=1.0)")
-                        elif _score_f <= 0.0:
-                            _epsilon = float(os.getenv("WIKI_GRAPH_CONFIDENCE_EPSILON", "0.05"))
-                            _archived = _wg2.degrade_confidence(_g2, _injected, _epsilon)
-                            _changed = True
-                            print(f"[wiki-graph] degraded {len(_injected)} nodes "
-                                  f"(score=0, archived {len(_archived)})")
-                        if _changed:
-                            _wg2.save_graph(_g2)
-                    except Exception as _gf_exc:
-                        print(f"[wiki-graph] feedback failed: {_gf_exc}")
+            # Save graph feedback for postrun
+            _gf_injected = token_stats.get("graph_injected_node_ids", []) or []
+            if _gf_injected and os.getenv("WIKI_GRAPH_FEEDBACK", "1") == "1":
+                _gf_traj = [
+                    {"tool": getattr(f, "kind", "?"), "path": getattr(f, "path", "")}
+                    for f in token_stats.get("step_facts") or []
+                ]
+                try:
+                    _gf_path = Path("data/graph_feedback_queue.jsonl")
+                    _gf_path.parent.mkdir(parents=True, exist_ok=True)
+                    with _gf_path.open("a", encoding="utf-8") as _fh:
+                        _fh.write(json.dumps({
+                            "task_id": task_id,
+                            "task_type": token_stats.get("task_type", "default"),
+                            "score": _score_f,
+                            "injected": _gf_injected,
+                            "trajectory": _gf_traj,
+                        }, ensure_ascii=False) + "\n")
+                except Exception as _gf_exc:
+                    print(f"[wiki-graph] feedback queue write failed: {_gf_exc}")
         style = CLI_GREEN if score == 1 else CLI_RED
         in_t   = token_stats.get("input_tokens", 0)
         out_t  = token_stats.get("output_tokens", 0)
@@ -611,12 +594,6 @@ def main() -> None:
         print(f"Run started: {run.run_id} ({len(run.trial_ids)} trials)")
 
         try:
-            # Wiki-Memory lint: compile fragments into pages before parallel tasks start (FIX-103)
-            if os.getenv("WIKI_LINT_ENABLED", "1") == "1":
-                try:
-                    _run_wiki_lint(model=_model_wiki, cfg=MODEL_CONFIGS.get(_model_wiki, {}))
-                except Exception as _wiki_exc:
-                    print(f"[wiki-lint] skipped: {_wiki_exc}")
             _print_table_header()
             with ThreadPoolExecutor(max_workers=PARALLEL_TASKS) as pool:
                 futures = {
@@ -639,13 +616,6 @@ def main() -> None:
                 _write_summary(scores, run_start)
             client.submit_run(SubmitRunRequest(run_id=run.run_id, force=True))
             print(f"Run submitted: {run.run_id}")
-            # Wiki-Memory lint after: compile fragments written in this run (FIX-105)
-            if os.getenv("WIKI_LINT_ENABLED", "1") == "1":
-                try:
-                    _run_wiki_lint(model=_model_wiki, cfg=MODEL_CONFIGS.get(_model_wiki, {}))
-                except Exception as _wiki_exc:
-                    print(f"[wiki-lint-after] skipped: {_wiki_exc}")
-
             # FIX-427: postrun maintenance — purge, wiki lint, distill, candidates, optimize
             if os.getenv("POSTRUN_ENABLED", "0") == "1":
                 from agent.postrun import run_postrun

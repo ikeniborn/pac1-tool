@@ -940,7 +940,7 @@ def format_fragment(
 def run_wiki_lint(model: str = "", cfg: dict | None = None) -> None:
     """Merge fragments into pages via LLM synthesis (Variant C).
 
-    Called twice per make run: before and after ThreadPoolExecutor.
+    Called via postrun after the run completes.
     For each category: reads all fragments, calls LLM synthesis (or concat fallback),
     writes to pages/, archives processed fragments.
     Fail-open: if anything fails, logs and continues.
