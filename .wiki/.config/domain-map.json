@@ -128,6 +128,146 @@
           "wiki_subfolder": "спецификации/компоненты"
         }
       ]
+    },
+    {
+      "id": "планы",
+      "name": "Планы реализации PAC1-Tool",
+      "description": "Implementation plans для фич, фиксов, рефакторингов и аудитов PAC1-Tool. Каждый план — набор TDD-задач с чеклистами, кодом и критериями готовности.",
+      "source_paths": [
+        "docs/superpowers/plans"
+      ],
+      "wiki_folder": "планы",
+      "language_notes": "Смешанный язык: русский и английский. Технические названия (FIX-N, TDD, Task/Step) на английском. Цели и описания — на русском.",
+      "tags": [
+        "implementation-plan",
+        "fix",
+        "feature",
+        "refactor",
+        "audit",
+        "tdd",
+        "gepa",
+        "copro",
+        "contract",
+        "wiki",
+        "graph",
+        "dispatch",
+        "security",
+        "evaluator",
+        "classifier"
+      ],
+      "entity_types": [
+        {
+          "type": "feature-plan",
+          "description": "План реализации новой фичи или подсистемы: цель, архитектура, TDD-задачи, критерии готовности",
+          "extraction_cues": [
+            "Implementation Plan",
+            "Goal:",
+            "Architecture:",
+            "Tech Stack:",
+            "- [ ] **Step",
+            "Task \\d+:",
+            "Scaffold",
+            "feat(",
+            "добавить",
+            "внедрить",
+            "создать"
+          ],
+          "min_mentions_for_page": 1,
+          "wiki_subfolder": "планы/фичи"
+        },
+        {
+          "type": "fix-plan",
+          "description": "План исправления конкретных багов: root cause, файлы, TDD-шаги, FIX-N метки",
+          "extraction_cues": [
+            "FIX-",
+            "Fixes Implementation Plan",
+            "Bug Fix",
+            "Исправить",
+            "fix(",
+            "root cause",
+            "корневая причина",
+            "блокирующая проблема",
+            "failing test",
+            "падает"
+          ],
+          "min_mentions_for_page": 1,
+          "wiki_subfolder": "планы/фиксы"
+        },
+        {
+          "type": "refactor-plan",
+          "description": "План рефакторинга/переработки существующего кода без изменения поведения",
+          "extraction_cues": [
+            "Refactor",
+            "Redesign",
+            "Restructure",
+            "Remove",
+            "Migrate",
+            "рефакторинг",
+            "переработать",
+            "удалить",
+            "мигрировать",
+            "refactor("
+          ],
+          "min_mentions_for_page": 1,
+          "wiki_subfolder": "планы/рефакторинги"
+        },
+        {
+          "type": "audit-plan",
+          "description": "Аудит, анализ прогонов или верификация без изменения кода",
+          "extraction_cues": [
+            "Audit",
+            "Аудит",
+            "Run",
+            "Запустить",
+            "оценить",
+            "анализ",
+            "baseline",
+            "прогон",
+            "сводный отчёт",
+            "верификация"
+          ],
+          "min_mentions_for_page": 1,
+          "wiki_subfolder": "планы/аудиты"
+        }
+      ]
+    }
+    ,
+    {
+      "id": "агент",
+      "name": "Кодовая база агента PAC1-Tool",
+      "description": "Python-модули директории agent/: dispatch, classifier, orchestrator, security, stall, evaluator, prompt, wiki_graph и другие подсистемы исполнения бенчмарка.",
+      "source_paths": [
+        "agent"
+      ],
+      "wiki_folder": "агент",
+      "language_notes": "Смешанный язык: русский и английский. Имена модулей, классов и функций — на английском. Описания поведения и архитектурный контекст — на русском.",
+      "tags": [
+        "dispatch",
+        "classifier",
+        "orchestrator",
+        "security",
+        "stall",
+        "evaluator",
+        "prompt",
+        "wiki-graph",
+        "contract",
+        "loop",
+        "prephase",
+        "cc-client",
+        "dspy",
+        "compaction"
+      ],
+      "entity_types": [
+        {
+          "type": "module",
+          "description": "Python-модуль с чётко определённой ролью в пайплайне: интерфейс, ключевые функции, env-переменные",
+          "extraction_cues": [
+            "def ", "class ", "FIX-", "import", "os.environ", "Path(", "dataclass", "__init__"
+          ],
+          "min_mentions_for_page": 1,
+          "wiki_subfolder": "агент/модули"
+        }
+      ]
     }
   ],
   "cross_domain_rules": {
