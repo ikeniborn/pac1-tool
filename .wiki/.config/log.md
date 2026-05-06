@@ -35,6 +35,34 @@
 
 **Примечание:** init домена спецификации. Обработано 37 из ~74 файлов (specs + architecture); планы (`docs/superpowers/plans/`) пропущены (не являются дизайн-спецификациями).
 
+## 2026-05-05T00:00:00
+
+**Операция:** init
+**Домен:** результаты
+**Источник:** docs/results (5 файлов)
+
+**Затронуто страниц:** 16
+
+- ДОБАВЛЕН ДОМЕН: `результаты` в domain-map.json (4 entity_types: run-session, task-analysis, system-problem, fix-block)
+- СОЗДАНА: `.wiki/результаты/сессии/run-v1-v2-v3.md` (developing)
+- СОЗДАНА: `.wiki/результаты/сессии/run-v4-all-tasks.md` (developing)
+- СОЗДАНА: `.wiki/результаты/сессии/run-v5-partial.md` (developing)
+- СОЗДАНА: `.wiki/результаты/задачи/t40-crm-lookup.md` (developing)
+- СОЗДАНА: `.wiki/результаты/задачи/t41-temporal.md` (developing)
+- СОЗДАНА: `.wiki/результаты/задачи/t42-capture-lookup.md` (developing)
+- СОЗДАНА: `.wiki/результаты/задачи/t43-lookup-temporal.md` (developing)
+- СОЗДАНА: `.wiki/результаты/задачи/t13-crm-reschedule.md` (developing)
+- СОЗДАНА: `.wiki/результаты/проблемы/postrun-optimize-missing.md` (developing)
+- СОЗДАНА: `.wiki/результаты/проблемы/temporal-gap-formula.md` (developing)
+- СОЗДАНА: `.wiki/результаты/проблемы/graph-retrieval-mixing.md` (developing)
+- СОЗДАНА: `.wiki/результаты/проблемы/antipattern-poisoning.md` (developing)
+- СОЗДАНА: `.wiki/результаты/проблемы/evaluator-grounding-loop.md` (stub)
+- СОЗДАНА: `.wiki/результаты/проблемы/contract-negotiate-overhead.md` (developing)
+- СОЗДАНА: `.wiki/результаты/проблемы/errors-default-bloat.md` (stub)
+- СОЗДАНА: `.wiki/результаты/фиксы/blocks-a-g-quality.md` (developing)
+
+**Источники:** 5 файлов из docs/results/ (v1, v2, v3, v4, v5_partial)
+
 ---
 
 ## 2026-05-06T00:00:00

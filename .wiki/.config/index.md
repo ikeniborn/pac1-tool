@@ -107,3 +107,31 @@
 - `.wiki/агент/модули/verifier-agent.md` — VerifierAgent (agent/agents/verifier_agent.py) (stub)
 - `.wiki/агент/модули/wiki-graph-agent.md` — WikiGraphAgent (agent/agents/wiki_graph_agent.py) (stub)
 - `.wiki/агент/модули/json-extract.md` — JSON Extract (agent/json_extract.py) (developing)
+
+### результаты / сессии
+
+- `.wiki/результаты/сессии/run-v1-v2-v3.md` — Прогоны v1, v2, v3 — только целевые задачи (t40–t43, t13) (developing)
+- `.wiki/результаты/сессии/run-v4-all-tasks.md` — Прогоны v4 — все 43 задачи (developing)
+- `.wiki/результаты/сессии/run-v5-partial.md` — Прогоны v5 — smoke run (прерван) (developing)
+
+### результаты / задачи
+
+- `.wiki/результаты/задачи/t40-crm-lookup.md` — t40 — CRM lookup (аккаунты менеджера) (developing)
+- `.wiki/результаты/задачи/t41-temporal.md` — t41 — temporal (дата через N дней) (developing)
+- `.wiki/результаты/задачи/t42-capture-lookup.md` — t42 — capture/lookup (статья за N дней назад) (developing)
+- `.wiki/результаты/задачи/t43-lookup-temporal.md` — t43 — lookup/temporal (статья за N дней) (developing)
+- `.wiki/результаты/задачи/t13-crm-reschedule.md` — t13 — CRM reschedule (перенос follow-up) (developing)
+
+### результаты / проблемы
+
+- `.wiki/результаты/проблемы/postrun-optimize-missing.md` — postrun optimize [missing] — DSPy не компилируется (developing)
+- `.wiki/результаты/проблемы/temporal-gap-formula.md` — Temporal gap formula — неверный ESTIMATED_TODAY (developing)
+- `.wiki/результаты/проблемы/graph-retrieval-mixing.md` — Graph retrieval — смешивание правил между task_type (developing)
+- `.wiki/результаты/проблемы/antipattern-poisoning.md` — Antipattern poisoning — накопление ложных DENY-сигналов (developing)
+- `.wiki/результаты/проблемы/evaluator-grounding-loop.md` — Evaluator grounding_refs rejection loop (stub)
+- `.wiki/результаты/проблемы/contract-negotiate-overhead.md` — Contract negotiate overhead (Block F) — деградация throughput (developing)
+- `.wiki/результаты/проблемы/errors-default-bloat.md` — errors/default.md bloat — страница превышает лимит (stub)
+
+### результаты / фиксы
+
+- `.wiki/результаты/фиксы/blocks-a-g-quality.md` — Blocks A–G: Quality Degradation Fixes (P0+P1) (developing)
