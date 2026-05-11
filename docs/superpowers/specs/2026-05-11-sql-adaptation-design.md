@@ -76,6 +76,8 @@ Add `## CATALOGUE STRATEGY` section to `SYSTEM_PROMPT`:
 ### `agent/orchestrator.py`
 
 Add `DRY_RUN=1` mode:
+- Add `task_id: str = ""` optional param to `run_agent()` signature
+- Pass `task_id` from `main.py` → `run_agent()` when DRY_RUN active
 - Run prephase only (tree, AGENTS.MD, schema)
 - Skip LLM loop entirely
 - Append to `data/dry_run_analysis.jsonl`:
@@ -105,7 +107,8 @@ Add `DRY_RUN=1` mode:
 
 ### `MODEL_DEFAULT` → `MODEL` rename
 
-Touch: `agent/orchestrator.py`, `agent/dispatch.py`, `main.py`, `.env.example`
+Touch: `agent/orchestrator.py`, `main.py` (×2), `.env.example`
+Note: `dispatch.py:276` has `MODEL_DEFAULT` only in a comment — no code change needed there.
 
 ---
 
@@ -124,17 +127,17 @@ Delete all test files referencing non-existent modules. Keep:
 | Keep | Reason |
 |---|---|
 | `test_json_extraction.py` | Tests `agent/json_extract.py` — active |
-| `test_dispatch_transient.py` | Tests dispatch retry logic — active |
-| `test_loop_json_parse.py` | Tests JSON parsing in loop — active |
-| `test_prephase_vault_date.py` | Tests prephase — active |
-| `test_loop_mutation_gate.py` | Tests write/delete guards in loop — active |
-| `test_loop_agent_wiring.py` | Tests loop integration — active |
+| `test_dispatch_transient.py` | Tests dispatch retry — active (`TRANSIENT_KWS`, `_call_openai_tier`) |
+| `test_loop_json_parse.py` | Tests `_call_openai_tier` JSON parsing — active |
+| `test_prephase_vault_date.py` | Tests prephase — no agent imports, pure regex logic |
 | `conftest.py` | Test fixtures |
 
 Delete: `test_wiki_*` (14), `test_evaluator*` (3), `test_contract*` (4), `test_classifier*` (1),
 `test_optimization*` (5), `test_maintenance*` (3), `test_log_compaction.py`, `test_task_types*` (2),
 `test_capability_cache.py`, `test_security_gates.py`, `test_dspy_*` (1), `test_lifecycle.py`,
-`test_distill_contracts.py`, `test_postrun_outcome_gate.py`
+`test_distill_contracts.py`, `test_postrun_outcome_gate.py`,
+`test_loop_agent_wiring.py` (imports `_LoopState`, `_pre_dispatch`, `Contract` — all removed),
+`test_loop_mutation_gate.py` (same — imports non-existent loop internals)
 
 ### Delete from `data/`
 
