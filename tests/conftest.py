@@ -10,7 +10,7 @@ _STUB_MODULES = [
     "google", "google.protobuf", "google.protobuf.json_format",
     "connectrpc", "connectrpc.errors",
     "anthropic",
-    "bitgn", "bitgn.vm", "bitgn.vm.pcm_connect", "bitgn.vm.pcm_pb2",
+    "bitgn", "bitgn.vm", "bitgn.vm.ecom", "bitgn.vm.ecom.ecom_connect", "bitgn.vm.ecom.ecom_pb2",
     "fastapi",
     "fastapi.testclient",
     "fastapi.responses",
@@ -21,18 +21,33 @@ for mod_name in _STUB_MODULES:
     if mod_name not in sys.modules:
         sys.modules[mod_name] = MagicMock()
 
-# Provide Outcome enum stub
-_pcm_pb2 = sys.modules["bitgn.vm.pcm_pb2"]
-_pcm_pb2.Outcome = types.SimpleNamespace(
-    OUTCOME_OK="OUTCOME_OK",
-    OUTCOME_DENIED_SECURITY="OUTCOME_DENIED_SECURITY",
-    OUTCOME_NONE_CLARIFICATION="OUTCOME_NONE_CLARIFICATION",
-    OUTCOME_NONE_UNSUPPORTED="OUTCOME_NONE_UNSUPPORTED",
-    OUTCOME_ERR_INTERNAL="OUTCOME_ERR_INTERNAL",
+# Provide Outcome enum stub for ecom_pb2
+_ecom_pb2 = sys.modules["bitgn.vm.ecom.ecom_pb2"]
+_ecom_pb2.Outcome = types.SimpleNamespace(
+    OUTCOME_UNSPECIFIED=0,
+    OUTCOME_OK=1,
+    OUTCOME_DENIED_SECURITY=2,
+    OUTCOME_NONE_CLARIFICATION=3,
+    OUTCOME_NONE_UNSUPPORTED=4,
+    OUTCOME_ERR_INTERNAL=5,
 )
-_pcm_pb2.AnswerRequest = MagicMock
-_pcm_pb2.ListRequest = MagicMock
-_pcm_pb2.ReadRequest = MagicMock
+_ecom_pb2.NodeKind = types.SimpleNamespace(
+    NODE_KIND_UNSPECIFIED=0,
+    NODE_KIND_FILE=1,
+    NODE_KIND_DIR=2,
+)
+_ecom_pb2.ActionStatus = types.SimpleNamespace(
+    ACTION_STATUS_UNSPECIFIED=0,
+    ACTION_STATUS_NOT_ACTION=1,
+    ACTION_STATUS_ACCEPTED=2,
+    ACTION_STATUS_REJECTED=3,
+)
+_ecom_pb2.AnswerRequest = MagicMock
+_ecom_pb2.ListRequest = MagicMock
+_ecom_pb2.ReadRequest = MagicMock
+_ecom_pb2.WriteRequest = MagicMock
+_ecom_pb2.StatRequest = MagicMock
+_ecom_pb2.ExecRequest = MagicMock
 
 # Provide MessageToDict stub
 sys.modules["google.protobuf.json_format"].MessageToDict = lambda x: {}

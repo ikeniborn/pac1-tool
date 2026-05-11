@@ -121,7 +121,7 @@
   "_section_ollama_cloud": "--- Ollama cloud endpoint (OLLAMA_BASE_URL=https://your-cloud/v1) ---",
   "minimax-m2.7:cloud": {
     "provider": "ollama",
-    "max_completion_tokens": 4000,
+    "max_completion_tokens": 16000,
     "ollama_think": false,
     "ollama_options": "default",
     "ollama_options_think": "think",
@@ -133,7 +133,7 @@
   },
   "glm-5.1:cloud": {
     "provider": "ollama",
-    "max_completion_tokens": 4000,
+    "max_completion_tokens": 16000,
     "ollama_think": false,
     "ollama_options": "default",
     "ollama_options_think": "think",
@@ -145,8 +145,8 @@
   },
   "qwen3.5:cloud": {
     "provider": "ollama",
-    "max_completion_tokens": 4000,
-    "ollama_think": true,
+    "max_completion_tokens": 16000,
+    "ollama_think": false,
     "ollama_options": "default",
     "ollama_options_think": "think",
     "ollama_options_longContext": "long_ctx",
@@ -157,7 +157,7 @@
   },
   "qwen3-coder-next:cloud": {
     "provider": "ollama",
-    "max_completion_tokens": 4000,
+    "max_completion_tokens": 16000,
     "ollama_think": true,
     "ollama_options": "default",
     "ollama_options_think": "think",
@@ -169,7 +169,7 @@
   },
   "qwen3.5:397b-cloud": {
     "provider": "ollama",
-    "max_completion_tokens": 4000,
+    "max_completion_tokens": 16000,
     "ollama_think": true,
     "ollama_options": "default",
     "ollama_options_think": "think",
@@ -181,7 +181,7 @@
   },
   "ministral-3:3b-cloud": {
     "provider": "ollama",
-    "max_completion_tokens": 4000,
+    "max_completion_tokens": 16000,
     "ollama_think": false,
     "ollama_options": "default",
     "ollama_options_think": "think",
@@ -193,7 +193,7 @@
   },
   "ministral-3:8b-cloud": {
     "provider": "ollama",
-    "max_completion_tokens": 4000,
+    "max_completion_tokens": 16000,
     "ollama_think": false,
     "ollama_options": "default",
     "ollama_options_think": "think",
@@ -205,7 +205,7 @@
   },
   "ministral-3:14b-cloud": {
     "provider": "ollama",
-    "max_completion_tokens": 4000,
+    "max_completion_tokens": 16000,
     "ollama_think": false,
     "ollama_options": "default",
     "ollama_options_think": "think",
@@ -217,7 +217,7 @@
   },
   "nemotron-3-super:cloud": {
     "provider": "ollama",
-    "max_completion_tokens": 4000,
+    "max_completion_tokens": 16000,
     "ollama_think": false,
     "ollama_options": "default",
     "ollama_options_think": "think",
@@ -229,7 +229,7 @@
   },
   "nemotron-3-nano:30b-cloud": {
     "provider": "ollama",
-    "max_completion_tokens": 4000,
+    "max_completion_tokens": 16000,
     "ollama_think": false,
     "ollama_options": "default",
     "ollama_options_think": "think",
@@ -241,7 +241,7 @@
   },
   "glm-5:cloud": {
     "provider": "ollama",
-    "max_completion_tokens": 4000,
+    "max_completion_tokens": 16000,
     "ollama_think": false,
     "ollama_options": "default",
     "ollama_options_think": "think",
@@ -253,7 +253,7 @@
   },
   "kimi-k2.5:cloud": {
     "provider": "ollama",
-    "max_completion_tokens": 4000,
+    "max_completion_tokens": 16000,
     "ollama_think": false,
     "ollama_options": "default",
     "ollama_options_think": "think",
@@ -265,7 +265,7 @@
   },
   "kimi-k2-thinking:cloud": {
     "provider": "ollama",
-    "max_completion_tokens": 4000,
+    "max_completion_tokens": 16000,
     "ollama_think": true,
     "ollama_options": "default",
     "ollama_options_think": "think",
@@ -277,7 +277,7 @@
   },
   "gpt-oss:20b-cloud": {
     "provider": "ollama",
-    "max_completion_tokens": 4000,
+    "max_completion_tokens": 16000,
     "ollama_think": false,
     "ollama_options": "default",
     "ollama_options_think": "think",
@@ -289,7 +289,7 @@
   },
   "gpt-oss:120b-cloud": {
     "provider": "ollama",
-    "max_completion_tokens": 4000,
+    "max_completion_tokens": 16000,
     "ollama_think": false,
     "ollama_options": "default",
     "ollama_options_think": "think",
@@ -301,7 +301,7 @@
   },
   "deepseek-v3.1:671b-cloud": {
     "provider": "ollama",
-    "max_completion_tokens": 4000,
+    "max_completion_tokens": 16000,
     "ollama_think": true,
     "ollama_options": "default",
     "ollama_options_think": "think",
@@ -313,7 +313,7 @@
   },
   "rnj-1:8b-cloud": {
     "provider": "ollama",
-    "max_completion_tokens": 4000,
+    "max_completion_tokens": 16000,
     "ollama_think": false,
     "ollama_options": "default",
     "ollama_options_think": "think",
@@ -323,10 +323,10 @@
     "ollama_options_evaluator": "evaluator",
     "ctx_window": 16384
   },
-  "gemma4:31b-cloud": {
+  "deepseek-v4-flash:cloud": {
     "provider": "ollama",
-    "max_completion_tokens": 4000,
-    "ollama_think": false,
+    "max_completion_tokens": 16000,
+    "ollama_think": true,
     "ollama_options": "default",
     "ollama_options_think": "think",
     "ollama_options_longContext": "long_ctx",
@@ -337,7 +337,7 @@
   },
   "kimi-k2.6:cloud": {
     "provider": "ollama",
-    "max_completion_tokens": 4000,
+    "max_completion_tokens": 16000,
     "ollama_think": false,
     "ollama_options": "default",
     "ollama_options_think": "think",
@@ -379,14 +379,14 @@
   "_section_openrouter": "--- OpenRouter ---",
   "qwen/qwen3.5-9b": {
     "provider": "openrouter",
-    "max_completion_tokens": 4000,
+    "max_completion_tokens": 16000,
     "response_format_hint": "json_object",
     "temperature": 0.35,
     "ctx_window": 131072
   },
   "meta-llama/llama-3.3-70b-instruct": {
     "provider": "openrouter",
-    "max_completion_tokens": 4000,
+    "max_completion_tokens": 16000,
     "response_format_hint": "json_object",
     "temperature": 0.35,
     "ctx_window": 131072

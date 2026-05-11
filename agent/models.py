@@ -76,8 +76,6 @@ class Req_Write(BaseModel):
     tool: Literal["write"]
     path: str
     content: str
-    start_line: int = Field(0, description="1-based inclusive line number; 0 keeps whole-file overwrite behavior")
-    end_line: int = Field(0, description="1-based inclusive line number; 0 means through the last line for ranged writes")
 
 
 class Req_Delete(BaseModel):
@@ -96,15 +94,16 @@ class Req_Delete(BaseModel):
         return v
 
 
-class Req_MkDir(BaseModel):
-    tool: Literal["mkdir"]
+class Req_Stat(BaseModel):
+    tool: Literal["stat"]
     path: str
 
 
-class Req_Move(BaseModel):
-    tool: Literal["move"]
-    from_name: str
-    to_name: str
+class Req_Exec(BaseModel):
+    tool: Literal["exec"]
+    path: str
+    args: List[str] = Field(default_factory=list)
+    stdin: str = ""
 
 
 class EmailOutbox(BaseModel):
@@ -137,10 +136,8 @@ class NextStep(BaseModel):
         description="Accumulated list of ALL confirmed write/delete/move operations completed so far in this task (e.g. 'WRITTEN: /path', 'DELETED: /path'). Never omit previously listed entries.",
     )
     task_completed: bool
-    # AICODE-NOTE: Keep this union aligned with the public PCM runtime surface
-    # plus the local stop action. PCM currently lacks a public completion RPC, so
-    # `report_completion` ends the sample loop locally and `EndTrial` still grades
-    # only the runtime events that the harness persisted.
+    # ECOM runtime surface + local stop action. `report_completion` dispatches
+    # the public Answer RPC and ends the sample loop locally.
     function: Union[
         ReportTaskCompletion,
         Req_Context,
@@ -151,6 +148,6 @@ class NextStep(BaseModel):
         Req_Read,
         Req_Write,
         Req_Delete,
-        Req_MkDir,
-        Req_Move,
+        Req_Stat,
+        Req_Exec,
     ] = Field(..., description="execute the first remaining step")

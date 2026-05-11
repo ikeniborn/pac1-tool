@@ -12,18 +12,19 @@ from pydantic import BaseModel
 
 from google.protobuf.json_format import MessageToDict
 
-from bitgn.vm.pcm_connect import PcmRuntimeClientSync
-from bitgn.vm.pcm_pb2 import (
+from bitgn.vm.ecom.ecom_connect import EcomRuntimeClientSync
+from bitgn.vm.ecom.ecom_pb2 import (
     AnswerRequest,
     ContextRequest,
     DeleteRequest,
+    ExecRequest,
     FindRequest,
     ListRequest,
-    MkDirRequest,
-    MoveRequest,
+    NodeKind,
     Outcome,
     ReadRequest,
     SearchRequest,
+    StatRequest,
     TreeRequest,
     WriteRequest,
 )
@@ -32,12 +33,12 @@ from .models import (
     ReportTaskCompletion,
     Req_Context,
     Req_Delete,
+    Req_Exec,
     Req_Find,
     Req_List,
-    Req_MkDir,
-    Req_Move,
     Req_Read,
     Req_Search,
+    Req_Stat,
     Req_Tree,
     Req_Write,
 )
@@ -623,20 +624,21 @@ _PROTECTED_PREFIX = ("/docs/channels/",)
 _OTP_PATH = "/docs/channels/otp.txt"
 
 
-def dispatch(vm: PcmRuntimeClientSync, cmd: BaseModel):
+_FIND_KIND = {
+    "all": NodeKind.NODE_KIND_UNSPECIFIED,
+    "files": NodeKind.NODE_KIND_FILE,
+    "dirs": NodeKind.NODE_KIND_DIR,
+}
+
+
+def dispatch(vm: EcomRuntimeClientSync, cmd: BaseModel):
     # FIX-205: code-level write scope enforcement
-    if isinstance(cmd, (Req_Write, Req_Delete, Req_Move)):
-        _target = getattr(cmd, "path", None) or getattr(cmd, "to_name", "")
-        _from = getattr(cmd, "from_name", "")
-        for _p in (_target, _from):
-            if not _p:
-                continue
-            if _p in _PROTECTED_WRITE or any(_p.startswith(pfx) for pfx in _PROTECTED_PREFIX):
-                # Exception: otp.txt can be deleted or rewritten (OTP consumption flow, FIX-154)
-                # Delete = last token; Write = rewrite without consumed token (multi-token file)
-                if _p == _OTP_PATH and isinstance(cmd, (Req_Delete, Req_Write)):
-                    continue
-                return f"ERROR: Write/delete/move to protected path '{_p}' is not allowed (FIX-205)"
+    if isinstance(cmd, (Req_Write, Req_Delete)):
+        _target = getattr(cmd, "path", "")
+        if _target and (_target in _PROTECTED_WRITE or any(_target.startswith(pfx) for pfx in _PROTECTED_PREFIX)):
+            # Exception: otp.txt can be deleted or rewritten (OTP consumption flow, FIX-154)
+            if not (_target == _OTP_PATH and isinstance(cmd, (Req_Delete, Req_Write))):
+                return f"ERROR: Write/delete to protected path '{_target}' is not allowed (FIX-205)"
 
     if isinstance(cmd, Req_Context):
         return vm.context(ContextRequest())
@@ -647,14 +649,14 @@ def dispatch(vm: PcmRuntimeClientSync, cmd: BaseModel):
             FindRequest(
                 root=cmd.root,
                 name=cmd.name,
-                type={"all": 0, "files": 1, "dirs": 2}[cmd.kind],
+                kind=_FIND_KIND[cmd.kind],
                 limit=cmd.limit,
             )
         )
     if isinstance(cmd, Req_Search):
         return vm.search(SearchRequest(root=cmd.root, pattern=cmd.pattern, limit=cmd.limit))
     if isinstance(cmd, Req_List):
-        return vm.list(ListRequest(name=cmd.path))
+        return vm.list(ListRequest(path=cmd.path))
     if isinstance(cmd, Req_Read):
         return vm.read(ReadRequest(
             path=cmd.path,
@@ -663,22 +665,16 @@ def dispatch(vm: PcmRuntimeClientSync, cmd: BaseModel):
             end_line=cmd.end_line,
         ))
     if isinstance(cmd, Req_Write):
-        return vm.write(WriteRequest(
-            path=cmd.path,
-            content=cmd.content,
-            start_line=cmd.start_line,
-            end_line=cmd.end_line,
-        ))
+        # ECOM WriteRequest dropped start_line/end_line; ranged writes unsupported.
+        return vm.write(WriteRequest(path=cmd.path, content=cmd.content))
     if isinstance(cmd, Req_Delete):
         return vm.delete(DeleteRequest(path=cmd.path))
-    if isinstance(cmd, Req_MkDir):
-        return vm.mk_dir(MkDirRequest(path=cmd.path))
-    if isinstance(cmd, Req_Move):
-        return vm.move(MoveRequest(from_name=cmd.from_name, to_name=cmd.to_name))
+    if isinstance(cmd, Req_Stat):
+        return vm.stat(StatRequest(path=cmd.path))
+    if isinstance(cmd, Req_Exec):
+        return vm.exec(ExecRequest(path=cmd.path, args=list(cmd.args), stdin=cmd.stdin))
     if isinstance(cmd, ReportTaskCompletion):
-        # AICODE-NOTE: Keep the report-completion schema aligned with
-        # `bitgn.vm.pcm.AnswerRequest`: PAC1 grading consumes the recorded outcome,
-        # so the agent must choose one explicitly instead of relying on local-only status.
+        # report_completion is local stop action; underneath dispatches Answer RPC.
         return vm.answer(
             AnswerRequest(
                 message=cmd.message,

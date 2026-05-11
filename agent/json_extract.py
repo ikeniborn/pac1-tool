@@ -23,14 +23,14 @@ def _try_json5(text: str):
 # Constants
 # ---------------------------------------------------------------------------
 
-_MUTATION_TOOLS = frozenset({"write", "delete", "move", "mkdir"})
+_MUTATION_TOOLS = frozenset({"write", "delete", "exec"})
 
 # Maps Req_XXX class names to canonical tool names used in JSON payloads.
 # Some models (e.g. minimax) emit "Action: Req_Read({...})" without a "tool" field inside the JSON.
 _REQ_CLASS_TO_TOOL: dict[str, str] = {
     "req_read": "read", "req_write": "write", "req_delete": "delete",
     "req_list": "list", "req_search": "search", "req_find": "find",
-    "req_tree": "tree", "req_move": "move", "req_mkdir": "mkdir",
+    "req_tree": "tree", "req_stat": "stat", "req_exec": "exec",
 }
 # Regex: capture "Req_Xxx" prefix immediately before a JSON object — FIX-150
 _REQ_PREFIX_RE = re.compile(r"Req_(\w+)\s*\(", re.IGNORECASE)
@@ -146,7 +146,7 @@ def _extract_json_from_text(text: str) -> dict | None:  # FIX-146 (revised FIX-1
         # a write whose arguments were hallucinated (reads never actually executed).
         _full_steps = [o for o in candidates if "current_state" in o and "function" in o]
         if len(_full_steps) >= 3:
-            _SKIP_TOOLS = {"write", "delete", "move", "mkdir", "report_completion"}
+            _SKIP_TOOLS = {"write", "delete", "exec", "report_completion"}
             _first_read = [o for o in _full_steps
                            if (o.get("function") or {}).get("tool", "") not in _SKIP_TOOLS]
             if _first_read:

@@ -108,7 +108,7 @@ def test_executor_agent_converts_step_facts_to_dicts():
     )
 
     with patch("agent.loop.run_loop") as mock_loop, \
-         patch("bitgn.vm.pcm_connect.PcmRuntimeClientSync"):
+         patch("bitgn.vm.ecom.ecom_connect.EcomRuntimeClientSync"):
         mock_loop.return_value = {
             "outcome": "OUTCOME_OK",
             "step_facts": [sf],

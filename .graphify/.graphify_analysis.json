@@ -1,0 +1,263 @@
+{
+  "communities": {
+    "0": [
+      "diff_no_stall",
+      "module_loop",
+      "module_security",
+      "module_stall",
+      "our_agent_system",
+      "sa_system_prompt",
+      "sa_tool_exec",
+      "sa_tool_report_completion",
+      "tool_delete",
+      "tool_exec",
+      "tool_find",
+      "tool_list",
+      "tool_mkdir",
+      "tool_move",
+      "tool_read",
+      "tool_report_completion",
+      "tool_search",
+      "tool_write"
+    ],
+    "1": [
+      "diff_context_tool",
+      "diff_stat_tool",
+      "sa_harness_client",
+      "sa_main",
+      "sa_must_phase",
+      "sa_nextstep",
+      "sa_run_agent",
+      "sa_tool_context",
+      "sa_tool_delete",
+      "sa_tool_find",
+      "sa_tool_list",
+      "sa_tool_read",
+      "sa_tool_search",
+      "sa_tool_stat",
+      "sa_tool_tree",
+      "sa_tool_write",
+      "tool_tree"
+    ],
+    "2": [
+      "error_missing_ref",
+      "error_no_answer",
+      "fix_345_discovery_gate",
+      "module_prephase",
+      "prephase_medium",
+      "prephase_small",
+      "task_t01",
+      "task_t02",
+      "task_t03",
+      "task_t05",
+      "task_t06",
+      "task_t07",
+      "task_t09",
+      "task_t10",
+      "task_t11"
+    ],
+    "3": [
+      "diff_native_fc",
+      "model_ollama_local",
+      "model_qwen35_397b",
+      "model_qwen35_cloud",
+      "module_classifier",
+      "module_dispatch",
+      "module_model_router",
+      "sa_dispatch",
+      "sa_ecom_vm",
+      "sa_openai_client"
+    ],
+    "4": [
+      "diff_no_prephase_bloat",
+      "error_ctx_overflow",
+      "fix_overflow_solution",
+      "prephase_large",
+      "root_cause_prephase_bloat",
+      "task_t04",
+      "task_t08",
+      "task_t12"
+    ],
+    "5": [
+      "contract_consensus",
+      "contract_evaluator_role",
+      "contract_executor",
+      "diff_no_contract",
+      "diff_no_dspy",
+      "module_contract",
+      "module_prompt_builder"
+    ],
+    "6": [
+      "diff_no_wiki",
+      "module_evaluator",
+      "module_wiki_graph",
+      "module_wiki_lint",
+      "wiki_fragment_errors_lookup",
+      "wiki_graph_nodes",
+      "wiki_page_lookup"
+    ],
+    "7": [
+      "error_grading"
+    ],
+    "8": [
+      "diff_no_parallel"
+    ]
+  },
+  "cohesion": {
+    "0": 0.11,
+    "1": 0.14,
+    "2": 0.23,
+    "3": 0.24,
+    "4": 0.43,
+    "5": 0.33,
+    "6": 0.33,
+    "7": 1.0,
+    "8": 1.0
+  },
+  "gods": [
+    {
+      "id": "module_loop",
+      "label": "Agent Loop (\u226430 steps)",
+      "degree": 20
+    },
+    {
+      "id": "module_prephase",
+      "label": "Prephase: Vault Explorer",
+      "degree": 17
+    },
+    {
+      "id": "sa_run_agent",
+      "label": "Sample: run_agent() \u2014 main loop",
+      "degree": 17
+    },
+    {
+      "id": "module_dispatch",
+      "label": "LLM Dispatcher",
+      "degree": 7
+    },
+    {
+      "id": "prephase_medium",
+      "label": "Prephase Load: Medium (100-2000 reads)",
+      "degree": 7
+    },
+    {
+      "id": "error_ctx_overflow",
+      "label": "Error: Context Window Overflow (>262K tokens)",
+      "degree": 6
+    },
+    {
+      "id": "prephase_large",
+      "label": "Prephase Load: Large (>9000 reads) \u2192 OVERFLOW",
+      "degree": 6
+    },
+    {
+      "id": "module_model_router",
+      "label": "Model Router",
+      "degree": 5
+    },
+    {
+      "id": "module_contract",
+      "label": "Contract Phase: Executor+Evaluator Consensus",
+      "degree": 5
+    },
+    {
+      "id": "module_wiki_lint",
+      "label": "Wiki Lint",
+      "degree": 5
+    }
+  ],
+  "surprises": [
+    {
+      "source": "Agent Loop (\u226430 steps)",
+      "target": "FIX-345: report_completion blocked \u2014 no vault discovery",
+      "source_files": [
+        "agent/__init__.py",
+        "main.log"
+      ],
+      "confidence": "INFERRED",
+      "relation": "calls",
+      "why": "inferred connection - not explicitly stated in source; crosses file types (code \u2194 doc); connects across different repos/directories; bridges separate communities; peripheral node `FIX-345: report_completion blocked \u2014 no vault discovery` unexpectedly reaches hub `Agent Loop (\u226430 steps)`"
+    },
+    {
+      "source": "Sample: NextStep (Pydantic union schema)",
+      "target": "Agent Loop (\u226430 steps)",
+      "source_files": [
+        "ecom-py/agent.py",
+        "agent/__init__.py"
+      ],
+      "confidence": "INFERRED",
+      "relation": "semantically_similar_to",
+      "why": "inferred connection - not explicitly stated in source; connects across different repos/directories; bridges separate communities; semantically similar concepts with no structural link; peripheral node `Sample: NextStep (Pydantic union schema)` unexpectedly reaches hub `Agent Loop (\u226430 steps)`"
+    },
+    {
+      "source": "Prephase: Vault Explorer",
+      "target": "Root Cause: Prephase reads 9000+ catalog files \u2192 context overflow",
+      "source_files": [
+        "agent/__init__.py",
+        "main.log"
+      ],
+      "confidence": "INFERRED",
+      "relation": "rationale_for",
+      "why": "inferred connection - not explicitly stated in source; crosses file types (code \u2194 doc); connects across different repos/directories; bridges separate communities"
+    },
+    {
+      "source": "Prephase: Vault Explorer",
+      "target": "Prephase Load: Large (>9000 reads) \u2192 OVERFLOW",
+      "source_files": [
+        "agent/__init__.py",
+        "main.log"
+      ],
+      "confidence": "INFERRED",
+      "relation": "calls",
+      "why": "inferred connection - not explicitly stated in source; crosses file types (code \u2194 doc); connects across different repos/directories; bridges separate communities"
+    },
+    {
+      "source": "Prephase: Vault Explorer",
+      "target": "t02 | score=1.0 | OK | reads=102",
+      "source_files": [
+        "agent/__init__.py",
+        "t02.log"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "precedes",
+      "why": "crosses file types (code \u2194 doc); connects across different repos/directories; peripheral node `t02 | score=1.0 | OK | reads=102` unexpectedly reaches hub `Prephase: Vault Explorer`"
+    }
+  ],
+  "questions": [
+    {
+      "type": "bridge_node",
+      "question": "Why does `Agent Loop (\u226430 steps)` connect `Agent Pipeline (Our)` to `Prephase & Task Load`, `Wiki Knowledge System`, `Context Overflow Failures`, `Contract & Consensus`, `Sample Agent (ecom-py)`?",
+      "why": "High betweenness centrality (0.532) - this node is a cross-community bridge."
+    },
+    {
+      "type": "bridge_node",
+      "question": "Why does `Prephase: Vault Explorer` connect `Wiki Knowledge System` to `Context Overflow Failures`, `LLM Models & Dispatch`?",
+      "why": "High betweenness centrality (0.304) - this node is a cross-community bridge."
+    },
+    {
+      "type": "bridge_node",
+      "question": "Why does `Sample: run_agent() \u2014 main loop` connect `Prephase & Task Load` to `Agent Pipeline (Our)`, `Context Overflow Failures`?",
+      "why": "High betweenness centrality (0.300) - this node is a cross-community bridge."
+    },
+    {
+      "type": "verify_inferred",
+      "question": "Are the 14 inferred relationships involving `Agent Loop (\u226430 steps)` (e.g. with `PCM Tool: tree` and `PCM Tool: find`) actually correct?",
+      "why": "`Agent Loop (\u226430 steps)` has 14 INFERRED edges - model-reasoned connections that need verification."
+    },
+    {
+      "type": "verify_inferred",
+      "question": "Are the 4 inferred relationships involving `Prephase: Vault Explorer` (e.g. with `Root Cause: Prephase reads 9000+ catalog files \u2192 context overflow` and `Prephase Load: Small (<100 catalog reads)`) actually correct?",
+      "why": "`Prephase: Vault Explorer` has 4 INFERRED edges - model-reasoned connections that need verification."
+    },
+    {
+      "type": "verify_inferred",
+      "question": "Are the 11 inferred relationships involving `Sample: run_agent() \u2014 main loop` (e.g. with `Sample Tool: tree` and `Sample Tool: find`) actually correct?",
+      "why": "`Sample: run_agent() \u2014 main loop` has 11 INFERRED edges - model-reasoned connections that need verification."
+    },
+    {
+      "type": "isolated_nodes",
+      "question": "What connects `Security Gates`, `Error: Missing /proc/catalog reference in answer`, `Grading failure` to the rest of the system?",
+      "why": "19 weakly-connected nodes found - possible documentation gaps or missing edges."
+    }
+  ]
+}
