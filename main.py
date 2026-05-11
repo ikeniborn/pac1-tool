@@ -27,7 +27,7 @@ def _setup_log_tee() -> None:
     except Exception:
         pass
 
-    model = os.getenv("MODEL_DEFAULT") or _dotenv.get("MODEL_DEFAULT") or "unknown"
+    model = os.getenv("MODEL") or _dotenv.get("MODEL") or "unknown"
     log_level = (os.getenv("LOG_LEVEL") or _dotenv.get("LOG_LEVEL") or "INFO").upper()
 
     logs_dir = Path(__file__).parent / "logs"
@@ -120,7 +120,7 @@ def _require_env(name: str) -> str:
         raise ValueError(f"Env var {name} is required but not set.")
     return v
 
-_model_default = _require_env("MODEL_DEFAULT")
+_model_default = _require_env("MODEL")
 print(f"[MODEL] default={_model_default}")
 
 CLI_RED = "\x1B[31m"
@@ -148,7 +148,7 @@ def _run_single_task(trial_id: str, task_filter: list) -> tuple:
         print(f"{CLI_BLUE}{trial.instruction}{CLI_CLR}\n{'-' * 80}")
         token_stats: dict = {"input_tokens": 0, "output_tokens": 0}
         try:
-            token_stats = run_agent(MODEL_CONFIGS, trial.harness_url, trial.instruction)
+            token_stats = run_agent({}, trial.harness_url, trial.instruction, task_id=task_id)
         except Exception as exc:
             print(exc)
         task_elapsed = time.time() - task_start
