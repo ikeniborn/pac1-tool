@@ -36,7 +36,6 @@ def run_prephase(
     vm: EcomRuntimeClientSync,
     task_text: str,
     system_prompt_text: str,
-    task_id: str = "",
     dry_run: bool = False,
 ) -> PrephaseResult:
     print(f"\n{CLI_BLUE}[prephase] Starting pre-phase exploration{CLI_CLR}")
