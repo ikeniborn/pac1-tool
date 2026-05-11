@@ -41,8 +41,10 @@ Keep fields:
 ### Signature change
 
 ```python
-run_prephase(vm, task_text, system_prompt_text, task_id: str = "", dry_run: bool = False)
+run_prephase(vm, task_text, system_prompt_text, dry_run: bool = False)
 ```
+
+Note: `task_id` omitted — it is not used inside `run_prephase`. The orchestrator passes it directly to `_write_dry_run`.
 
 ### Logic
 
