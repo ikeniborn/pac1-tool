@@ -27,7 +27,7 @@ Key env vars (copy from `.env.example` + `.secrets.example`):
 Entry point: `main.py` → BitGN harness → `agent/orchestrator.py:run_agent()`
 
 **Execution flow per task:**
-1. `prephase.py:run_prephase()` — vault discovery: `tree -L 2`, read `AGENTS.MD`, auto-preload referenced dirs, collect SQL schema
+1. `prephase.py:run_prephase()` — reads `/AGENTS.MD` and injects task text; if `DRY_RUN=1`, also reads `/bin/sql` and writes `data/dry_run_analysis.jsonl`
 2. `prompt.py:build_system_prompt()` — assemble modular system prompt from blocks (`_CORE`, `_LOOKUP`, task-specific rules)
 3. `loop.py:run_loop()` — main loop up to `MAX_STEPS`:
    - `dispatch.py:dispatch()` → LLM call (Anthropic → OpenRouter → Ollama fallback)
