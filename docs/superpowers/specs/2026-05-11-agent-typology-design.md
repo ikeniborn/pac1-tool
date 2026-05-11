@@ -210,7 +210,7 @@ async def run_prephase(task_type, task_subtype, task_text, vm):
 
 ### Strategy implementations
 
-**`_strategy_none`** — sql_count, sql_broad:
+**`_strategy_none`** — sql_count only:
 - Calls: `tree(level=2, root="/")` + `read("/AGENTS.MD")` + `context()`
 - ~3K tokens. No catalog reads.
 
@@ -395,7 +395,231 @@ Existing compiled programs fail-open — agent runs on default prompts until rec
 
 ---
 
-## 10. Implementation Scope
+## 10. Per-Subtype Contracts
+
+### Problem
+
+`data/prompts/lookup/{role}_contract.md` and `data/default_contracts/lookup.json` describe a filesystem/CRM lookup workflow (Pattern A–D: contacts, accounts, distill cards). For ecom1, the agent receives these wrong instructions before the main system prompt.
+
+### Contract loading extension (`contract_phase.py`)
+
+`_load_prompt` gains 3-level fallback: `{type}/{subtype}/` → `{type}/` → `default/`:
+
+```python
+def _load_prompt(role: str, task_type: str, task_subtype: str | None = None) -> str:
+    candidates = []
+    if task_subtype:
+        candidates.append(_DATA / "prompts" / task_type / task_subtype / f"{role}_contract.md")
+    candidates.append(_DATA / "prompts" / task_type / f"{role}_contract.md")
+    candidates.append(_DATA / "prompts" / "default" / f"{role}_contract.md")
+    for p in candidates:
+        if p.exists():
+            return p.read_text(encoding="utf-8").strip()
+    return ""
+```
+
+`_load_default_contract` gains subtype-specific JSON fallback: `lookup_sql_count.json` → `lookup.json` → `default.json`.
+
+`negotiate_contract` signature gains `task_subtype: str | None = None` and passes it through.
+
+### New files
+
+**Directory structure:**
+```
+data/prompts/lookup/
+  executor_contract.md       ← existing (filesystem fallback, kept as-is)
+  planner_contract.md        ← existing (filesystem fallback, kept as-is)
+  evaluator_contract.md      ← existing (filesystem fallback, kept as-is)
+  sql_count/
+    executor_contract.md
+    planner_contract.md
+    evaluator_contract.md
+  sql_attr/
+    executor_contract.md
+    planner_contract.md
+    evaluator_contract.md
+  sql_negative/
+    executor_contract.md
+    planner_contract.md
+    evaluator_contract.md
+  sql_broad/
+    executor_contract.md
+    planner_contract.md
+    evaluator_contract.md
+
+data/default_contracts/
+  lookup_sql_count.json
+  lookup_sql_attr.json
+  lookup_sql_negative.json
+  lookup_sql_broad.json
+```
+
+### Contract content (per §7 prompt blocks)
+
+**sql_count executor:**
+```
+You are an ExecutorAgent for LOOKUP / sql_count.
+Strategy: single SQL COUNT(*).
+
+1. GET kind_id: SELECT id FROM product_kinds WHERE name LIKE '%X%'
+2. COUNT: SELECT COUNT(*) FROM products WHERE kind_id = ?
+3. report_completion with '<COUNT:n>' exactly.
+
+Grounding refs: ["/bin/sql"]. No file reads.
+```
+
+**sql_count evaluator:**
+```
+Success: answer matches '<COUNT:n>' format, grounding_refs includes "/bin/sql".
+Fail: filesystem reads performed, COUNT syntax wrong, report before SQL executed.
+required_evidence: ["/bin/sql"]
+```
+
+**sql_count planner:**
+```
+Strategy: sql_count. No vault discovery needed.
+SQL path: /bin/sql. Two queries: kind_id lookup → COUNT.
+```
+
+**sql_attr executor:**
+```
+You are an ExecutorAgent for LOOKUP / sql_attr.
+Strategy: SQL exact match + cite specific SKU file.
+
+1. SQL: SELECT sku, properties FROM products
+        WHERE brand=? AND model=? AND properties LIKE '%attr%value%'
+2. Answer <YES> or <NO>.
+3. REQUIRED: grounding_refs must include exact "/proc/catalog/<cat>/<kind>/<fam>/<SKU>.json"
+   A directory path alone fails grading.
+
+Grounding refs: ["/bin/sql", "/proc/catalog/.../<SKU>.json"]
+```
+
+**sql_attr evaluator:**
+```
+Success: answer is <YES> or <NO>, grounding_refs contains a /proc/catalog/.+\.json path.
+Fail: grounding_refs has only directory (not specific SKU file), answer missing.
+required_evidence: ["/proc/catalog/<specific-SKU>.json"]
+```
+
+**sql_negative executor:**
+```
+You are an ExecutorAgent for LOOKUP / sql_negative.
+Strategy: schema check first — attribute likely absent.
+
+1. FIRST: /bin/sql '.schema' — check if attribute column exists.
+2. Non-standard attrs (Bluetooth, app-scheduling, IoT, smart-home, WiFi) are NOT in schema.
+   → answer <NO> immediately citing schema result.
+3. If attribute IS in schema: run targeted SQL query.
+4. SQL timeout: retry once, then use search fallback.
+
+Grounding refs: schema result or specific product file.
+```
+
+**sql_negative evaluator:**
+```
+Success: schema checked first, <NO> with schema citation if attr absent.
+Fail: SQL query run without schema check when attr is non-standard, timeout not retried.
+required_evidence: ["/bin/sql schema output"]
+```
+
+**sql_broad executor:**
+```
+You are an ExecutorAgent for LOOKUP / sql_broad.
+NEVER read individual catalogue files — thousands of files cause context overflow.
+
+1. SQL only: SELECT sku, properties FROM products
+             WHERE kind_id=? AND brand=? AND model=? AND properties LIKE ?
+2. Filter results in-memory if needed.
+3. Answer <YES>/<NO> with SQL result as grounding.
+
+Grounding refs: ["/bin/sql"]
+```
+
+**sql_broad evaluator:**
+```
+Success: SQL only, no filesystem reads, <YES>/<NO> with SQL grounding.
+Fail: any individual catalogue file read, filesystem tree scan.
+required_evidence: ["/bin/sql"]
+```
+
+**Planner contracts** for sql_attr/sql_negative/sql_broad all specify `search_scope: ["/bin/sql"]`, no filesystem exploration.
+
+### Default contracts (JSON)
+
+Each `lookup_sql_{subtype}.json` has the same shape as `lookup.json` but with SQL-appropriate `plan_steps`, `success_criteria`, `required_evidence`, `failure_conditions`.
+
+---
+
+## 11. Wiki Pattern Fix
+
+### Problem
+
+`data/wiki/pages/lookup.md` contains 6 "Successful pattern" entries with all trajectories showing `?` and hash `e3b0c44298fc` (SHA256 of empty string). These are noise — zero information value, waste context window.
+
+### Root cause
+
+In `main.py:347-349`, `_nm_traj` is built without `"summary"` field and with a potential dict/object mismatch:
+
+```python
+# Current (broken):
+_nm_traj = [
+    {"tool": getattr(f, "kind", "?"), "path": getattr(f, "path", "")}
+    for f in _nm_step_facts
+]
+```
+
+If `_nm_step_facts` contains dicts (serialization path) instead of `_StepFact` objects, `getattr(f, "kind", "?")` returns `"?"` for all steps. `hash_trajectory` likewise uses `getattr` — returns SHA256("") = `e3b0c44298fc`.
+
+### Fix in `main.py`
+
+```python
+def _fact_field(f, attr: str, default: str = "") -> str:
+    val = getattr(f, attr, None)
+    if val is None and isinstance(f, dict):
+        val = f.get(attr)
+    return str(val or default)
+
+_nm_traj = [
+    {
+        "tool": _fact_field(f, "kind"),
+        "path": _fact_field(f, "path"),
+        "summary": _fact_field(f, "summary"),
+    }
+    for f in _nm_step_facts
+]
+
+# Gate: only promote if at least one step has a meaningful tool
+_nm_traj_meaningful = [s for s in _nm_traj if s["tool"] not in ("", "?")]
+if _score_f >= 1.0 and _nm_traj_meaningful:
+    # promote ...
+    _promoted = promote_successful_pattern(
+        ...
+        trajectory=_nm_traj_meaningful,
+        ...
+    )
+```
+
+### Fix in `agent/wiki_graph.py:hash_trajectory`
+
+```python
+def hash_trajectory(step_facts: list) -> str:
+    parts: list[str] = []
+    for f in step_facts or []:
+        kind = getattr(f, "kind", None) or (f.get("kind", "") if isinstance(f, dict) else "")
+        path = getattr(f, "path", None) or (f.get("path", "") if isinstance(f, dict) else "")
+        if kind:
+            parts.append(f"{kind}:{path}")
+    return hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()[:12]
+```
+
+### Cleanup
+
+Remove all 6 empty patterns from `data/wiki/pages/lookup.md` (lines 52–165 — all `## Successful pattern:` sections with `trajectory: ?`). The synthesized knowledge sections (Workflow steps, Key pitfalls, Shortcuts) are valid and stay.
+
+---
+
+## 12. Implementation Scope
 
 ### Files to change
 
@@ -413,16 +637,21 @@ Existing compiled programs fail-open — agent runs on default prompts until rec
 | `agent/dispatch.py` | SQL retry logic, StallRequest key fix |
 | `agent/maintenance/subtype_candidates.py` | New file — candidate review CLI |
 | `agent/__init__.py` | Pass subtype through run_agent() call chain |
+| `agent/contract_phase.py` | `_load_prompt` + `_load_default_contract` subtype support, `negotiate_contract` signature |
+| `agent/wiki_graph.py` | `hash_trajectory` dict fallback |
+| `main.py` | `_nm_traj` fix: summary field + dict/object fallback + meaningful-step gate |
+| `data/prompts/lookup/sql_*/` | 12 new contract MD files (4 subtypes × 3 roles) |
+| `data/default_contracts/lookup_sql_*.json` | 4 new default contract JSON files |
+| `data/wiki/pages/lookup.md` | Remove 6 empty pattern sections |
 
 ### Out of scope
 
 - Changes to non-lookup task types (email, crm, etc.) — subtypes field added but empty
-- Wiki/graph changes
 - benchmark harness changes
 
 ---
 
-## 11. Success Criteria
+## 13. Success Criteria
 
 | Metric | Target |
 |--------|--------|
@@ -433,3 +662,5 @@ Existing compiled programs fail-open — agent runs on default prompts until rec
 | t07 failure mode | FIX-345 exempt → report_completion accepted |
 | t01 failure mode | Evaluator enforces SKU ref → model includes it |
 | New subtype surfacing | Candidates logged, run-end summary shown |
+| Contract for sql subtypes | Subtype-specific executor/planner/evaluator loaded |
+| Wiki empty patterns | Zero patterns with `trajectory: ?` after run |
