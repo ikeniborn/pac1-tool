@@ -24,7 +24,7 @@ _run_dir: "Path | None" = None   # logs/{ts}_{model}/ directory for this run
 
 def _setup_log_tee() -> None:
     """Tee stdout to logs/{ts}_{model}.log. ANSI codes are stripped in file."""
-    # Read MODEL_DEFAULT and LOG_LEVEL from env or .env file (no import side-effects yet)
+    # Read MODEL and LOG_LEVEL from env or .env file (no import side-effects yet)
     _env_path = Path(__file__).parent / ".env"
     _dotenv: dict[str, str] = {}
     try:
@@ -36,7 +36,7 @@ def _setup_log_tee() -> None:
     except Exception:
         pass
 
-    model = os.getenv("MODEL_DEFAULT") or _dotenv.get("MODEL_DEFAULT") or "unknown"
+    model = os.getenv("MODEL") or _dotenv.get("MODEL") or "unknown"
     log_level = (os.getenv("LOG_LEVEL") or _dotenv.get("LOG_LEVEL") or "INFO").upper()
 
     logs_dir = Path(__file__).parent / "logs"
@@ -147,7 +147,7 @@ def _require_env(name: str) -> str:
     return v
 
 _model_classifier = _require_env("MODEL_CLASSIFIER")
-_model_default    = _require_env("MODEL_DEFAULT")
+_model_default    = _require_env("MODEL")
 
 # Optional per-type overrides — fall back to default if not set
 _model_email    = os.getenv("MODEL_EMAIL")    or _model_default

@@ -128,3 +128,15 @@ def test_catalogue_strategy_has_question_patterns():
     section = SYSTEM_PROMPT[idx:]
     assert "COUNT(*)" in section
     assert "LIMIT 1" in section
+
+
+def test_model_env_var_name_is_MODEL():
+    """main.py must read MODEL, not MODEL_DEFAULT."""
+    import ast
+    from pathlib import Path
+    root = Path(__file__).parent.parent
+    src = (root / "main.py").read_text()
+    tree = ast.parse(src)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Constant) and node.value == "MODEL_DEFAULT":
+            raise AssertionError("main.py still references MODEL_DEFAULT literal")
