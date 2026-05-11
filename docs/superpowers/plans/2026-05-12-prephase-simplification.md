@@ -126,7 +126,7 @@ def test_write_dry_run_format():
 - [ ] **Step 2: Run tests to verify they fail**
 
 ```bash
-cd /home/ikeniborn/Documents/Project/ecom1-agent && uv run pytest tests/test_prephase.py -v 2>&1 | head -50
+cd /home/ikeniborn/Documents/Project/ecom1-agent && uv run python -m pytest tests/test_prephase.py -v 2>&1 | head -50
 ```
 
 Expected: FAIL — `PrephaseResult` still has old fields, `bin_sql_content` doesn't exist.
@@ -249,7 +249,7 @@ def run_prephase(
 - [ ] **Step 2: Run tests**
 
 ```bash
-cd /home/ikeniborn/Documents/Project/ecom1-agent && uv run pytest tests/test_prephase.py -v -k "not test_write_dry_run"
+cd /home/ikeniborn/Documents/Project/ecom1-agent && uv run python -m pytest tests/test_prephase.py -v -k "not test_write_dry_run"
 ```
 
 Expected: all pass except `test_write_dry_run_format` (orchestrator not updated yet).
@@ -295,7 +295,7 @@ pre = run_prephase(vm, task_text, system_prompt, task_id=task_id, dry_run=_DRY_R
 - [ ] **Step 2: Run all tests**
 
 ```bash
-cd /home/ikeniborn/Documents/Project/ecom1-agent && uv run pytest tests/test_prephase.py -v
+cd /home/ikeniborn/Documents/Project/ecom1-agent && uv run python -m pytest tests/test_prephase.py -v
 ```
 
 Expected: all 9 tests pass.
@@ -331,7 +331,7 @@ Expected: no matches.
 - [ ] **Step 3: Final test run**
 
 ```bash
-cd /home/ikeniborn/Documents/Project/ecom1-agent && uv run pytest tests/test_prephase.py -v
+cd /home/ikeniborn/Documents/Project/ecom1-agent && uv run python -m pytest tests/test_prephase.py -v
 ```
 
 Expected: 9/9 pass.
