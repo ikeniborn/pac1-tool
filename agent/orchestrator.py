@@ -10,6 +10,7 @@ from bitgn.vm.ecom.ecom_connect import EcomRuntimeClientSync
 
 from agent.prephase import run_prephase
 from agent.loop import run_loop
+from agent.prompt import build_system_prompt
 
 _MODEL = os.environ.get("MODEL", "")
 _DRY_RUN = os.environ.get("DRY_RUN", "0") == "1"
@@ -36,7 +37,8 @@ def run_agent(model_configs: dict, harness_url: str, task_text: str, task_id: st
     model = _MODEL
     cfg = model_configs.get(model, {}) if model_configs else {}
 
-    pre = run_prephase(vm, task_text)
+    system_prompt = build_system_prompt("lookup")
+    pre = run_prephase(vm, task_text, system_prompt)
 
     if _DRY_RUN:
         _write_dry_run(task_id, task_text, pre)
