@@ -1,4 +1,81 @@
 """Tests for SQL-first few-shot and prephase sql_schema field."""
+import json
+import os
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+
+def _make_mock_pre(sql_schema: str = "CREATE TABLE products (sku TEXT)", agents_md: str = "# Agents"):
+    pre = MagicMock()
+    pre.sql_schema = sql_schema
+    pre.agents_md_content = agents_md
+    pre.log = [{"role": "user", "content": f"TASK: test\n{agents_md}"}]
+    pre.preserve_prefix = pre.log[:]
+    return pre
+
+
+def test_dry_run_returns_dry_run_outcome(tmp_path, monkeypatch):
+    monkeypatch.setenv("DRY_RUN", "1")
+    monkeypatch.setenv("MODEL", "test-model")
+
+    import importlib
+    import agent.orchestrator as orch
+    importlib.reload(orch)
+
+    monkeypatch.setattr(orch, "_DRY_RUN_LOG", tmp_path / "dry_run_analysis.jsonl")
+    mock_pre = _make_mock_pre()
+
+    with patch("agent.orchestrator.PcmRuntimeClientSync"), \
+         patch("agent.orchestrator.run_prephase", return_value=mock_pre):
+        stats = orch.run_agent({}, "http://test", "test task", task_id="t01")
+
+    assert stats["outcome"] == "DRY_RUN"
+    assert stats["input_tokens"] == 0
+    assert stats["output_tokens"] == 0
+
+
+def test_dry_run_writes_jsonl(tmp_path, monkeypatch):
+    monkeypatch.setenv("DRY_RUN", "1")
+    monkeypatch.setenv("MODEL", "test-model")
+
+    import importlib
+    import agent.orchestrator as orch
+    importlib.reload(orch)
+
+    log_path = tmp_path / "dry_run_analysis.jsonl"
+    monkeypatch.setattr(orch, "_DRY_RUN_LOG", log_path)
+    mock_pre = _make_mock_pre(sql_schema="CREATE TABLE products (sku TEXT)", agents_md="# AG")
+
+    with patch("agent.orchestrator.PcmRuntimeClientSync"), \
+         patch("agent.orchestrator.run_prephase", return_value=mock_pre):
+        orch.run_agent({}, "http://test", "task text here", task_id="t42")
+
+    assert log_path.exists()
+    entry = json.loads(log_path.read_text().strip())
+    assert entry["task_id"] == "t42"
+    assert entry["task_text"] == "task text here"
+    assert entry["sql_schema"] == "CREATE TABLE products (sku TEXT)"
+    assert entry["agents_md"] == "# AG"
+    assert "timestamp" in entry
+
+
+def test_normal_mode_calls_loop(monkeypatch):
+    monkeypatch.setenv("DRY_RUN", "0")
+    monkeypatch.setenv("MODEL", "test-model")
+
+    import importlib
+    import agent.orchestrator as orch
+    importlib.reload(orch)
+
+    mock_pre = _make_mock_pre()
+    mock_stats = {"input_tokens": 10, "output_tokens": 5}
+
+    with patch("agent.orchestrator.PcmRuntimeClientSync"), \
+         patch("agent.orchestrator.run_prephase", return_value=mock_pre), \
+         patch("agent.orchestrator.run_loop", return_value=mock_stats) as mock_loop:
+        orch.run_agent({}, "http://test", "normal task")
+
+    mock_loop.assert_called_once()
 
 
 def test_few_shot_user_is_sql_task():
