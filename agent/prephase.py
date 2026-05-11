@@ -2,8 +2,8 @@ import os
 import re
 from dataclasses import dataclass, field
 
-from bitgn.vm.pcm_connect import PcmRuntimeClientSync
-from bitgn.vm.pcm_pb2 import ContextRequest, ListRequest, ReadRequest, TreeRequest
+from bitgn.vm.ecom.ecom_connect import EcomRuntimeClientSync
+from bitgn.vm.ecom.ecom_pb2 import ContextRequest, ListRequest, NodeKind, ReadRequest, TreeRequest
 
 from .dispatch import CLI_BLUE, CLI_CLR, CLI_GREEN, CLI_YELLOW
 
@@ -69,7 +69,7 @@ _FEW_SHOT_ASSISTANT = (
 
 
 def run_prephase(
-    vm: PcmRuntimeClientSync,
+    vm: EcomRuntimeClientSync,
     task_text: str,
     system_prompt_text: str,
 ) -> PrephaseResult:
@@ -156,7 +156,7 @@ def run_prephase(
         # _read_dir: recursively reads all files from a directory path
         def _read_dir(dir_path: str, seen: set) -> None:
             try:
-                entries = vm.list(ListRequest(name=dir_path))
+                entries = vm.list(ListRequest(path=dir_path))
             except Exception as e:
                 print(f"{CLI_YELLOW}[prephase] {dir_path}/: {e}{CLI_CLR}")
                 return
@@ -200,10 +200,9 @@ def run_prephase(
                 except Exception:
                     pass
                 # [FIX-244] Exception on read (e.g. timeout for large files) —
-                # if entry has a file extension it's a file, not a directory.
-                # Annotate as unreadable; do NOT recurse (_read_dir would
-                # call vm.list on a file path and log "path must reference a folder").
-                if "." in entry.name:
+                # Use ECOM entry.kind to detect files vs directories reliably.
+                # Do NOT recurse for files — vm.list on a file path is always wrong.
+                if entry.kind != NodeKind.NODE_KIND_DIR:
                     # FIX-285: retry once on read timeout before annotating as unreadable
                     import time as _time
                     _time.sleep(0.5)
@@ -395,7 +394,13 @@ def run_prephase(
     print(f"{CLI_BLUE}[prephase] context...{CLI_CLR}", end=" ")
     try:
         ctx_result = vm.context(ContextRequest())
-        ctx_content = (ctx_result.content or "").strip()
+        # ECOM ContextResponse has unix_time (int64) and time (string) fields.
+        _ctx_parts = []
+        if ctx_result.time:
+            _ctx_parts.append(f"time: {ctx_result.time}")
+        if ctx_result.unix_time:
+            _ctx_parts.append(f"unix_time: {ctx_result.unix_time}")
+        ctx_content = "\n".join(_ctx_parts)
         if ctx_content:
             log.append({"role": "user", "content": f"TASK CONTEXT:\n{ctx_content}"})
             print(f"{CLI_GREEN}ok ({len(ctx_content)} chars){CLI_CLR}")
@@ -403,13 +408,6 @@ def run_prephase(
                 print(f"{CLI_BLUE}[prephase] context content:\n{ctx_content}{CLI_CLR}")
         else:
             print(f"{CLI_YELLOW}empty (no harness-provided metadata){CLI_CLR}")
-        # Surface any extra proto fields added by the benchmark (future-proofing).
-        for _f in ctx_result.DESCRIPTOR.fields:
-            if _f.name == "content":
-                continue
-            _v = getattr(ctx_result, _f.name, None)
-            if _v:
-                print(f"{CLI_BLUE}[prephase] context.{_f.name}: {_v!r}{CLI_CLR}")
     except Exception as e:
         print(f"{CLI_YELLOW}not available: {e}{CLI_CLR}")
 
