@@ -24,6 +24,7 @@ class PrephaseResult:
     vault_tree_text: str = ""
     # FIX-406: inferred vault date (YYYY-MM-DD) for contract negotiation.
     vault_date_est: str = ""
+    sql_schema: str = ""
 
 
 def _format_tree_entry(entry, prefix: str = "", is_last: bool = True) -> list[str]:
@@ -56,12 +57,14 @@ def _render_tree_result(result, root_path: str = "/", level: int = 2) -> str:
 # before any task context. More reliable than response_format for Ollama-proxied
 # cloud models that ignore json_object enforcement.
 # NOTE: generic path used intentionally — discovery-first principle (no vault-specific hardcoding).
-_FEW_SHOT_USER = "Example: what files are in the notes folder?"
+_FEW_SHOT_USER = "Example: How many catalogue products are Lawn Mower?"
 _FEW_SHOT_ASSISTANT = (
-    '{"current_state":"listing notes folder to identify files",'
-    '"plan_remaining_steps_brief":["list /notes","act on result"],'
-    '"task_completed":false,'
-    '"function":{"tool":"list","path":"/notes"}}'
+    '{"current_state":"validating SQL syntax before executing count",'
+    '"plan_remaining_steps_brief":["EXPLAIN query","SELECT COUNT","report result"],'
+    '"done_operations":[],"task_completed":false,'
+    '"function":{"tool":"exec","path":"/bin/sql",'
+    '"args":["EXPLAIN SELECT COUNT(*) FROM products WHERE type=\'Lawn Mower\'"],'
+    '"stdin":""}}'
 )
 
 
@@ -423,4 +426,5 @@ def run_prephase(
         inbox_files=sorted(inbox_files, key=lambda x: x[0]),
         vault_tree_text=tree_txt,
         vault_date_est=_vault_date_est,
+        sql_schema="",
     )
