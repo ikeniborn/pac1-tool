@@ -56,7 +56,7 @@ When `dry_run=True`:
 
 3. Do **not** inject `/bin/sql` content into LLM context.
 
-`dry_run_analysis.jsonl` location: project root (same dir as `agent/`).
+`dry_run_analysis.jsonl` location: `data/dry_run_analysis.jsonl`.
 
 ## Orchestrator Changes
 
