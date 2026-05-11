@@ -267,7 +267,7 @@ CLI_CLR = "\x1B[0m"
 CLI_BLUE = "\x1B[34m"
 
 
-def _run_single_task(trial_id: str, task_filter: list, router: ModelRouter) -> tuple:
+def _run_single_task(trial_id: str, task_filter: list) -> tuple:
     """Execute one benchmark trial in its own thread with a dedicated harness client."""
     client = HarnessServiceClientSync(BITGN_URL)
     trial = client.start_trial(StartTrialRequest(trial_id=trial_id))
@@ -598,7 +598,7 @@ def main() -> None:
             _print_table_header()
             with ThreadPoolExecutor(max_workers=PARALLEL_TASKS) as pool:
                 futures = {
-                    pool.submit(_run_single_task, tid, task_filter, EFFECTIVE_MODEL): tid
+                    pool.submit(_run_single_task, tid, task_filter): tid
                     for tid in run.trial_ids
                 }
                 for fut in as_completed(futures):
