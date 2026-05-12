@@ -12,7 +12,6 @@ def _make_pre(agents_md="AGENTS", db_schema="CREATE TABLE products(id INT, type 
         preserve_prefix=[],
         agents_md_content=agents_md,
         agents_md_path="/AGENTS.MD",
-        bin_sql_content="",
         db_schema=db_schema,
     )
 
