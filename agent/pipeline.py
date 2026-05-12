@@ -61,7 +61,8 @@ def _call_llm_phase(
     cfg: dict,
     output_cls,
     max_tokens: int = 4096,
-) -> tuple[object | None, dict]:
+) -> tuple[object | None, dict, dict]:
+    """SGR LLM call: returns (parsed_output_or_None, sgr_trace_entry, tok_info)."""
     tok_info: dict = {}
     raw = call_llm_raw(system, user_msg, model, cfg, max_tokens=max_tokens, token_out=tok_info)
     phase_name = output_cls.__name__
@@ -72,17 +73,17 @@ def _call_llm_phase(
         "output": raw or "",
     }
     if not raw:
-        return None, sgr_entry
+        return None, sgr_entry, tok_info
     parsed = _extract_json_from_text(raw)
     if not isinstance(parsed, dict):
-        return None, sgr_entry
+        return None, sgr_entry, tok_info
     try:
         obj = output_cls.model_validate(parsed)
         sgr_entry["reasoning"] = obj.reasoning
         sgr_entry["output"] = parsed
-        return obj, sgr_entry
+        return obj, sgr_entry, tok_info
     except Exception:
-        return None, sgr_entry
+        return None, sgr_entry, tok_info
 
 
 def _gates_summary(gates: list[dict]) -> str:
@@ -252,7 +253,9 @@ def run_pipeline(
         if last_error:
             user_msg += f"\n\nPREVIOUS ERROR: {last_error}"
 
-        sql_plan_out, sgr_entry = _call_llm_phase(system, user_msg, model, cfg, SqlPlanOutput)
+        sql_plan_out, sgr_entry, tok = _call_llm_phase(system, user_msg, model, cfg, SqlPlanOutput)
+        total_in_tok += tok.get("input", 0)
+        total_out_tok += tok.get("output", 0)
         sgr_trace.append(sgr_entry)
 
         if not sql_plan_out:
@@ -378,7 +381,9 @@ def run_pipeline(
         pre.schema_digest, rules_loader, session_rules, security_gates,
     )
     answer_user = f"TASK: {task_text}\n\nSQL RESULTS:\n" + "\n---\n".join(sql_results)
-    answer_out, sgr_answer = _call_llm_phase(answer_system, answer_user, model, cfg, AnswerOutput)
+    answer_out, sgr_answer, tok = _call_llm_phase(answer_system, answer_user, model, cfg, AnswerOutput)
+    total_in_tok += tok.get("input", 0)
+    total_out_tok += tok.get("output", 0)
     sgr_trace.append(sgr_answer)
 
     outcome = "OUTCOME_NONE_CLARIFICATION"
@@ -447,7 +452,7 @@ def _run_learn(
         f"FAILED QUERIES: {json.dumps(queries)}\n"
         f"ERROR: {error}"
     )
-    learn_out, sgr_learn = _call_llm_phase(learn_system, learn_user, model, cfg, LearnOutput, max_tokens=2048)
+    learn_out, sgr_learn, _ = _call_llm_phase(learn_system, learn_user, model, cfg, LearnOutput, max_tokens=2048)
     sgr_trace.append(sgr_learn)
     if learn_out:
         anchor = learn_out.agents_md_anchor

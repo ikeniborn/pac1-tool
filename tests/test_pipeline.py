@@ -250,3 +250,54 @@ def test_format_schema_digest_lists_tables():
     assert "products" in text
     assert "sku" in text
     assert "diameter_mm" in text
+
+
+def test_call_llm_phase_returns_three_tuple(tmp_path):
+    """_call_llm_phase returns (obj, sgr, tok) — tok has input/output keys."""
+    from agent.pipeline import _call_llm_phase
+    from agent.models import SqlPlanOutput
+
+    raw = json.dumps({
+        "reasoning": "ok",
+        "queries": ["SELECT 1"],
+    })
+
+    with patch("agent.pipeline.call_llm_raw", side_effect=lambda *a, **kw: (
+        kw.get("token_out", {}).update({"input": 42, "output": 7}) or raw
+    )):
+        obj, sgr, tok = _call_llm_phase("sys", "user", "model", {}, SqlPlanOutput)
+
+    assert obj is not None
+    assert tok.get("input") == 42
+    assert tok.get("output") == 7
+
+
+def test_pipeline_token_counts_nonzero(tmp_path):
+    """total_in_tok and total_out_tok are non-zero after successful pipeline run."""
+    from unittest.mock import MagicMock, patch
+
+    vm = MagicMock()
+    vm.exec.return_value = _make_exec_result('[{"count": 3}]')
+
+    pre = _make_pre()
+    rules_dir = tmp_path / "rules"
+    rules_dir.mkdir()
+
+    call_count = [0]
+
+    def _fake_llm(system, user_msg, model, cfg, max_tokens=4096, token_out=None):
+        if token_out is not None:
+            token_out["input"] = 100
+            token_out["output"] = 20
+        call_count[0] += 1
+        if call_count[0] == 1:
+            return _sql_plan_json()
+        return _answer_json()
+
+    with patch("agent.pipeline.call_llm_raw", side_effect=_fake_llm), \
+         patch("agent.pipeline._RULES_DIR", rules_dir), \
+         patch("agent.pipeline.load_security_gates", return_value=[]):
+        stats = run_pipeline(vm, "anthropic/claude-sonnet-4-6", "How many Lawn Mowers?", pre, {})
+
+    assert stats["input_tokens"] > 0, f"input_tokens still 0: {stats}"
+    assert stats["output_tokens"] > 0, f"output_tokens still 0: {stats}"
