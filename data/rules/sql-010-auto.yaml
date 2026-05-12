@@ -1,0 +1,12 @@
+content: Never include the brand name as a prefix in the `model` column filter. The
+  `brand` column holds the brand separately; `model` contains only the bare model
+  string (e.g., use `model = 'Professional Advance 1PO-W67'`, not `model = 'Shell
+  Professional Advance 1PO-W67'`). Always verify actual `model` values with `SELECT
+  DISTINCT model FROM products WHERE brand = '<Brand>' LIMIT 20` before filtering.
+created: '2026-05-12'
+id: sql-010
+phase: sql_plan
+source: auto
+task_id: Do you have the Automotive Charger and Bulb from Shell in the Shell Professional
+  Advance 1PO-W67 Aut
+verified: false

@@ -78,13 +78,17 @@ LEARN [LLM]:
 
 ## System Prompt Composition
 
-Order of sections injected into system prompt for each phase:
+Rules injection differs by phase:
 
-1. `AGENTS.MD` content (read from VM per task — primary authority)
-2. Pipeline execution rules (from `data/rules.yaml`, `phase: sql_plan`, `verified: true`)
-3. Security gate rules summary (from `data/rules.yaml`, `security_gates`)
-4. Phase-specific guide (from `data/prompts/<phase>.md`)
-5. In-session auto-rules (LEARN output, `verified: false`, active for current task only)
+| Section | SQL_PLAN | VALIDATE | EXECUTE | LEARN | ANSWER | EVALUATE |
+|---------|----------|----------|---------|-------|--------|----------|
+| AGENTS.MD | ✓ | — | — | ✓ | ✓ | ✓ |
+| pipeline_rules (verified=true, phase=sql_plan) | ✓ | — | — | ✓ | — | — |
+| security_gates summary | ✓ | — | — | — | — | — |
+| phase-specific guide (data/prompts/<phase>.md) | ✓ | — | — | ✓ | ✓ | ✓ |
+| in-session auto-rules (verified=false) | ✓ | — | — | ✓ | — | — |
+
+VALIDATE and EXECUTE are deterministic — no LLM call, no system prompt.
 
 ---
 
@@ -154,10 +158,15 @@ Full rewrite of legacy evaluator. Runs **after** `vm.answer()` returns the bench
 class EvalInput:
     task_text: str
     agents_md: str               # from prephase
-    db_schema: str               # from /bin/sql .schema
-    sgr_trace: list[dict]        # per-phase: {phase, guide_prompt, reasoning, output}
-    benchmark_score: float | None  # outcome from vm.answer() if available
+    db_schema: str               # from /bin/sql .schema (exec output)
+    sgr_trace: list[dict]        # per LLM phase: {phase, guide_prompt, reasoning, output}
+    cycles: int                  # total SQL_PLAN→EXECUTE cycles taken
+    final_outcome: str           # outcome from AnswerOutput
 ```
+
+Note: benchmark ground-truth score is NOT available at evaluator call time — `AnswerResponse`
+proto is empty; score arrives only via `EndTrialResponse` at end of full trial. Evaluator
+assesses quality from trace alone.
 
 Output: `PipelineEvalOutput` (defined in Pydantic Models section above).
 
@@ -200,8 +209,8 @@ security_gates:
     action: block
     message: "DDL/DML prohibited"
   - id: "sec-002"
-    pattern: "SELECT[\\s\\S]+FROM\\s+\\w+"  # post-parse check: no WHERE token
-    action: block
+    check: "no_where_clause"   # post-parse check: tokenise query, verify WHERE token present
+    action: block              # NOT a regex — regex matching SELECT...FROM also matches valid queries
     message: "Full table scan prohibited — add WHERE clause"
   - id: "sec-003"
     path_prefix: "/proc/catalog/"   # applied to Req_Read / Req_List path
@@ -209,7 +218,9 @@ security_gates:
     message: "Use SQL only — direct catalog file reads prohibited"
 ```
 
-Auto-rules appended by LEARN phase use `verified: false`, `source: auto`, `task_id: <current>`.
+Auto-rules appended by LEARN phase use `verified: false`, `source: auto`, `task_id: <current>`,
+`phase: sql_plan` — so they are eligible for injection into SQL_PLAN and LEARN phases in future
+runs once verified.
 
 ---
 
@@ -270,7 +281,7 @@ Applied in `agent/sql_security.py` before every EXECUTE:
 
 ## PrephaseResult Changes
 
-`PrephaseResult` gains two new fields:
+`PrephaseResult` gains one new field:
 
 ```python
 @dataclass
@@ -279,11 +290,13 @@ class PrephaseResult:
     preserve_prefix: list
     agents_md_content: str = ""
     agents_md_path: str = ""
-    bin_sql_content: str = ""      # existing
-    db_schema: str = ""            # NEW: output of /bin/sql .schema
+    bin_sql_content: str = ""      # existing: content of /bin/sql file (vm.read)
+    db_schema: str = ""            # NEW: stdout of vm.exec("/bin/sql", [".schema"])
 ```
 
-`prephase.py` always runs `/bin/sql .schema` (unconditionally, not gated on `dry_run`).
+`prephase.py` always calls `vm.exec(ExecRequest(path="/bin/sql", args=[".schema"]))` to obtain
+the DB schema (unconditionally, not gated on `dry_run`). This is an **exec call**, not a file
+read — `/bin/sql` is the SQL interpreter binary.
 
 ---
 

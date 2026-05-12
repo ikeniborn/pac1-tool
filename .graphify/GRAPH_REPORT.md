@@ -1,105 +1,124 @@
-# Graph Report - logs/20260511_134122_qwen3.5-cloud + ecom-py  (2026-05-11)
+# Graph Report - .  (2026-05-12)
 
 ## Corpus Check
-- 15 files · ~400,000 words
-- Verdict: corpus is large enough that graph structure adds value.
+- Corpus is ~14,995 words - fits in a single context window. You may not need a graph.
 
 ## Summary
-- 84 nodes · 117 edges · 9 communities (7 shown, 2 thin omitted)
-- Extraction: 68% EXTRACTED · 32% INFERRED · 0% AMBIGUOUS · INFERRED: 37 edges (avg confidence: 0.89)
+- 353 nodes · 558 edges · 20 communities
+- Extraction: 85% EXTRACTED · 15% INFERRED · 0% AMBIGUOUS · INFERRED: 85 edges (avg confidence: 0.78)
 - Token cost: 0 input · 0 output
 
 ## Community Hubs (Navigation)
-- [[_COMMUNITY_Agent Pipeline (Our)|Agent Pipeline (Our)]]
-- [[_COMMUNITY_Prephase & Task Load|Prephase & Task Load]]
-- [[_COMMUNITY_Wiki Knowledge System|Wiki Knowledge System]]
-- [[_COMMUNITY_Context Overflow Failures|Context Overflow Failures]]
-- [[_COMMUNITY_LLM Models & Dispatch|LLM Models & Dispatch]]
-- [[_COMMUNITY_Contract & Consensus|Contract & Consensus]]
-- [[_COMMUNITY_Sample Agent (ecom-py)|Sample Agent (ecom-py)]]
-- [[_COMMUNITY_Architecture Diff & Fixes|Architecture Diff & Fixes]]
-- [[_COMMUNITY_PCM Tools|PCM Tools]]
+- [[_COMMUNITY_LLM Dispatch & Routing|LLM Dispatch & Routing]]
+- [[_COMMUNITY_BitGN Harness Integration|BitGN Harness Integration]]
+- [[_COMMUNITY_Pydantic Models & Contracts|Pydantic Models & Contracts]]
+- [[_COMMUNITY_Connect-RPC Client Layer|Connect-RPC Client Layer]]
+- [[_COMMUNITY_Prephase & VM Bootstrap|Prephase & VM Bootstrap]]
+- [[_COMMUNITY_SQL Pipeline State Machine|SQL Pipeline State Machine]]
+- [[_COMMUNITY_SQL Security Gates|SQL Security Gates]]
+- [[_COMMUNITY_Prompt Loader & Assembly|Prompt Loader & Assembly]]
+- [[_COMMUNITY_Tracer & Logging|Tracer & Logging]]
+- [[_COMMUNITY_Pipeline Evaluator|Pipeline Evaluator]]
+- [[_COMMUNITY_Rules Loader (YAML)|Rules Loader (YAML)]]
+- [[_COMMUNITY_Orchestrator Entry Point|Orchestrator Entry Point]]
+- [[_COMMUNITY_CC Client (Claude Code)|CC Client (Claude Code)]]
 
 ## God Nodes (most connected - your core abstractions)
-1. `Agent Loop (≤30 steps)` - 20 edges
-2. `Prephase: Vault Explorer` - 17 edges
-3. `Sample: run_agent() — main loop` - 17 edges
-4. `LLM Dispatcher` - 7 edges
-5. `Prephase Load: Medium (100-2000 reads)` - 7 edges
-6. `Error: Context Window Overflow (>262K tokens)` - 6 edges
-7. `Prephase Load: Large (>9000 reads) → OVERFLOW` - 6 edges
-8. `Model Router` - 5 edges
-9. `Contract Phase: Executor+Evaluator Consensus` - 5 edges
-10. `Wiki Lint` - 5 edges
+1. `load_prompt()` - 19 edges
+2. `run_pipeline()` - 16 edges
+3. `EcomRuntimeClientSync` - 16 edges
+4. `check_sql_queries()` - 15 edges
+5. `agent/CLAUDE.md` - 15 edges
+6. `PcmRuntimeClientSync` - 14 edges
+7. `run_prephase()` - 13 edges
+8. `HarnessServiceClientSync` - 12 edges
+9. `_call_llm()` - 11 edges
+10. `RulesLoader` - 11 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `Agent Loop (≤30 steps)` --calls--> `FIX-345: report_completion blocked — no vault discovery`  [INFERRED]
-  agent/__init__.py → main.log
-- `Sample: NextStep (Pydantic union schema)` --semantically_similar_to--> `Agent Loop (≤30 steps)`  [INFERRED] [semantically similar]
-  ecom-py/agent.py → agent/__init__.py
-- `Prephase: Vault Explorer` --rationale_for--> `Root Cause: Prephase reads 9000+ catalog files → context overflow`  [INFERRED]
-  agent/__init__.py → main.log
-- `Prephase: Vault Explorer` --calls--> `Prephase Load: Large (>9000 reads) → OVERFLOW`  [INFERRED]
-  agent/__init__.py → main.log
-- `Prephase: Vault Explorer` --precedes--> `t02 | score=1.0 | OK | reads=102`  [EXTRACTED]
-  agent/__init__.py → t02.log
+- `_run_single_task()` --calls--> `run_agent()`  [INFERRED]
+  main.py → agent/orchestrator.py
+- `test_sql_plan_output_valid()` --calls--> `SqlPlanOutput`  [INFERRED]
+  tests/test_pipeline_models.py → agent/models.py
+- `test_sql_plan_output_requires_reasoning()` --calls--> `SqlPlanOutput`  [INFERRED]
+  tests/test_pipeline_models.py → agent/models.py
+- `test_sql_plan_output_requires_queries()` --calls--> `SqlPlanOutput`  [INFERRED]
+  tests/test_pipeline_models.py → agent/models.py
+- `test_empty_directory_returns_empty()` --calls--> `RulesLoader`  [INFERRED]
+  tests/test_rules_loader.py → agent/rules_loader.py
 
-## Hyperedges (group relationships)
-- **Context Overflow Failure Group (t04, t08, t12)** — task_t04, task_t08, task_t12, prephase_large, error_ctx_overflow, root_cause_prephase_bloat [EXTRACTED 1.00]
-- **Medium-load successful tasks (t02, t03, t10, t11)** — task_t02, task_t03, task_t10, task_t11, prephase_medium [EXTRACTED 1.00]
-- **Agent Pipeline Modules** — module_prephase, module_classifier, module_model_router, module_prompt_builder, module_contract, module_loop, module_evaluator [EXTRACTED 1.00]
-- **Sample Agent vs Our Agent: Architecture Comparison** — sa_must_phase, module_prephase, diff_no_prephase_bloat, fix_overflow_solution, root_cause_prephase_bloat [EXTRACTED 1.00]
-- **Sample Agent: Missing subsystems vs Our Agent** — diff_no_dspy, diff_no_contract, diff_no_wiki, diff_no_stall, diff_no_parallel [EXTRACTED 1.00]
+## Communities (20 total, 0 thin omitted)
 
-## Communities (9 total, 2 thin omitted)
+### Community 0 - "LLM Dispatch & Routing"
+Cohesion: 0.06
+Nodes (46): call_llm_raw(), _call_raw_single_model(), dispatch(), get_anthropic_model_id(), get_provider(), get_response_format(), _get_static_hint(), is_claude_code_model() (+38 more)
 
-### Community 0 - "Agent Pipeline (Our)"
-Cohesion: 0.11
-Nodes (18): KEY DIFF: No stall detection, no security gates, Agent Loop (≤30 steps), Security Gates, Stall Detector, Our Agent: complex system prompt (task-type blocks, wiki, graph), Sample: minimal 3-line system prompt (no task-type blocks), Sample Tool: exec, Sample Tool: report_completion (+10 more)
+### Community 1 - "BitGN Harness Integration"
+Cohesion: 0.08
+Nodes (33): agent/CLAUDE.md, bitgn/ (generated stubs), BitGN benchmark harness, HarnessServiceClientSync, Connect-RPC, dispatch.py, DSPy optimization, main() (+25 more)
 
-### Community 1 - "Prephase & Task Load"
-Cohesion: 0.14
-Nodes (17): DIFF: context tool present (absent in our agent), DIFF: stat tool present (absent in our agent), Sample: HarnessServiceClientSync, Sample: main.py — harness runner, Sample: must-phase — 3 fixed calls (tree + AGENTS.MD + context), Sample: NextStep (Pydantic union schema), Sample: run_agent() — main loop, Sample Tool: context (+9 more)
+### Community 2 - "Pydantic Models & Contracts"
+Cohesion: 0.09
+Nodes (32): Contract, ContractRound, EvaluatorResponse, ExecutorProposal, AnswerOutput, EmailOutbox, LearnOutput, NextStep (+24 more)
 
-### Community 2 - "Wiki Knowledge System"
-Cohesion: 0.23
-Nodes (15): Error: Missing /proc/catalog reference in answer, Error: No answer provided (model silent), FIX-345: report_completion blocked — no vault discovery, Prephase: Vault Explorer, Prephase Load: Medium (100-2000 reads), Prephase Load: Small (<100 catalog reads), t01 | score=0.0 | GRADING_FAIL | reads=12, t02 | score=1.0 | OK | reads=102 (+7 more)
+### Community 3 - "Connect-RPC Client Layer"
+Cohesion: 0.06
+Nodes (4): ConnectClient, Minimal Connect RPC client using JSON protocol over httpx., EcomRuntimeClientSync, PcmRuntimeClientSync
 
-### Community 3 - "Context Overflow Failures"
-Cohesion: 0.24
-Nodes (10): KEY DIFF: Native OpenAI structured outputs (not JSON text gen), Ollama (local fallback), qwen3.5:397b-cloud (classifier/evaluator/builder/wiki), qwen3.5:cloud (executor, 10 tasks), Task Classifier (DSPy/LLM), LLM Dispatcher, Model Router, Sample: dispatch() — tool routing (+2 more)
+### Community 4 - "Prephase & VM Bootstrap"
+Cohesion: 0.1
+Nodes (29): PrephaseResult, run_prephase(), _make_vm(), PrephaseResult now has db_schema field., Normal mode (not dry_run) still calls vm.exec for schema., vm.exec exception → db_schema is empty string, no crash., db_schema content must NOT appear in LLM log messages., PrephaseResult has exactly the expected fields. (+21 more)
 
-### Community 4 - "LLM Models & Dispatch"
-Cohesion: 0.43
-Nodes (8): KEY DIFF: must-phase = 3 fixed reads (no catalog bulk-load), Error: Context Window Overflow (>262K tokens), FIX CANDIDATE: Replace bulk prephase with on-demand tool calls (sample pattern), Prephase Load: Large (>9000 reads) → OVERFLOW, Root Cause: Prephase reads 9000+ catalog files → context overflow, t04 | score=0.0 | OUTCOME_ERR_INTERNAL | reads=9207, t08 | score=0.0 | OUTCOME_ERR_INTERNAL | reads=9686, t12 | score=0.0 | OUTCOME_ERR_INTERNAL | reads=9896
+### Community 5 - "SQL Pipeline State Machine"
+Cohesion: 0.16
+Nodes (24): _build_system(), _call_llm_phase(), _csv_has_data(), _exec_result_text(), _gates_summary(), Phase-based SQL pipeline for lookup tasks — replaces run_loop() for task_type='l, Phase-based SQL pipeline. Returns stats dict compatible with run_loop()., Extract stdout/output text from an ExecResponse or test mock. (+16 more)
 
-### Community 5 - "Contract & Consensus"
-Cohesion: 0.33
-Nodes (7): Contract: Multi-round consensus (≤3 rounds), Contract: Evaluator role, Contract: Executor role, KEY DIFF: No contract/consensus phase, KEY DIFF: No DSPy (no prompt_builder, evaluator, classifier), Contract Phase: Executor+Evaluator Consensus, Prompt Builder (DSPy)
+### Community 6 - "SQL Security Gates"
+Cohesion: 0.13
+Nodes (23): check_path_access(), check_sql_queries(), _has_where_clause(), _is_select(), load_security_gates(), Security gate evaluation — gates loaded from data/security/*.yaml., Load all gate definitions from *.yaml files in directory, sorted by filename., Apply security gates to SQL queries. Returns error message or None if all pass. (+15 more)
 
-### Community 6 - "Sample Agent (ecom-py)"
-Cohesion: 0.33
-Nodes (7): KEY DIFF: No wiki/knowledge graph system, Evaluator (DSPy), Wiki Graph, Wiki Lint, Wiki: errors/lookup fragments (4 tasks failed), Wiki Graph: 19 delta items, 19 node touches, Wiki page: lookup.md (quality=developing)
+### Community 7 - "Prompt Loader & Assembly"
+Cohesion: 0.13
+Nodes (21): build_system_prompt(), load_prompt(), System prompt builder — loads blocks from data/prompts/*.md., Return prompt block by file stem name. Returns '' if not found., Assemble system prompt from file-based blocks for the given task type., test_build_system_prompt_fallback_to_default_for_unknown(), test_build_system_prompt_lookup_contains_core_and_catalogue(), test_core_has_ecom_role() (+13 more)
+
+### Community 8 - "Tracer & Logging"
+Cohesion: 0.12
+Nodes (14): close_tracer(), get_task_tracer(), init_tracer(), Replay tracer for the agent loop (П3).  Writes JSONL event stream to logs/{ts}_{, Store task_id in thread-local so loop.py can access it without signature changes, Return a TaskTracer bound to task_id (falls back to thread-local if not given)., Flush and close the run-level tracer. Call at process exit., Append-only JSONL writer. Fail-open: errors in emit() never propagate. (+6 more)
+
+### Community 9 - "Pipeline Evaluator"
+Cohesion: 0.19
+Nodes (16): _append_log(), _build_eval_system(), EvalInput, Post-execution pipeline evaluator. Fail-open: any exception returns None., Evaluate pipeline trace. Returns PipelineEvalOutput or None on any failure., _run(), run_evaluator(), _run_evaluator_safe() (+8 more)
+
+### Community 10 - "Rules Loader (YAML)"
+Cohesion: 0.22
+Nodes (9): Load and append SQL planning rules from data/rules/ (one YAML file per rule)., RulesLoader, _make_rules_dir(), Create a rules directory with two individual rule files., test_append_rule_creates_new_file(), test_append_rule_unique_id(), test_empty_directory_returns_empty(), test_load_all_rules() (+1 more)
+
+### Community 11 - "Orchestrator Entry Point"
+Cohesion: 0.2
+Nodes (9): Minimal orchestrator for ecom benchmark., Execute a single benchmark task., No-op: wiki subsystem removed., run_agent(), _write_dry_run(), write_wiki_fragment(), _make_vm_mock(), run_agent with task_type=lookup calls run_pipeline, not run_loop. (+1 more)
+
+### Community 12 - "CC Client (Claude Code)"
+Cohesion: 0.27
+Nodes (8): _build_env(), cc_complete(), _parse_envelope(), Claude Code tier — spawn iclaude CLI as stateless LLM.  Bypasses applied (all re, Spawn iclaude once. Returns (stdout_lines, exit_code, fail_reason).     fail_rea, Stateless LLM call via iclaude subprocess.      Returns assistant text (JSON str, Extract result text and token usage from iclaude --output-format json.     Envel, _spawn_once()
 
 ## Knowledge Gaps
-- **19 isolated node(s):** `Security Gates`, `Error: Missing /proc/catalog reference in answer`, `Grading failure`, `Ollama (local fallback)`, `Wiki Graph: 19 delta items, 19 node touches` (+14 more)
+- **80 isolated node(s):** `Tee stdout to logs/{ts}_{model}.log. ANSI codes are stripped in file.`, `Execute one benchmark trial.`, `Claude Code tier — spawn iclaude CLI as stateless LLM.  Bypasses applied (all re`, `Extract result text and token usage from iclaude --output-format json.     Envel`, `Spawn iclaude once. Returns (stdout_lines, exit_code, fail_reason).     fail_rea` (+75 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **2 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `Agent Loop (≤30 steps)` connect `Agent Pipeline (Our)` to `Prephase & Task Load`, `Wiki Knowledge System`, `Context Overflow Failures`, `Contract & Consensus`, `Sample Agent (ecom-py)`?**
-  _High betweenness centrality (0.532) - this node is a cross-community bridge._
-- **Why does `Prephase: Vault Explorer` connect `Wiki Knowledge System` to `Context Overflow Failures`, `LLM Models & Dispatch`?**
-  _High betweenness centrality (0.304) - this node is a cross-community bridge._
-- **Why does `Sample: run_agent() — main loop` connect `Prephase & Task Load` to `Agent Pipeline (Our)`, `Context Overflow Failures`?**
-  _High betweenness centrality (0.300) - this node is a cross-community bridge._
-- **Are the 14 inferred relationships involving `Agent Loop (≤30 steps)` (e.g. with `PCM Tool: tree` and `PCM Tool: find`) actually correct?**
-  _`Agent Loop (≤30 steps)` has 14 INFERRED edges - model-reasoned connections that need verification._
-- **Are the 4 inferred relationships involving `Prephase: Vault Explorer` (e.g. with `Root Cause: Prephase reads 9000+ catalog files → context overflow` and `Prephase Load: Small (<100 catalog reads)`) actually correct?**
-  _`Prephase: Vault Explorer` has 4 INFERRED edges - model-reasoned connections that need verification._
-- **Are the 11 inferred relationships involving `Sample: run_agent() — main loop` (e.g. with `Sample Tool: tree` and `Sample Tool: find`) actually correct?**
-  _`Sample: run_agent() — main loop` has 11 INFERRED edges - model-reasoned connections that need verification._
-- **What connects `Security Gates`, `Error: Missing /proc/catalog reference in answer`, `Grading failure` to the rest of the system?**
-  _19 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **Why does `run_agent()` connect `Orchestrator Entry Point` to `LLM Dispatch & Routing`, `BitGN Harness Integration`, `Connect-RPC Client Layer`, `Prephase & VM Bootstrap`, `SQL Pipeline State Machine`, `Prompt Loader & Assembly`?**
+  _High betweenness centrality (0.390) - this node is a cross-community bridge._
+- **Why does `run_pipeline()` connect `SQL Pipeline State Machine` to `Pipeline Evaluator`, `Rules Loader (YAML)`, `Orchestrator Entry Point`, `SQL Security Gates`?**
+  _High betweenness centrality (0.271) - this node is a cross-community bridge._
+- **Why does `_run_single_task()` connect `BitGN Harness Integration` to `Orchestrator Entry Point`?**
+  _High betweenness centrality (0.190) - this node is a cross-community bridge._
+- **Are the 14 inferred relationships involving `load_prompt()` (e.g. with `test_load_prompt_core()` and `test_load_prompt_lookup()`) actually correct?**
+  _`load_prompt()` has 14 INFERRED edges - model-reasoned connections that need verification._
+- **Are the 5 inferred relationships involving `run_pipeline()` (e.g. with `run_agent()` and `test_happy_path()`) actually correct?**
+  _`run_pipeline()` has 5 INFERRED edges - model-reasoned connections that need verification._
+- **Are the 3 inferred relationships involving `EcomRuntimeClientSync` (e.g. with `PrephaseResult` and `ConnectClient`) actually correct?**
+  _`EcomRuntimeClientSync` has 3 INFERRED edges - model-reasoned connections that need verification._
+- **Are the 10 inferred relationships involving `check_sql_queries()` (e.g. with `test_ddl_drop_blocked()` and `test_ddl_insert_blocked()`) actually correct?**
+  _`check_sql_queries()` has 10 INFERRED edges - model-reasoned connections that need verification._
