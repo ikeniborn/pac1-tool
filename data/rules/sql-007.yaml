@@ -1,0 +1,15 @@
+content: 'Always lint every identifier in generated SQL against provided schema before
+  emit; block query if any table or column name absent from schema. Catches typos
+  like `produts` vs `products` or `prodcut_properties.sku` pre-execution. Example:
+  parse `SELECT p.sku FROM produts p WHERE p.brand=''Heco''` → `produts` not in schema
+  → reject, suggest `products`.'
+created: '2026-05-12'
+eval_score: 0.2
+id: sql-007
+phase: sql_plan
+raw_recommendation: 'sql-plan-validation.yaml: Add a pre-emit lint rule that diffs
+  every identifier in the query against the provided schema; block emission if any
+  table or column name is not in schema (catches ''produts'' class of typos before
+  first execution).'
+source: eval
+verified: false

@@ -1,16 +1,14 @@
-content: 'Always distinguish two null cases when `count=0` and `grounding_refs` empty:
-  add note clarifying whether queried kinds/categories exist in DB but have zero matching
-  products, vs. kinds not found at all. Run a discovery query (e.g. `SELECT DISTINCT
-  category FROM products WHERE category ILIKE ''%<kind>%'' LIMIT 10`) before final
-  count query; if discovery returns rows but count=0 → "kind exists, no products match
-  filters"; if discovery empty → "kind not in DB". Never emit bare `count=0` without
-  this disambiguation.'
+content: 'Never include path separators or URL fragments in `grounding_refs`. Refs
+  must match SKU format from result set only — reject any value containing `/proc/`,
+  `/catalog/`, or `/`. Validate each ref against returned `sku` column before emitting.
+  Example: if query returns `sku=''ABC-123''`, valid ref is `"ABC-123"`, not `"/catalog/ABC-123"`
+  or `"products/ABC-123"`.'
 created: '2026-05-12'
-eval_score: 0.5
+eval_score: 0.4
 id: sql-016
 phase: sql_plan
-raw_recommendation: 'sql-answer.yaml: when grounding_refs is empty and count=0, require
-  a note explaining whether 0 means ''kinds exist but no products'' vs ''kinds not
-  found in DB'' — distinguish the two null cases'
+raw_recommendation: 'sql-grounding.yaml: add validation rule — grounding_refs must
+  match pattern of known sku formats from result set; reject refs containing ''/proc/'',
+  ''/catalog/'', or any path separator'
 source: eval
-verified: true
+verified: false

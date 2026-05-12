@@ -1,0 +1,13 @@
+action: block
+created: '2026-05-12'
+eval_score: 0.2
+id: sec-012
+message: 'Hallucinated grounding path: grounding_refs must reference sku values from
+  SQL result, not system paths'
+pattern: grounding_refs[^\n]*(/proc/|/etc/|/sys/)
+raw_recommendation: 'Add gate for hallucinated grounding paths: detect grounding_refs
+  values containing ''/proc/'', ''/etc/'', ''/sys/'', or any non-sku-pattern string
+  — block answer if refs cannot be traced to a sku value in the SQL result set'
+source: eval
+task_text: drop test
+verified: false

@@ -1,0 +1,14 @@
+action: block
+created: '2026-05-12'
+eval_score: 0.1
+id: sec-013
+message: Unparameterized string literal in WHERE clause — use parameterized query
+  or whitelist-matched token
+pattern: WHERE\s+[\w\."`]+\s*(?:=|<>|!=|LIKE|IN\s*\()\s*'[^']*'
+raw_recommendation: 'Add gate for unparameterized string literals in WHERE clauses:
+  hardcoded string values injected without sanitization indicate either hallucination
+  or injection risk; gate should require parameterized query form or explicit whitelist
+  match against task_text tokens'
+source: eval
+task_text: How many?
+verified: false

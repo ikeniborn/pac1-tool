@@ -1,0 +1,11 @@
+action: block
+created: '2026-05-12'
+eval_score: 0.1
+id: sec-015
+message: UNION SELECT prohibited — potential injection/exfiltration
+pattern: (?i)\bunion\s+(all\s+)?select\b
+raw_recommendation: 'Add gate for UNION-based injection: SELECT ... UNION SELECT —
+  enables data exfiltration across tables not in schema; current gates do not cover.'
+source: eval
+task_text: drop test
+verified: false

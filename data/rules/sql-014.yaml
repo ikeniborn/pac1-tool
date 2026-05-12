@@ -1,0 +1,15 @@
+content: 'Always validate `grounding_refs` against actual SQL result set before finalizing
+  `AnswerOutput`. Strip any ref not present in returned rows and log as `hallucination_attempt`.
+  Prevents citing SKUs/IDs model invented. Example: after `SELECT sku, name FROM products
+  WHERE ...`, build `valid_skus = {row.sku for row in results}`; filter `answer.grounding_refs
+  = [r for r in answer.grounding_refs if r in valid_skus]`; emit log event `hallucination_attempt`
+  for each dropped ref with the offending value and source query.'
+created: '2026-05-12'
+eval_score: 0.1
+id: sql-014
+phase: sql_plan
+raw_recommendation: 'sql-grounding.yaml (new): Add rule requiring grounding_refs values
+  to be validated against SQL result set before AnswerOutput finalizes. Any ref not
+  present in query results must be stripped and logged as hallucination_attempt.'
+source: eval
+verified: false

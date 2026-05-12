@@ -1,16 +1,16 @@
-content: 'Never put dependent queries in same SqlPlan batch. Each query in batch must
-  run independently — no query can reference value another query in same batch returns.
-  If query B needs result from query A (e.g., sku discovered by A, attribute key confirmed
-  by A), defer B to next cycle. Example wrong: batch contains `SELECT sku FROM products
-  WHERE model=''X''` AND `SELECT * FROM product_properties WHERE sku=''<from prev>''`.
-  Right: run discovery query alone, then dependent query next cycle.'
+content: 'Always ground WHERE-clause literals in evidence: task text, prior query
+  result, or explicit enumeration (`SELECT DISTINCT <col> FROM products WHERE <narrow>
+  LIMIT 50`). Never invent filter values from prior knowledge or guess spellings/units.
+  If literal not traceable, run enumeration first, then filter. Example: before `WHERE
+  finish = ''matte black''`, confirm via `SELECT DISTINCT finish FROM products WHERE
+  brand=''Heco'' LIMIT 50` — actual value may be `''Matte Black''` or `''black-matte''`.'
 created: '2026-05-12'
-eval_score: 0.15
+eval_score: 0.1
 id: sql-012
 phase: sql_plan
-raw_recommendation: 'data/rules/sql-batch-gating.yaml: New rule — queries within a
-  single SqlPlan batch must be independent (no query may use a value that another
-  query in the same batch is supposed to return). Dependent queries must be deferred
-  to the next cycle.'
+raw_recommendation: 'sql-filter-grounding.yaml: Add a rule requiring that any literal
+  value used in a WHERE clause must be traceable to either the task text, a prior
+  SQL result, or an explicit enumeration query; block queries where the filter literal
+  is not evidenced.'
 source: eval
-verified: true
+verified: false

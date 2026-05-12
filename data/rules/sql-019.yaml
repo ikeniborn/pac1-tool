@@ -1,19 +1,15 @@
-content: "Always verify exact `key` spelling in `product_properties` before filtering\
-  \ — keys vary across snake_case/kebab-case/camelCase and unvalidated guesses return\
-  \ zero rows. Run `SELECT DISTINCT key FROM product_properties WHERE sku IN (SELECT\
-  \ sku FROM products WHERE brand='<B>' AND model='<M>') LIMIT 50` first, then build\
-  \ multi-attr EXISTS query with confirmed keys. Example:\n```sql\nSELECT DISTINCT\
-  \ key FROM product_properties\nWHERE sku IN (SELECT sku FROM products WHERE brand='Acme'\
-  \ AND model='X1') LIMIT 50;\n-- then:\nSELECT p.sku FROM products p\nWHERE p.brand='Acme'\
-  \ AND p.model='X1'\n  AND EXISTS (SELECT 1 FROM product_properties pp\n        \
-  \      WHERE pp.sku=p.sku AND pp.key='storage_type' AND pp.value_text='SSD');\n\
-  ```"
+content: 'Always validate `grounding_refs` entries match known SKU regex from schema
+  or trace to prior `SELECT sku` result in same trace; reject path-like strings (containing
+  `/` or `.json`). Example: `grounding_ref: "ABC-12345"` OK if matches SKU pattern
+  or returned by earlier `SELECT sku FROM products WHERE ...`; `grounding_ref: "catalog/items.json"`
+  rejected.'
 created: '2026-05-12'
-eval_score: 0.9
+eval_score: 0.4
 id: sql-019
 phase: sql_plan
-raw_recommendation: 'sql-property-filter.yaml: Add pattern example for multi-property
-  EXISTS filtering on product_properties to standardize key naming conventions (storage_type
-  vs storage-type vs storageType) — current queries assume snake_case without validation'
+raw_recommendation: 'sql-grounding.yaml: Add validation rule — grounding_refs values
+  must match regex pattern of known sku formats from schema, or must be traceable
+  to a SELECT sku result in the same trace. Reject path-like strings (containing ''/''
+  or ''.json'') as grounding_refs.'
 source: eval
-verified: true
+verified: false

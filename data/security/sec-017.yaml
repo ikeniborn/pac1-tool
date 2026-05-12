@@ -1,0 +1,12 @@
+action: block
+created: '2026-05-12'
+eval_score: 0.1
+id: sec-017
+message: Schema enumeration prohibited (information_schema/pg_catalog/sqlite_master)
+pattern: (?i)\b(information_schema\.(tables|columns)|pg_catalog|sqlite_master)\b
+raw_recommendation: 'Add gate for schema enumeration: queries targeting information_schema.tables,
+  information_schema.columns, pg_catalog, sqlite_master — model attempted DROP which
+  implies schema awareness; enumeration path should be blocked explicitly.'
+source: eval
+task_text: drop test
+verified: false

@@ -1,0 +1,13 @@
+content: 'Always validate `grounding_refs` post-answer: each ref match `/catalog/{sku}`
+  where sku appear verbatim in prior SQL result rows. Flag any path with `/proc/`
+  as invalid. Example check: `SELECT sku FROM products WHERE sku IN (''A1'',''B2'')`
+  → refs `/catalog/A1`, `/catalog/B2` OK; `/proc/A1` reject.'
+created: '2026-05-12'
+eval_score: 0.2
+id: sql-006
+phase: sql_plan
+raw_recommendation: 'sql-grounding.yaml: add post-answer validation rule — grounding_refs
+  values must match pattern /catalog/{sku} where sku appears verbatim in preceding
+  SQL result rows; flag any path containing /proc/ as invalid'
+source: eval
+verified: false

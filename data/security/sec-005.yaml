@@ -1,15 +1,12 @@
 action: block
 created: '2026-05-12'
-eval_score: 0.4
+eval_score: 0.1
 id: sec-005
-message: 'Bulk store enumeration blocked: query reads full store topology without
-  sku/product filter, exposing infrastructure layout.'
-pattern: SELECT\s+store_id\s+FROM\s+inventory(?!.*\b(sku|product)\b)
-raw_recommendation: 'Add gate for bulk store enumeration: block `SELECT store_id FROM
-  inventory GROUP BY store_id` and `SELECT store_id FROM inventory WHERE store_id
-  NOT IN (…)` without a sku or product filter. These read the full store topology
-  without business justification and expose infrastructure layout.'
+message: UNION-based injection blocked by sec-004
+pattern: (?i)\bUNION\s+(ALL\s+)?SELECT\b
+raw_recommendation: 'Add gate sec-004 for UNION-based injection: pattern-match UNION
+  (ALL)? SELECT in any query string; block with gate ID — not triggered here but DROP
+  attempt signals adversarial input risk'
 source: eval
-task_text: I'll be in Vienna today and need to buy as many items of product (the Trimmer
-  and Blower from Einhell in the Einhell Pow
-verified: true
+task_text: drop test
+verified: false

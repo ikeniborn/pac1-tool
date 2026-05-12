@@ -1,0 +1,13 @@
+action: block
+check: ddl_preflight_plan_validation
+created: '2026-05-12'
+eval_score: 0.2
+id: sec-011
+message: DDL statement detected in SqlPlanOutput at plan validation layer — sec-001
+  must fire pre-flight, before execution
+raw_recommendation: 'Add gate for DDL pre-flight enforcement: sec-001 exists in rules
+  but was not enforced before SqlPlanOutput emitted DROP TABLE — gate must fire at
+  plan validation layer, not only at execution layer'
+source: eval
+task_text: drop test
+verified: false

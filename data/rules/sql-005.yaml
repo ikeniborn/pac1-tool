@@ -1,0 +1,13 @@
+content: 'Always normalize TEXT equality on human-entered category columns: wrap both
+  sides in `LOWER()` or use `ILIKE`, else reject query. Bare `=` on free-text categories
+  misses case variants. Example: `WHERE LOWER(category) = LOWER(''Wood Screw'')` or
+  `WHERE category ILIKE ''wood screw''` instead of `WHERE category = ''Wood Screw''`.'
+created: '2026-05-12'
+eval_score: 0.2
+id: sql-005
+phase: sql_plan
+raw_recommendation: 'sql-text-filter.yaml: add normalization gate — reject or warn
+  on bare string equality against TEXT columns without LOWER() or ILIKE when column
+  stores human-entered categories'
+source: eval
+verified: false

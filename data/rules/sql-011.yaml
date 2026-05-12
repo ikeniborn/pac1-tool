@@ -1,16 +1,16 @@
-content: 'Always confirm brand string with `SELECT DISTINCT brand FROM products WHERE
-  brand LIKE ''%<brand>%'' LIMIT 20` as first query before using exact-equality `brand
-  = ''...''` filter. Never use `brand = ''<literal>''` on unconfirmed string in same
-  session — casing, spacing, suffixes vary. Once discovery returns exact value, use
-  it verbatim in final query. Example: discover `WHERE brand LIKE ''%Heco%''` → returns
-  `''Heco-Schrauben''` → then `WHERE brand = ''Heco-Schrauben''`.'
+content: 'Always validate table/column tokens in candidate SQL against schema identifier
+  list before emit; block query if any identifier has edit-distance ≥ 1 from known
+  names and self-correct first, avoiding wasted LEARN round-trip. Example: query `SELECT
+  sku FROM product_propertys WHERE keyy=''x''` — gate flags `product_propertys` (vs
+  `product_properties`) and `keyy` (vs `key`), forces rewrite to `SELECT sku FROM
+  product_properties WHERE key=''x''` before submission.'
 created: '2026-05-12'
-eval_score: 0.15
+eval_score: 0.1
 id: sql-011
 phase: sql_plan
-raw_recommendation: 'data/rules/sql-brand-verify.yaml: Add rule — brand literals must
-  come from a prior LIKE discovery result in the same session. Exact-equality brand
-  filters on unconfirmed strings must be blocked; require brand LIKE ''%{brand}%''
-  as the first query whenever brand has not been confirmed in the current cycle.'
+raw_recommendation: 'sql-spelling.yaml: Add a pre-emit gate that diffs all table/column
+  tokens in a candidate query against the schema identifier list and blocks submission
+  if edit-distance ≥ 1 from any known identifier, prompting self-correction before
+  a LEARN round-trip.'
 source: eval
-verified: true
+verified: false

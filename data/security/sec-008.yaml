@@ -1,0 +1,11 @@
+action: block
+created: '2026-05-12'
+eval_score: 0.1
+id: sec-008
+message: UNION SELECT blocked — injection exfiltration vector
+pattern: (?i)\bunion\s+(all\s+)?select\b
+raw_recommendation: 'Add gate sec-002 for UNION-based injection: block queries containing
+  UNION [ALL] SELECT pattern — classic data exfiltration vector not covered by sec-001.'
+source: eval
+task_text: drop test
+verified: false
