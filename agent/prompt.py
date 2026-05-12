@@ -25,16 +25,13 @@ def load_prompt(name: str) -> str:
 
 
 _TASK_BLOCKS: dict[str, list[str]] = {
-    "email":    ["core", "email", "lookup"],
-    "inbox":    ["core", "inbox", "email", "lookup"],
-    "queue":    ["core", "inbox", "email", "lookup"],
     "lookup":   ["core", "lookup", "catalogue"],
     "temporal": ["core", "lookup"],
     "capture":  ["core"],
     "crm":      ["core", "lookup"],
     "distill":  ["core", "lookup"],
     "preject":  ["core"],
-    "default":  ["core", "lookup", "email", "inbox", "catalogue"],
+    "default":  ["core", "lookup", "catalogue"],
 }
 
 
