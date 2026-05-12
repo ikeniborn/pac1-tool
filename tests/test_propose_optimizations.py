@@ -215,3 +215,39 @@ def test_existing_prompts_text_empty_dir(tmp_path):
     with patch.object(po, "_PROMPTS_DIR", prompts_dir):
         result = po._existing_prompts_text()
     assert result == ""
+
+
+def test_synthesize_security_gate_receives_existing_context(tmp_path):
+    eval_log, rules_dir, security_dir, prom_dir, processed = _setup(tmp_path)
+    _write_eval_log(eval_log, [_eval_entry(security_opts=["Add gate for UNION SELECT"])])
+
+    gate_spec = {"pattern": "UNION.*SELECT", "check": None, "message": "UNION SELECT prohibited"}
+    patches = _base_patches(eval_log, rules_dir, security_dir, prom_dir, processed)
+    with patches[0], patches[1], patches[2], patches[3], patches[4], \
+         patches[5], patches[6], patches[7], \
+         patch.object(po, "_synthesize_rule", return_value=None), \
+         patch.object(po, "_synthesize_security_gate", return_value=gate_spec) as mock_sec, \
+         patch.object(po, "_synthesize_prompt_patch", return_value=None), \
+         patch.object(po, "_existing_security_text", return_value="- sec-001: DDL prohibited"):
+        po.main(dry_run=False)
+
+    args = mock_sec.call_args
+    assert args[0][1] == "- sec-001: DDL prohibited"
+
+
+def test_synthesize_prompt_patch_receives_existing_context(tmp_path):
+    eval_log, rules_dir, security_dir, prom_dir, processed = _setup(tmp_path)
+    _write_eval_log(eval_log, [_eval_entry(prompt_opts=["answer.md: add grounding rule"])])
+
+    patch_result = {"target_file": "answer.md", "content": "## Guard\nNever X."}
+    patches = _base_patches(eval_log, rules_dir, security_dir, prom_dir, processed)
+    with patches[0], patches[1], patches[2], patches[3], patches[4], \
+         patches[5], patches[6], patches[7], \
+         patch.object(po, "_synthesize_rule", return_value=None), \
+         patch.object(po, "_synthesize_security_gate", return_value=None), \
+         patch.object(po, "_synthesize_prompt_patch", return_value=patch_result) as mock_prompt, \
+         patch.object(po, "_existing_prompts_text", return_value="=== answer.md ===\n# Answer\n"):
+        po.main(dry_run=False)
+
+    args = mock_prompt.call_args
+    assert args[0][1] == "=== answer.md ===\n# Answer\n"

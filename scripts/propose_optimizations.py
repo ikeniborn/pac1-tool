@@ -117,7 +117,7 @@ def _synthesize_rule(raw_rec: str, existing_rules_md: str, model: str, cfg: dict
     return None if result.lower() == "null" else result
 
 
-def _synthesize_security_gate(raw_rec: str, model: str, cfg: dict) -> dict | None:
+def _synthesize_security_gate(raw_rec: str, existing_security_md: str, model: str, cfg: dict) -> dict | None:
     from agent.llm import call_llm_raw
     from agent.json_extract import _extract_json_from_text
 
@@ -125,7 +125,9 @@ def _synthesize_security_gate(raw_rec: str, model: str, cfg: dict) -> dict | Non
         "Convert the security recommendation into a gate spec. "
         "Return JSON: {\"pattern\": \"<regex or null>\", \"check\": \"<name or null>\", \"message\": \"<block reason>\"}. "
         "Exactly one of pattern or check must be non-null. "
-        "If not blockable as a regex/check, return exactly: null"
+        "If not blockable as a regex/check, return exactly: null\n"
+        "If the recommendation is already fully covered by an existing gate, respond with exactly: null\n\n"
+        f"Existing gates:\n{existing_security_md}"
     )
     result = call_llm_raw(system, f"Security recommendation:\n{raw_rec}",
                           model, cfg, max_tokens=256)
@@ -142,14 +144,16 @@ def _synthesize_security_gate(raw_rec: str, model: str, cfg: dict) -> dict | Non
     return parsed
 
 
-def _synthesize_prompt_patch(raw_rec: str, model: str, cfg: dict) -> dict | None:
+def _synthesize_prompt_patch(raw_rec: str, existing_prompts_md: str, model: str, cfg: dict) -> dict | None:
     from agent.llm import call_llm_raw
     from agent.json_extract import _extract_json_from_text
 
     system = (
         "Convert the prompt optimization recommendation into a markdown rule block. "
         "Return JSON: {\"target_file\": \"<basename e.g. answer.md>\", \"content\": \"<markdown section starting with ## heading>\"}. "
-        "If too vague to produce a concrete rule, return exactly: null"
+        "If too vague to produce a concrete rule, return exactly: null\n"
+        "If the recommendation is already present in the existing prompt content, respond with exactly: null\n\n"
+        f"Existing prompt files:\n{existing_prompts_md}"
     )
     result = call_llm_raw(system, f"Prompt recommendation:\n{raw_rec}",
                           model, cfg, max_tokens=512)
@@ -227,6 +231,8 @@ def main(dry_run: bool = False) -> None:
     entries = [json.loads(l) for l in _EVAL_LOG.read_text().splitlines() if l.strip()]
     processed = _load_processed()
     rules_md = _existing_rules_text()
+    security_md = _existing_security_text()
+    prompts_md = _existing_prompts_text()
     new_processed = set(processed)
     written = 0
 
@@ -255,7 +261,7 @@ def main(dry_run: bool = False) -> None:
             if h in processed:
                 continue
             print(f"[security] {raw_rec[:80]}...")
-            gate_spec = _synthesize_security_gate(raw_rec, model, cfg)
+            gate_spec = _synthesize_security_gate(raw_rec, security_md, model, cfg)
             if gate_spec is None:
                 new_processed.add(h)
                 print("  → skip (null/not-applicable)")
@@ -274,7 +280,7 @@ def main(dry_run: bool = False) -> None:
             if h in processed:
                 continue
             print(f"[prompt] {raw_rec[:80]}...")
-            patch_result = _synthesize_prompt_patch(raw_rec, model, cfg)
+            patch_result = _synthesize_prompt_patch(raw_rec, prompts_md, model, cfg)
             if patch_result is None:
                 new_processed.add(h)
                 print("  → skip (null/vague)")
