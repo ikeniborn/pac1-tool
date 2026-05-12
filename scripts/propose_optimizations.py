@@ -60,6 +60,18 @@ def _existing_rules_text() -> str:
     return "\n".join(parts)
 
 
+def _existing_security_text() -> str:
+    parts = []
+    for f in sorted(_SECURITY_DIR.glob("*.yaml")):
+        try:
+            r = yaml.safe_load(f.read_text(encoding="utf-8"))
+            if isinstance(r, dict) and r.get("id") and r.get("message"):
+                parts.append(f"- {r['id']}: {r['message']}")
+        except Exception:
+            pass
+    return "\n".join(parts)
+
+
 def _next_num(directory: Path, prefix: str) -> int:
     existing = []
     for f in directory.glob("*.yaml"):

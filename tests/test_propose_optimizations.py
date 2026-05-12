@@ -165,3 +165,28 @@ def test_missing_model_evaluator_exits(tmp_path):
         os.environ.pop("MODEL_EVALUATOR", None)
         with pytest.raises(SystemExit):
             po.main()
+
+
+def test_existing_security_text_returns_id_message(tmp_path):
+    sec_dir = tmp_path / "security"
+    sec_dir.mkdir()
+    (sec_dir / "sec-001.yaml").write_text(
+        "id: sec-001\naction: block\nmessage: DDL prohibited\n"
+    )
+    (sec_dir / "sec-002.yaml").write_text(
+        "id: sec-002\ncheck: no_where_clause\naction: block\nmessage: Full scan prohibited\n"
+    )
+    with patch.object(po, "_SECURITY_DIR", sec_dir):
+        result = po._existing_security_text()
+    assert "sec-001: DDL prohibited" in result
+    assert "sec-002: Full scan prohibited" in result
+
+
+def test_existing_security_text_skips_invalid(tmp_path):
+    sec_dir = tmp_path / "security"
+    sec_dir.mkdir()
+    (sec_dir / "bad.yaml").write_text("not: valid: yaml: [")
+    (sec_dir / "no-msg.yaml").write_text("id: sec-003\naction: block\n")
+    with patch.object(po, "_SECURITY_DIR", sec_dir):
+        result = po._existing_security_text()
+    assert result == ""
