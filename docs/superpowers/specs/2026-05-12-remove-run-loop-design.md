@@ -37,6 +37,8 @@ The reactive loop left behind significant dead code:
 | `tests/test_orchestrator_pipeline.py` | remove mock | delete `patch("agent.orchestrator.run_loop")` and `mock_loop.assert_not_called()` |
 | `agent/pipeline.py` | update import | `from .dispatch import` → `from .llm import` |
 | `agent/evaluator.py` | update import | `from .dispatch import` → `from .llm import` |
+| `agent/json_extract.py` | update import | `from .dispatch import CLI_YELLOW, CLI_CLR` → `from .llm import CLI_YELLOW, CLI_CLR` |
+| `agent/prephase.py` | update import | `from .dispatch import CLI_BLUE, CLI_CLR, CLI_GREEN, CLI_YELLOW` → `from .llm import ...` |
 
 ---
 
