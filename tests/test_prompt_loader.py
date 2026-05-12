@@ -47,3 +47,45 @@ def test_load_prompt_answer_exists():
 def test_load_prompt_pipeline_evaluator_exists():
     text = load_prompt("pipeline_evaluator")
     assert len(text) > 50
+
+
+def test_core_has_ecom_role():
+    text = load_prompt("core")
+    assert "e-commerce" in text.lower() or "ecom" in text.lower()
+
+
+def test_core_has_exec_tool():
+    text = load_prompt("core")
+    assert "/bin/sql" in text
+
+
+def test_core_has_no_vault_tools():
+    text = load_prompt("core")
+    for vault_tool in ('"list"', '"write"', '"delete"', '"find"', '"search"', '"tree"', '"move"', '"mkdir"'):
+        assert vault_tool not in text, f"vault tool {vault_tool} still in core.md"
+
+
+def test_lookup_has_sql_gate():
+    text = load_prompt("lookup")
+    assert "/bin/sql" in text
+
+
+def test_lookup_has_no_vault_file_tools():
+    text = load_prompt("lookup")
+    for vault_tool in ("tree", "find", "search", "list"):
+        assert vault_tool not in text.lower(), f"vault tool '{vault_tool}' still in lookup.md"
+
+
+def test_email_prompt_not_loaded():
+    assert load_prompt("email") == ""
+
+
+def test_inbox_prompt_not_loaded():
+    assert load_prompt("inbox") == ""
+
+
+def test_task_blocks_has_no_email_inbox():
+    from agent.prompt import _TASK_BLOCKS
+    assert "email" not in _TASK_BLOCKS
+    assert "inbox" not in _TASK_BLOCKS
+    assert "queue" not in _TASK_BLOCKS
