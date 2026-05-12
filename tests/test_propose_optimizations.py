@@ -190,3 +190,28 @@ def test_existing_security_text_skips_invalid(tmp_path):
     with patch.object(po, "_SECURITY_DIR", sec_dir):
         result = po._existing_security_text()
     assert result == ""
+
+
+def test_existing_prompts_text_returns_full_content(tmp_path):
+    prompts_dir = tmp_path / "prompts"
+    prompts_dir.mkdir()
+    (prompts_dir / "answer.md").write_text("# Answer\n\nDo X.\n")
+    (prompts_dir / "sql_plan.md").write_text("# SQL Plan\n\nDo Y.\n")
+    optimized_dir = prompts_dir / "optimized"
+    optimized_dir.mkdir()
+    (optimized_dir / "2026-05-12-01-answer.md").write_text("## Extra\nShould not appear.\n")
+    with patch.object(po, "_PROMPTS_DIR", prompts_dir):
+        result = po._existing_prompts_text()
+    assert "=== answer.md ===" in result
+    assert "Do X." in result
+    assert "=== sql_plan.md ===" in result
+    assert "Do Y." in result
+    assert "Should not appear" not in result
+
+
+def test_existing_prompts_text_empty_dir(tmp_path):
+    prompts_dir = tmp_path / "prompts"
+    prompts_dir.mkdir()
+    with patch.object(po, "_PROMPTS_DIR", prompts_dir):
+        result = po._existing_prompts_text()
+    assert result == ""

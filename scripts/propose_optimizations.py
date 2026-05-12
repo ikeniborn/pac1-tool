@@ -20,6 +20,7 @@ _EVAL_LOG = _ROOT / "data" / "eval_log.jsonl"
 _RULES_DIR = _ROOT / "data" / "rules"
 _SECURITY_DIR = _ROOT / "data" / "security"
 _PROMPTS_OPTIMIZED_DIR = _ROOT / "data" / "prompts" / "optimized"
+_PROMPTS_DIR = _ROOT / "data" / "prompts"
 _PROCESSED_FILE = _ROOT / "data" / ".eval_optimizations_processed"
 _MODELS_JSON = _ROOT / "models.json"
 
@@ -67,6 +68,17 @@ def _existing_security_text() -> str:
             r = yaml.safe_load(f.read_text(encoding="utf-8"))
             if isinstance(r, dict) and r.get("id") and r.get("message"):
                 parts.append(f"- {r['id']}: {r['message']}")
+        except Exception:
+            pass
+    return "\n".join(parts)
+
+
+def _existing_prompts_text() -> str:
+    parts = []
+    for f in sorted(_PROMPTS_DIR.glob("*.md")):
+        try:
+            content = f.read_text(encoding="utf-8")
+            parts.append(f"=== {f.name} ===\n{content}")
         except Exception:
             pass
     return "\n".join(parts)
