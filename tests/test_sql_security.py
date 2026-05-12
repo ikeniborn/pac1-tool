@@ -122,3 +122,39 @@ def test_unverified_gate_is_skipped(tmp_path):
     gates = load_security_gates(tmp_path)
     assert len(gates) == 1
     assert gates[0]["id"] == "sec-active"
+
+
+def test_has_where_clause_subquery():
+    """_has_where_clause correctly detects WHERE in queries with subqueries."""
+    from agent.sql_security import _has_where_clause
+    assert _has_where_clause("SELECT * FROM t WHERE id IN (SELECT id FROM t2)")
+    assert not _has_where_clause("SELECT * FROM t")
+    assert _has_where_clause("SELECT * FROM t WHERE id IN (SELECT id FROM t2 WHERE x=1)")
+
+
+def test_cte_with_where_passes():
+    """CTE query with WHERE in the final SELECT passes the sec-002 gate."""
+    sql = "WITH cte AS (SELECT id FROM products WHERE type='X') SELECT * FROM cte WHERE id > 0"
+    err = check_sql_queries([sql], _GATES)
+    assert err is None, f"CTE with WHERE should pass: {err}"
+
+
+def test_where_in_double_quoted_identifier_not_confused():
+    """Outer WHERE present despite double-quoted identifier containing WHERE substring."""
+    sql = 'SELECT * FROM products WHERE "WHERE_clause" = 1'
+    err = check_sql_queries([sql], _GATES)
+    assert err is None, f"WHERE in double-quoted identifier with outer WHERE should pass: {err}"
+
+
+def test_subquery_outer_has_where_passes():
+    """Outer SELECT with WHERE passes even when subquery also has WHERE."""
+    sql = "SELECT * FROM products WHERE id IN (SELECT id FROM inventory WHERE qty > 0)"
+    err = check_sql_queries([sql], _GATES)
+    assert err is None, f"Outer WHERE should pass: {err}"
+
+
+def test_no_outer_where_blocked():
+    """SELECT without WHERE is blocked by sec-002."""
+    sql = "SELECT id FROM products"
+    err = check_sql_queries([sql], _GATES)
+    assert err is not None and "sec-002" in err

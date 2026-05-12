@@ -48,6 +48,11 @@ def _is_select(sql: str) -> bool:
 
 
 def _has_where_clause(sql: str) -> bool:
-    # Strip string literals to avoid matching WHERE inside quoted values
-    stripped = re.sub(r"'[^']*'", "", sql).upper()
-    return "WHERE" in stripped.split()
+    try:
+        import sqlglot
+        tree = sqlglot.parse_one(sql, dialect="sqlite")
+        return bool(tree.find(sqlglot.exp.Where))
+    except Exception:
+        # Fallback: strip string literals to avoid matching WHERE inside quoted values
+        stripped = re.sub(r"'[^']*'", "", sql).upper()
+        return "WHERE" in stripped.split()
