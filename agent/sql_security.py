@@ -15,7 +15,7 @@ def load_security_gates(directory: Path = _SECURITY_DIR) -> list[dict]:
     for f in sorted(directory.glob("*.yaml")):
         try:
             gate = yaml.safe_load(f.read_text(encoding="utf-8"))
-            if isinstance(gate, dict):
+            if isinstance(gate, dict) and gate.get("verified", True):
                 gates.append(gate)
         except Exception:
             pass

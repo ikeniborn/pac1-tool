@@ -312,9 +312,8 @@ def _run_learn(
     learn_out, sgr_learn = _call_llm_phase(learn_system, learn_user, model, cfg, LearnOutput, max_tokens=2048)
     sgr_trace.append(sgr_learn)
     if learn_out:
-        rules_loader.append_rule(learn_out.rule_content, task_id=task_text[:100])
         session_rules.append(learn_out.rule_content)
-        print(f"{CLI_BLUE}[pipeline] LEARN: rule saved, retrying{CLI_CLR}")
+        print(f"{CLI_BLUE}[pipeline] LEARN: rule added to session, retrying{CLI_CLR}")
 
 
 def _run_evaluator_safe(
