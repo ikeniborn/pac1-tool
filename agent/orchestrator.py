@@ -23,6 +23,7 @@ def _write_dry_run(task_id: str, task_text: str, pre) -> None:
         "task": task_text,
         "agents_md": pre.agents_md_content,
         "bin_sql_content": pre.bin_sql_content,
+        "db_schema": pre.db_schema,
     }
     _DRY_RUN_LOG.parent.mkdir(parents=True, exist_ok=True)
     with open(_DRY_RUN_LOG, "a", encoding="utf-8") as f:

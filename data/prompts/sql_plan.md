@@ -16,5 +16,16 @@ Given the task description and database schema, produce an ordered list of SQL q
 - Use `model` column (not `series`) for product line names.
 - Use `/proc/catalog/{sku}.json` paths for grounding_refs in the ANSWER phase — never construct them here.
 
+## Multi-attribute filtering (CRITICAL)
+
+When filtering by multiple product_properties attributes, use separate EXISTS subqueries — NOT a single JOIN with two key conditions (a single row has one key, never two):
+
+SELECT p.sku, p.name, p.path FROM products p
+WHERE p.brand = 'Heco' AND p.model = 'TopFix GTU-YPJ'
+  AND EXISTS (SELECT 1 FROM product_properties pp
+              WHERE pp.sku = p.sku AND pp.key = 'diameter_mm' AND pp.value_number = 3)
+  AND EXISTS (SELECT 1 FROM product_properties pp2
+              WHERE pp2.sku = p.sku AND pp2.key = 'screw_type' AND pp2.value_text = 'wood screw')
+
 ## Output format (JSON only)
 {"reasoning": "<chain-of-thought: why these queries answer the task>", "queries": ["SELECT ...", "SELECT ..."]}

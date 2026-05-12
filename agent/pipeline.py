@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import traceback
 from pathlib import Path
 
 from google.protobuf.json_format import MessageToDict

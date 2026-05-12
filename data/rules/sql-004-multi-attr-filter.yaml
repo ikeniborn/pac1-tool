@@ -1,0 +1,15 @@
+content: "To filter by MULTIPLE product_properties attributes, use separate EXISTS\
+  \ subqueries per attribute.\nThe join column is product_properties.sku (NOT product_sku\
+  \ — check the schema).\nExample for brand/model + two attributes:\n  SELECT p.sku,\
+  \ p.name, p.path FROM products p\n  WHERE p.brand = 'Heco' AND p.model = 'TopFix\
+  \ GTU-YPJ'\n    AND EXISTS (SELECT 1 FROM product_properties pp\n              \
+  \  WHERE pp.sku = p.sku AND pp.key = 'diameter_mm' AND pp.value_number = 3)\n  \
+  \  AND EXISTS (SELECT 1 FROM product_properties pp2\n                WHERE pp2.sku\
+  \ = p.sku AND pp2.key = 'screw_type' AND pp2.value_text = 'wood screw')\nNEVER put\
+  \ two different key= conditions on the same JOIN — one row has exactly one key.\n"
+created: '2026-05-12'
+id: sql-009
+phase: sql_plan
+source: manual
+task_id: null
+verified: true

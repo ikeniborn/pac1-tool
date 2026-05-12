@@ -13,5 +13,15 @@ Given the task, the failed SQL queries, and the error or empty-result message, d
 - `conclusion` field: human-readable summary of the finding (one sentence).
 - `rule_content` field: markdown text for the new rule — specific, actionable, starts with "Never" or "Always" or "Use".
 
+## Common failure patterns to check first
+
+**Multi-attribute JOIN bug:** If the query joins `product_properties` once but filters `pp.key = 'A' AND pp.key = 'B'`, a single row can never satisfy both conditions → always empty. Fix: use separate EXISTS subquery per attribute. Join column is `product_properties.sku = products.sku`.
+
+**Wrong column name:** Check the schema — is it `product_sku`, `product_id`, or `sku`? Verify the join column.
+
+**Value type mismatch:** Numeric values (diameter, weight) go in `value_number`; text values go in `value_text`. Don't mix.
+
+**Wrong attribute key:** Use `SELECT DISTINCT key FROM product_properties WHERE product_sku IN (SELECT sku FROM products WHERE brand=X)` to discover actual key names before filtering.
+
 ## Output format (JSON only)
 {"reasoning": "<diagnosis of what went wrong>", "conclusion": "<one-sentence summary>", "rule_content": "<markdown rule text>"}
