@@ -17,37 +17,31 @@ def _make_vm(agents_md="AGENTS CONTENT", bin_sql="SQL CONTENT"):
 
 
 def test_prephase_result_fields():
-    """PrephaseResult has exactly the expected fields."""
+    """PrephaseResult has exactly the expected fields — no log or preserve_prefix."""
     import dataclasses
     fields = {f.name for f in dataclasses.fields(PrephaseResult)}
-    assert fields == {
-        "log", "preserve_prefix", "agents_md_content", "agents_md_path",
-        "db_schema", "agents_md_index", "schema_digest",
-    }
+    assert fields == {"agents_md_content", "agents_md_path", "db_schema", "agents_md_index", "schema_digest"}
+
+
+def test_run_prephase_no_system_prompt_param():
+    """run_prephase() takes only (vm, task_text) — no system_prompt_text."""
+    import inspect
+    sig = inspect.signature(run_prephase)
+    assert "system_prompt_text" not in sig.parameters
 
 
 def test_normal_mode_reads_only_agents_md():
     """Normal mode: exactly 1 vm.read call (AGENTS.MD)."""
     vm = _make_vm()
-    result = run_prephase(vm, "find products", "sys prompt")
+    result = run_prephase(vm, "find products")
     assert vm.read.call_count == 1
     assert result.agents_md_content == "AGENTS CONTENT"
-
-
-def test_normal_mode_log_structure():
-    """Log has system + prephase user."""
-    vm = _make_vm()
-    result = run_prephase(vm, "find products", "sys prompt")
-    assert result.log[0]["role"] == "system"
-    assert result.log[1]["role"] == "user"
-    assert "find products" in result.log[1]["content"]
-    assert "AGENTS CONTENT" in result.log[1]["content"]
 
 
 def test_normal_mode_no_tree_no_context():
     """vm.tree and vm.context are never called."""
     vm = _make_vm()
-    run_prephase(vm, "task", "sys")
+    run_prephase(vm, "task")
     assert vm.tree.call_count == 0
     assert vm.context.call_count == 0
 
@@ -56,16 +50,9 @@ def test_agents_md_not_found():
     """If AGENTS.MD missing, agents_md_content is empty, no crash."""
     vm = MagicMock()
     vm.read.side_effect = Exception("not found")
-    result = run_prephase(vm, "task", "sys")
+    result = run_prephase(vm, "task")
     assert result.agents_md_content == ""
     assert result.agents_md_path == ""
-
-
-def test_preserve_prefix_equals_log():
-    """preserve_prefix is a copy of log at return time."""
-    vm = _make_vm()
-    result = run_prephase(vm, "task", "sys")
-    assert result.preserve_prefix == result.log
 
 
 def test_prephase_result_has_db_schema_field():
@@ -82,7 +69,7 @@ def test_normal_mode_reads_schema():
     exec_r = MagicMock(); exec_r.stdout = "CREATE TABLE products ..."
     vm.read.return_value = agents_r
     vm.exec.return_value = exec_r
-    result = run_prephase(vm, "find products", "sys prompt")
+    result = run_prephase(vm, "find products")
     # Called for .schema + PRAGMA table_info (4 tables) + PRAGMA foreign_key_list (4) + SELECT key
     assert vm.exec.call_count >= 1
     assert result.db_schema == "CREATE TABLE products ..."
@@ -94,27 +81,8 @@ def test_schema_exec_fail_sets_empty_db_schema():
     agents_r = MagicMock(); agents_r.content = "AGENTS"
     vm.read.return_value = agents_r
     vm.exec.side_effect = Exception("exec failed")
-    result = run_prephase(vm, "task", "sys")
+    result = run_prephase(vm, "task")
     assert result.db_schema == ""
-
-
-def test_schema_not_in_log():
-    """db_schema content must NOT appear in LLM log messages."""
-    vm = MagicMock()
-    agents_r = MagicMock(); agents_r.content = "AGENTS"
-    exec_r = MagicMock(); exec_r.stdout = "UNIQUE_SCHEMA_MARKER_XYZ"
-    vm.read.return_value = agents_r
-    vm.exec.return_value = exec_r
-    result = run_prephase(vm, "task", "sys")
-    for msg in result.log:
-        assert "UNIQUE_SCHEMA_MARKER_XYZ" not in msg.get("content", "")
-
-
-def test_no_few_shot_in_log():
-    """prephase log must not contain the NextStep few-shot pair."""
-    import agent.prephase as p
-    assert not hasattr(p, "_FEW_SHOT_USER"), "_FEW_SHOT_USER should be removed"
-    assert not hasattr(p, "_FEW_SHOT_ASSISTANT"), "_FEW_SHOT_ASSISTANT should be removed"
 
 
 def _make_vm_with_schema(agents_md="## Brand Aliases\nheco = Heco", schema="CREATE TABLE products"):
@@ -157,7 +125,7 @@ def test_prephase_result_fields_updated():
 def test_agents_md_index_populated():
     """agents_md_index has parsed sections from AGENTS.MD."""
     vm = _make_vm_with_schema()
-    result = run_prephase(vm, "find Heco screws", "sys")
+    result = run_prephase(vm, "find Heco screws")
     assert "brand_aliases" in result.agents_md_index
     assert result.agents_md_index["brand_aliases"] == ["heco = Heco"]
 
@@ -168,14 +136,14 @@ def test_agents_md_index_empty_when_no_agents_md():
     vm.read.side_effect = Exception("not found")
     exec_r = MagicMock(); exec_r.stdout = ""
     vm.exec.return_value = exec_r
-    result = run_prephase(vm, "task", "sys")
+    result = run_prephase(vm, "task")
     assert result.agents_md_index == {}
 
 
 def test_schema_digest_has_tables():
     """schema_digest['tables'] has product-related tables."""
     vm = _make_vm_with_schema()
-    result = run_prephase(vm, "task", "sys")
+    result = run_prephase(vm, "task")
     assert "tables" in result.schema_digest
     assert "products" in result.schema_digest["tables"]
 
@@ -183,7 +151,7 @@ def test_schema_digest_has_tables():
 def test_schema_digest_has_top_keys():
     """schema_digest['top_keys'] lists top property keys."""
     vm = _make_vm_with_schema()
-    result = run_prephase(vm, "task", "sys")
+    result = run_prephase(vm, "task")
     assert "top_keys" in result.schema_digest
     assert "diameter_mm" in result.schema_digest["top_keys"]
 
@@ -191,7 +159,7 @@ def test_schema_digest_has_top_keys():
 def test_schema_digest_value_type_map():
     """schema_digest['value_type_map'] maps key to text/number."""
     vm = _make_vm_with_schema()
-    result = run_prephase(vm, "task", "sys")
+    result = run_prephase(vm, "task")
     vt = result.schema_digest.get("value_type_map", {})
     assert vt.get("diameter_mm") == "number"
     assert vt.get("screw_type") == "text"
@@ -203,5 +171,5 @@ def test_schema_digest_empty_on_exec_failure():
     agents_r = MagicMock(); agents_r.content = "## Brand Aliases\nheco = Heco"
     vm.read.return_value = agents_r
     vm.exec.side_effect = Exception("exec failed")
-    result = run_prephase(vm, "task", "sys")
+    result = run_prephase(vm, "task")
     assert result.schema_digest == {}

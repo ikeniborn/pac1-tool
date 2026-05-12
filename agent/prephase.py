@@ -4,7 +4,7 @@ import os
 from dataclasses import dataclass, field
 
 from bitgn.vm.ecom.ecom_connect import EcomRuntimeClientSync
-from bitgn.vm.ecom.ecom_pb2 import ReadRequest, ExecRequest
+from bitgn.vm.ecom.ecom_pb2 import ExecRequest, ReadRequest
 from google.protobuf.json_format import MessageToDict
 
 from .agents_md_parser import parse_agents_md
@@ -16,8 +16,6 @@ _SCHEMA_TABLES = ["products", "product_properties", "inventory", "kinds"]
 
 @dataclass
 class PrephaseResult:
-    log: list
-    preserve_prefix: list
     agents_md_content: str = ""
     agents_md_path: str = ""
     db_schema: str = ""
@@ -94,11 +92,8 @@ def _build_schema_digest(vm: EcomRuntimeClientSync) -> dict:
 def run_prephase(
     vm: EcomRuntimeClientSync,
     task_text: str,
-    system_prompt_text: str,
 ) -> PrephaseResult:
     print(f"\n{CLI_BLUE}[prephase] Starting pre-phase exploration{CLI_CLR}")
-
-    log: list = [{"role": "system", "content": system_prompt_text}]
 
     agents_md_content = ""
     agents_md_path = ""
@@ -113,20 +108,8 @@ def run_prephase(
         except Exception:
             pass
 
-    prephase_parts = [f"TASK: {task_text}"]
-    if agents_md_content:
-        if _LOG_LEVEL == "DEBUG":
-            print(f"{CLI_BLUE}[prephase] AGENTS.MD content:\n{agents_md_content}{CLI_CLR}")
-        prephase_parts.append(
-            f"\n{agents_md_path} CONTENT (source of truth for vault semantics):\n{agents_md_content}"
-        )
-    prephase_parts.append(
-        "\nNOTE: Use AGENTS.MD above to identify actual folder paths. "
-        "Verify paths with list/find before acting. Do not assume paths."
-    )
-
-    log.append({"role": "user", "content": "\n".join(prephase_parts)})
-    preserve_prefix = list(log)
+    if agents_md_content and _LOG_LEVEL == "DEBUG":
+        print(f"{CLI_BLUE}[prephase] AGENTS.MD content:\n{agents_md_content}{CLI_CLR}")
 
     agents_md_index: dict = parse_agents_md(agents_md_content) if agents_md_content else {}
 
@@ -150,8 +133,6 @@ def run_prephase(
     print(f"{CLI_BLUE}[prephase] done{CLI_CLR}")
 
     return PrephaseResult(
-        log=log,
-        preserve_prefix=preserve_prefix,
         agents_md_content=agents_md_content,
         agents_md_path=agents_md_path,
         db_schema=db_schema,

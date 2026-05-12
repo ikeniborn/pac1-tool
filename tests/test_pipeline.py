@@ -8,8 +8,6 @@ from pathlib import Path
 
 def _make_pre(agents_md="AGENTS", db_schema="CREATE TABLE products(id INT, type TEXT, brand TEXT, sku TEXT, model TEXT)"):
     return PrephaseResult(
-        log=[{"role": "system", "content": "sys"}, {"role": "user", "content": "task"}],
-        preserve_prefix=[],
         agents_md_content=agents_md,
         agents_md_path="/AGENTS.MD",
         db_schema=db_schema,
