@@ -13,6 +13,8 @@ from pathlib import Path
 import yaml
 from dotenv import load_dotenv
 
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 _ROOT = Path(__file__).parent.parent
 _EVAL_LOG = _ROOT / "data" / "eval_log.jsonl"
 _RULES_DIR = _ROOT / "data" / "rules"
@@ -74,7 +76,7 @@ def _next_num(directory: Path, prefix: str) -> int:
 
 
 def _synthesize_rule(raw_rec: str, existing_rules_md: str, model: str, cfg: dict) -> str | None:
-    from agent.dispatch import call_llm_raw
+    from agent.llm import call_llm_raw
 
     system = (
         "Convert the raw recommendation into a concise, actionable SQL planning rule. "
@@ -92,7 +94,7 @@ def _synthesize_rule(raw_rec: str, existing_rules_md: str, model: str, cfg: dict
 
 
 def _synthesize_security_gate(raw_rec: str, model: str, cfg: dict) -> dict | None:
-    from agent.dispatch import call_llm_raw
+    from agent.llm import call_llm_raw
     from agent.json_extract import _extract_json_from_text
 
     system = (
@@ -117,7 +119,7 @@ def _synthesize_security_gate(raw_rec: str, model: str, cfg: dict) -> dict | Non
 
 
 def _synthesize_prompt_patch(raw_rec: str, model: str, cfg: dict) -> dict | None:
-    from agent.dispatch import call_llm_raw
+    from agent.llm import call_llm_raw
     from agent.json_extract import _extract_json_from_text
 
     system = (
