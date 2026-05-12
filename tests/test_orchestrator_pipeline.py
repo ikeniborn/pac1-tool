@@ -3,7 +3,6 @@ import importlib
 import pytest
 from unittest.mock import MagicMock, patch
 from agent.orchestrator import run_agent
-from agent.prephase import PrephaseResult
 
 
 def _make_vm_mock():
