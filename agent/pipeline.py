@@ -39,6 +39,22 @@ def _exec_result_text(result) -> str:
     return getattr(result, "stdout", "") or getattr(result, "output", "") or ""
 
 
+def _csv_has_data(result_txt: str) -> bool:
+    """/bin/sql returns CSV (header + data rows) or JSON array/object.
+    CSV empty = only 1 line (headers only). JSON empty = [] or {}.
+    """
+    stripped = result_txt.strip()
+    if not stripped:
+        return False
+    if stripped.startswith("["):
+        return stripped not in ("[]",)
+    if stripped.startswith("{"):
+        return stripped not in ("{}",)
+    # CSV: line 1 = column headers, lines 2+ = data rows
+    lines = [l for l in stripped.splitlines() if l.strip()]
+    return len(lines) > 1
+
+
 def _call_llm_phase(
     system: str,
     user_msg: str,
@@ -196,8 +212,12 @@ def run_pipeline(
                 execute_error = f"Execute exception: {e}"
                 break
 
-        if execute_error or not any(r.strip() and r.strip() not in ("[]", "{}") for r in sql_results):
-            err = execute_error or "Empty result set"
+        # /bin/sql returns CSV: line 1 = column headers, lines 2+ = data rows.
+        # Check the LAST result only — DISTINCT discovery queries always return data,
+        # but the final answer query may return only headers (= empty result set).
+        last_empty = not sql_results or not _csv_has_data(sql_results[-1])
+        if execute_error or last_empty:
+            err = execute_error or f"Empty result set: {(sql_results[-1] if sql_results else '').strip()[:120]}"
             print(f"{CLI_YELLOW}[pipeline] EXECUTE failed: {err}{CLI_CLR}")
             last_error = err
             _run_learn(pre, model, cfg, task_text, queries, last_error,
