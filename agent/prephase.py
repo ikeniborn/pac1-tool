@@ -5,7 +5,7 @@ from bitgn.vm.ecom.ecom_connect import EcomRuntimeClientSync
 from bitgn.vm.ecom.ecom_pb2 import ReadRequest, ExecRequest
 from google.protobuf.json_format import MessageToDict
 
-from .dispatch import CLI_BLUE, CLI_CLR, CLI_GREEN, CLI_YELLOW
+from .llm import CLI_BLUE, CLI_CLR, CLI_GREEN, CLI_YELLOW
 
 _LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
 

@@ -8,7 +8,7 @@ Public API:
 import json
 import re
 
-from .dispatch import CLI_YELLOW, CLI_CLR  # updated to .llm in Task 5
+from .llm import CLI_YELLOW, CLI_CLR
 
 
 def _try_json5(text: str):

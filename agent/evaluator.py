@@ -5,7 +5,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from .dispatch import call_llm_raw
+from .llm import call_llm_raw
 from .json_extract import _extract_json_from_text
 from .models import PipelineEvalOutput
 from .prompt import load_prompt
