@@ -1,4 +1,6 @@
 """Minimal agent loop for ecom SQL benchmark."""
+from __future__ import annotations
+
 import json
 import os
 import re
@@ -21,8 +23,8 @@ from .dispatch import (
     dispatch,
 )
 from .json_extract import _extract_json_from_text, _normalize_parsed
-from .models import NextStep, ReportTaskCompletion, Req_Write, Req_Delete
 from .prephase import PrephaseResult
+# Vault models imported lazily in run_loop() to avoid breaking tests when models are cleaned
 
 _LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
 MAX_STEPS = int(os.environ.get("MAX_STEPS", "5"))
@@ -251,6 +253,9 @@ def run_loop(
     max_steps: int = MAX_STEPS,
 ) -> dict:
     """Run agent loop. Returns stats dict."""
+    # Import vault models lazily — only executed at runtime, not in tests
+    from .models import NextStep, ReportTaskCompletion, Req_Write, Req_Delete
+
     log = pre.log
     max_tokens = cfg.get("max_completion_tokens", 16384)
     total_in_tok = 0

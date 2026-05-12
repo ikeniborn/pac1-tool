@@ -29,19 +29,8 @@ from bitgn.vm.ecom.ecom_pb2 import (
     WriteRequest,
 )
 
-from .models import (
-    ReportTaskCompletion,
-    Req_Context,
-    Req_Delete,
-    Req_Exec,
-    Req_Find,
-    Req_List,
-    Req_Read,
-    Req_Search,
-    Req_Stat,
-    Req_Tree,
-    Req_Write,
-)
+# Vault models imported lazily in dispatch() function only
+# (when removing run_loop, this entire dispatch() function will be deleted in Task 5)
 
 
 
@@ -632,6 +621,20 @@ _FIND_KIND = {
 
 
 def dispatch(vm: EcomRuntimeClientSync, cmd: BaseModel):
+    # Import vault models lazily — only executed in runtime path, not in tests
+    from .models import (
+        ReportTaskCompletion,
+        Req_Context,
+        Req_Delete,
+        Req_Exec,
+        Req_Find,
+        Req_List,
+        Req_Read,
+        Req_Search,
+        Req_Stat,
+        Req_Tree,
+        Req_Write,
+    )
     # FIX-205: code-level write scope enforcement
     if isinstance(cmd, (Req_Write, Req_Delete)):
         _target = getattr(cmd, "path", "")
