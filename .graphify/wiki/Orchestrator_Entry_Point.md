@@ -7,7 +7,6 @@
 - **run_agent()** (10 connections) — `agent/orchestrator.py`
 - **orchestrator.py** (5 connections) — `agent/orchestrator.py`
 - **test_lookup_routes_to_pipeline()** (4 connections) — `tests/test_orchestrator_pipeline.py`
-- **_write_dry_run()** (3 connections) — `agent/orchestrator.py`
 - **write_wiki_fragment()** (2 connections) — `agent/orchestrator.py`
 - **_make_vm_mock()** (2 connections) — `tests/test_orchestrator_pipeline.py`
 - **test_orchestrator_pipeline.py** (2 connections) — `tests/test_orchestrator_pipeline.py`
