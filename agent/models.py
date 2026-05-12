@@ -6,12 +6,14 @@ from pydantic import BaseModel
 class SqlPlanOutput(BaseModel):
     reasoning: str
     queries: list[str]
+    agents_md_refs: list[str] = []
 
 
 class LearnOutput(BaseModel):
     reasoning: str
     conclusion: str
     rule_content: str
+    agents_md_anchor: str | None = None
 
 
 class AnswerOutput(BaseModel):
@@ -33,4 +35,18 @@ class PipelineEvalOutput(BaseModel):
     comment: str
     prompt_optimization: list[str]
     rule_optimization: list[str]
-    security_optimization: list[str] = []  # optional: not all evals surface security issues
+    security_optimization: list[str] = []
+    agents_md_coverage: float = 0.0
+    schema_grounding: float = 0.0
+
+
+class ResolveCandidate(BaseModel):
+    term: str
+    field: str
+    discovery_query: str
+    confirmed_value: str | None = None
+
+
+class ResolveOutput(BaseModel):
+    reasoning: str
+    candidates: list[ResolveCandidate]

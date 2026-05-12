@@ -12,6 +12,7 @@ Given the task, the failed SQL queries, and the error or empty-result message, d
 - `reasoning` field MUST contain your diagnosis: what assumption was wrong.
 - `conclusion` field: human-readable summary of the finding (one sentence).
 - `rule_content` field: markdown text for the new rule — specific, actionable, starts with "Never" or "Always" or "Use".
+- `agents_md_anchor` field: if the failure was caused by ignoring an AGENTS.MD section (e.g. wrong brand alias, wrong kind synonym), set this to `"<section_key> > <specific_entry>"` (e.g. `"brand_aliases > Heco"`). Set to `null` if failure is unrelated to AGENTS.MD.
 
 ## Common failure patterns to check first
 
@@ -24,7 +25,7 @@ Given the task, the failed SQL queries, and the error or empty-result message, d
 **Wrong attribute key:** Use `SELECT DISTINCT key FROM product_properties WHERE product_sku IN (SELECT sku FROM products WHERE brand=X)` to discover actual key names before filtering.
 
 ## Output format (JSON only)
-{"reasoning": "<diagnosis of what went wrong>", "conclusion": "<one-sentence summary>", "rule_content": "<markdown rule text>"}
+{"reasoning": "<diagnosis of what went wrong>", "conclusion": "<one-sentence summary>", "rule_content": "<markdown rule text>", "agents_md_anchor": "<section_key > entry, or null>"}
 
 ## Discovery Fallback Rule
 

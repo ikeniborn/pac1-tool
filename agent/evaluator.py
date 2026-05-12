@@ -2,12 +2,13 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+import re
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from .llm import call_llm_raw
 from .json_extract import _extract_json_from_text
-from .models import PipelineEvalOutput
+from .models import PipelineEvalOutput, SqlPlanOutput
 from .prompt import load_prompt
 
 _EVAL_LOG = Path(__file__).parent.parent / "data" / "eval_log.jsonl"
@@ -21,6 +22,52 @@ class EvalInput:
     sgr_trace: list[dict]
     cycles: int
     final_outcome: str
+    agents_md_index: dict = field(default_factory=dict)
+    schema_digest: dict = field(default_factory=dict)
+    sql_plan_outputs: list = field(default_factory=list)
+    executed_queries: list[str] = field(default_factory=list)
+
+
+def _compute_eval_metrics(
+    task_text: str,
+    agents_md_index: dict,
+    executed_queries: list[str],
+    schema_digest: dict,
+    sql_plan_outputs: list,
+) -> dict:
+    """Compute agents_md_coverage and schema_grounding. Returns dict with both floats."""
+    # agents_md_coverage — match sections whose content OR key contains a task word (>3 chars)
+    task_words = {w.lower() for w in task_text.split() if len(w) > 3}
+    index_terms_in_task = {
+        k for k, lines in agents_md_index.items()
+        if any(w in (" ".join(lines) + " " + k).lower() for w in task_words)
+    }
+    refs_used: set[str] = set()
+    for plan in sql_plan_outputs:
+        if hasattr(plan, "agents_md_refs"):
+            refs_used.update(plan.agents_md_refs)
+    if index_terms_in_task:
+        coverage = len(index_terms_in_task & refs_used) / len(index_terms_in_task)
+    else:
+        coverage = 1.0
+
+    # schema_grounding
+    known_cols: set[str] = set()
+    for table_info in schema_digest.get("tables", {}).values():
+        for col in table_info.get("columns", []):
+            known_cols.add(col.get("name", ""))
+    known_cols.discard("")
+
+    table_col_refs = []
+    for q in executed_queries:
+        table_col_refs.extend(re.findall(r'\b\w+\.(\w+)\b', q))
+
+    if table_col_refs and known_cols:
+        grounding = sum(1 for c in table_col_refs if c in known_cols) / len(table_col_refs)
+    else:
+        grounding = 1.0
+
+    return {"agents_md_coverage": coverage, "schema_grounding": grounding}
 
 
 def run_evaluator(
@@ -37,6 +84,14 @@ def run_evaluator(
 
 
 def _run(eval_input: EvalInput, model: str, cfg: dict) -> PipelineEvalOutput | None:
+    metrics = _compute_eval_metrics(
+        eval_input.task_text,
+        eval_input.agents_md_index,
+        eval_input.executed_queries,
+        eval_input.schema_digest,
+        eval_input.sql_plan_outputs,
+    )
+
     system = _build_eval_system(eval_input.agents_md)
     user_msg = json.dumps({
         "task_text": eval_input.task_text,
@@ -44,6 +99,8 @@ def _run(eval_input: EvalInput, model: str, cfg: dict) -> PipelineEvalOutput | N
         "sgr_trace": eval_input.sgr_trace,
         "cycles": eval_input.cycles,
         "final_outcome": eval_input.final_outcome,
+        "agents_md_coverage": metrics["agents_md_coverage"],
+        "schema_grounding": metrics["schema_grounding"],
     }, ensure_ascii=False)
 
     raw = call_llm_raw(system, user_msg, model, cfg, max_tokens=2048)
@@ -55,11 +112,13 @@ def _run(eval_input: EvalInput, model: str, cfg: dict) -> PipelineEvalOutput | N
         return None
 
     try:
+        parsed.setdefault("agents_md_coverage", metrics["agents_md_coverage"])
+        parsed.setdefault("schema_grounding", metrics["schema_grounding"])
         result = PipelineEvalOutput.model_validate(parsed)
     except Exception:
         return None
 
-    _append_log(eval_input, result)
+    _append_log(eval_input, result, metrics)
     return result
 
 
@@ -73,7 +132,7 @@ def _build_eval_system(agents_md: str) -> str:
     return "\n\n".join(parts)
 
 
-def _append_log(eval_input: EvalInput, result: PipelineEvalOutput) -> None:
+def _append_log(eval_input: EvalInput, result: PipelineEvalOutput, metrics: dict) -> None:
     entry = {
         "task_text": eval_input.task_text,
         "cycles": eval_input.cycles,
@@ -83,6 +142,8 @@ def _append_log(eval_input: EvalInput, result: PipelineEvalOutput) -> None:
         "prompt_optimization": result.prompt_optimization,
         "rule_optimization": result.rule_optimization,
         "security_optimization": result.security_optimization,
+        "agents_md_coverage": metrics["agents_md_coverage"],
+        "schema_grounding": metrics["schema_grounding"],
         "reasoning": result.reasoning,
     }
     _EVAL_LOG.parent.mkdir(parents=True, exist_ok=True)

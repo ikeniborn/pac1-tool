@@ -15,6 +15,11 @@ Given the task description and database schema, produce an ordered list of SQL q
 - Use `SELECT DISTINCT <attr> FROM products WHERE <narrowing_condition> LIMIT 50` to discover attribute values before filtering.
 - Use `model` column (not `series`) for product line names.
 - Use `/proc/catalog/{sku}.json` paths for grounding_refs in the ANSWER phase — never construct them here.
+- `agents_md_refs` field MUST list every AGENTS.MD section key you consulted (e.g. `["brand_aliases", "kind_synonyms"]`). If you used no AGENTS.MD sections, return `[]`.
+
+## CONFIRMED VALUES
+
+When a `# CONFIRMED VALUES` block is present in your context, you MUST use those values as literals in WHERE clauses — do not re-invent them. Example: if `brand → confirmed: "Heco"`, use `WHERE brand = 'Heco'` not `WHERE brand ILIKE '%Heco%'`.
 
 ## Multi-attribute filtering (CRITICAL)
 
@@ -28,7 +33,7 @@ WHERE p.brand = 'Heco' AND p.model = 'TopFix GTU-YPJ'
               WHERE pp2.sku = p.sku AND pp2.key = 'screw_type' AND pp2.value_text = 'wood screw')
 
 ## Output format (JSON only)
-{"reasoning": "<chain-of-thought: why these queries answer the task>", "queries": ["SELECT ...", "SELECT ..."]}
+{"reasoning": "<chain-of-thought: why these queries answer the task>", "queries": ["SELECT ...", "SELECT ..."], "agents_md_refs": ["<section_key>", ...]}
 
 ## Final query obligation
 
