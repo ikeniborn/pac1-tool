@@ -8,40 +8,8 @@ from pathlib import Path
 import anthropic
 import httpx
 from openai import OpenAI
-from pydantic import BaseModel
 
-from google.protobuf.json_format import MessageToDict
-
-from bitgn.vm.ecom.ecom_connect import EcomRuntimeClientSync
-from bitgn.vm.ecom.ecom_pb2 import (
-    AnswerRequest,
-    ContextRequest,
-    DeleteRequest,
-    ExecRequest,
-    FindRequest,
-    ListRequest,
-    NodeKind,
-    Outcome,
-    ReadRequest,
-    SearchRequest,
-    StatRequest,
-    TreeRequest,
-    WriteRequest,
-)
-
-from .models import (
-    ReportTaskCompletion,
-    Req_Context,
-    Req_Delete,
-    Req_Exec,
-    Req_Find,
-    Req_List,
-    Req_Read,
-    Req_Search,
-    Req_Stat,
-    Req_Tree,
-    Req_Write,
-)
+from bitgn.vm.ecom.ecom_pb2 import Outcome
 
 
 
@@ -125,7 +93,7 @@ from .cc_client import cc_complete as _cc_complete  # noqa: E402
 
 _active = "anthropic" if _ANTHROPIC_KEY else ("openrouter" if _OPENROUTER_KEY else "ollama")
 print(
-    f"[dispatch] Active backend: {_active} "
+    f"[llm] Active backend: {_active} "
     f"(anthropic={'✓' if _ANTHROPIC_KEY else '✗'}, "
     f"openrouter={'✓' if _OPENROUTER_KEY else '✗'}, "
     f"ollama=✓, "
@@ -152,13 +120,6 @@ _STATIC_HINTS: dict[str, str] = {
     "gpt-3.5":          "json_object",
     "perplexity/":      "none",
 }
-
-# Cached NextStep JSON schema (computed once; used for json_schema response_format)
-def _nextstep_json_schema() -> dict:
-    from .models import NextStep
-    return NextStep.model_json_schema()
-
-_NEXTSTEP_SCHEMA: dict | None = None
 
 # FIX-213: Persist capability cache to disk — avoid re-probing on restart
 _CACHE_DIR = Path(__file__).resolve().parent.parent / ".cache"
@@ -240,13 +201,8 @@ def probe_structured_output(client: OpenAI, model: str, hint: str | None = None)
 
 def get_response_format(mode: str) -> dict | None:
     """Build response_format dict for the given mode, or None if mode='none'."""
-    global _NEXTSTEP_SCHEMA
     if mode == "json_object":
         return {"type": "json_object"}
-    if mode == "json_schema":
-        if _NEXTSTEP_SCHEMA is None:
-            _NEXTSTEP_SCHEMA = _nextstep_json_schema()
-        return {"type": "json_schema", "json_schema": {"name": "NextStep", "strict": True, "schema": _NEXTSTEP_SCHEMA}}
     return None
 
 
@@ -557,7 +513,7 @@ def call_llm_raw(
         plain_text=plain_text, token_out=token_out, logprobs=logprobs,
     )
     if result is None and _FALLBACK_MODEL and _FALLBACK_MODEL != model:
-        print(f"[dispatch] Primary exhausted — retrying with MODEL_FALLBACK={_FALLBACK_MODEL}")
+        print(f"[llm] Primary exhausted — retrying with MODEL_FALLBACK={_FALLBACK_MODEL}")
         result = _call_raw_single_model(
             system, user_msg, _FALLBACK_MODEL, {},
             max_tokens=max_tokens, think=think, max_retries=1,
@@ -611,76 +567,3 @@ OUTCOME_BY_NAME = {
     "OUTCOME_ERR_INTERNAL": Outcome.OUTCOME_ERR_INTERNAL,
 }
 
-
-# ---------------------------------------------------------------------------
-# Dispatch: Pydantic models -> PCM runtime methods
-# ---------------------------------------------------------------------------
-
-# FIX-205: code-level write scope enforcement — paths that must never be written/deleted by agent.
-# AGENTS.MD is the vault rulebook; docs/channels/ contains trust level definitions.
-# Exception: otp.txt deletion is allowed (part of OTP consumption workflow, FIX-154).
-_PROTECTED_WRITE = frozenset({"/AGENTS.MD", "/AGENTS.md"})
-_PROTECTED_PREFIX = ("/docs/channels/",)
-_OTP_PATH = "/docs/channels/otp.txt"
-
-
-_FIND_KIND = {
-    "all": NodeKind.NODE_KIND_UNSPECIFIED,
-    "files": NodeKind.NODE_KIND_FILE,
-    "dirs": NodeKind.NODE_KIND_DIR,
-}
-
-
-def dispatch(vm: EcomRuntimeClientSync, cmd: BaseModel):
-    # FIX-205: code-level write scope enforcement
-    if isinstance(cmd, (Req_Write, Req_Delete)):
-        _target = getattr(cmd, "path", "")
-        if _target and (_target in _PROTECTED_WRITE or any(_target.startswith(pfx) for pfx in _PROTECTED_PREFIX)):
-            # Exception: otp.txt can be deleted or rewritten (OTP consumption flow, FIX-154)
-            if not (_target == _OTP_PATH and isinstance(cmd, (Req_Delete, Req_Write))):
-                return f"ERROR: Write/delete to protected path '{_target}' is not allowed (FIX-205)"
-
-    if isinstance(cmd, Req_Context):
-        return vm.context(ContextRequest())
-    if isinstance(cmd, Req_Tree):
-        return vm.tree(TreeRequest(root=cmd.root, level=cmd.level))
-    if isinstance(cmd, Req_Find):
-        return vm.find(
-            FindRequest(
-                root=cmd.root,
-                name=cmd.name,
-                kind=_FIND_KIND[cmd.kind],
-                limit=cmd.limit,
-            )
-        )
-    if isinstance(cmd, Req_Search):
-        return vm.search(SearchRequest(root=cmd.root, pattern=cmd.pattern, limit=cmd.limit))
-    if isinstance(cmd, Req_List):
-        return vm.list(ListRequest(path=cmd.path))
-    if isinstance(cmd, Req_Read):
-        return vm.read(ReadRequest(
-            path=cmd.path,
-            number=cmd.number,
-            start_line=cmd.start_line,
-            end_line=cmd.end_line,
-        ))
-    if isinstance(cmd, Req_Write):
-        # ECOM WriteRequest dropped start_line/end_line; ranged writes unsupported.
-        return vm.write(WriteRequest(path=cmd.path, content=cmd.content))
-    if isinstance(cmd, Req_Delete):
-        return vm.delete(DeleteRequest(path=cmd.path))
-    if isinstance(cmd, Req_Stat):
-        return vm.stat(StatRequest(path=cmd.path))
-    if isinstance(cmd, Req_Exec):
-        return vm.exec(ExecRequest(path=cmd.path, args=list(cmd.args), stdin=cmd.stdin))
-    if isinstance(cmd, ReportTaskCompletion):
-        # report_completion is local stop action; underneath dispatches Answer RPC.
-        return vm.answer(
-            AnswerRequest(
-                message=cmd.message,
-                outcome=OUTCOME_BY_NAME[cmd.outcome],
-                refs=cmd.grounding_refs,
-            )
-        )
-
-    raise ValueError(f"Unknown command: {cmd}")

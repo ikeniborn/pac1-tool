@@ -12,7 +12,7 @@ from google.protobuf.message import Message
 from bitgn.vm.ecom.ecom_connect import EcomRuntimeClientSync
 from bitgn.vm.ecom.ecom_pb2 import AnswerRequest, ExecRequest
 
-from .dispatch import (
+from .llm import (
     call_llm_raw, OUTCOME_BY_NAME,
     CLI_BLUE, CLI_CLR, CLI_GREEN, CLI_RED, CLI_YELLOW,
 )

@@ -37,15 +37,13 @@ def test_normal_mode_reads_only_agents_md():
 
 
 def test_normal_mode_log_structure():
-    """Log has system + few-shot user + few-shot assistant + prephase user."""
+    """Log has system + prephase user."""
     vm = _make_vm()
     result = run_prephase(vm, "find products", "sys prompt")
     assert result.log[0]["role"] == "system"
     assert result.log[1]["role"] == "user"
-    assert result.log[2]["role"] == "assistant"
-    assert result.log[3]["role"] == "user"
-    assert "find products" in result.log[3]["content"]
-    assert "AGENTS CONTENT" in result.log[3]["content"]
+    assert "find products" in result.log[1]["content"]
+    assert "AGENTS CONTENT" in result.log[1]["content"]
 
 
 def test_normal_mode_no_tree_no_context():
@@ -102,7 +100,8 @@ def test_write_dry_run_format():
     assert line["agents_md"] == "AGENTS"
     assert line["bin_sql_content"] == "SQL"
     assert "sql_schema" not in line
-    assert "db_schema" not in line
+    # db_schema IS included in _write_dry_run output
+    assert "db_schema" in line
 
 
 def test_prephase_result_has_db_schema_field():
@@ -144,3 +143,10 @@ def test_schema_not_in_log():
     result = run_prephase(vm, "task", "sys")
     for msg in result.log:
         assert "UNIQUE_SCHEMA_MARKER_XYZ" not in msg.get("content", "")
+
+
+def test_no_few_shot_in_log():
+    """prephase log must not contain the NextStep few-shot pair."""
+    import agent.prephase as p
+    assert not hasattr(p, "_FEW_SHOT_USER"), "_FEW_SHOT_USER should be removed"
+    assert not hasattr(p, "_FEW_SHOT_ASSISTANT"), "_FEW_SHOT_ASSISTANT should be removed"

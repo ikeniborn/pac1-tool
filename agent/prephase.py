@@ -5,7 +5,7 @@ from bitgn.vm.ecom.ecom_connect import EcomRuntimeClientSync
 from bitgn.vm.ecom.ecom_pb2 import ReadRequest, ExecRequest
 from google.protobuf.json_format import MessageToDict
 
-from .dispatch import CLI_BLUE, CLI_CLR, CLI_GREEN, CLI_YELLOW
+from .llm import CLI_BLUE, CLI_CLR, CLI_GREEN, CLI_YELLOW
 
 _LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
 
@@ -20,20 +20,6 @@ class PrephaseResult:
     db_schema: str = ""
 
 
-# Few-shot user→assistant pair — strongest signal for JSON-only output.
-# Placed immediately after system prompt so the model sees its own expected format
-# before any task context.
-_FEW_SHOT_USER = "Example: How many catalogue products are Lawn Mower?"
-_FEW_SHOT_ASSISTANT = (
-    '{"current_state":"validating SQL syntax before executing count",'
-    '"plan_remaining_steps_brief":["EXPLAIN query","SELECT COUNT","report result"],'
-    '"done_operations":[],"task_completed":false,'
-    '"function":{"tool":"exec","path":"/bin/sql",'
-    '"args":["EXPLAIN SELECT COUNT(*) FROM products WHERE type=\'Lawn Mower\'"],'
-    '"stdin":""}}'
-)
-
-
 def run_prephase(
     vm: EcomRuntimeClientSync,
     task_text: str,
@@ -44,8 +30,6 @@ def run_prephase(
 
     log: list = [
         {"role": "system", "content": system_prompt_text},
-        {"role": "user", "content": _FEW_SHOT_USER},
-        {"role": "assistant", "content": _FEW_SHOT_ASSISTANT},
     ]
 
     # Read AGENTS.MD — source of truth for vault semantics and folder roles.
