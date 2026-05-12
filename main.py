@@ -84,10 +84,6 @@ def _setup_log_tee() -> None:
 
 _setup_log_tee()
 
-from agent.tracer import init_tracer as _init_tracer, set_task_id as _set_task_id
-if _run_dir is not None:
-    _init_tracer(str(_run_dir))
-
 from bitgn.harness_connect import HarnessServiceClientSync
 from bitgn.harness_pb2 import (
     EndTrialRequest, EvalPolicy, GetBenchmarkRequest,
@@ -139,7 +135,6 @@ def _run_single_task(trial_id: str, task_filter: list) -> tuple:
         return (task_id, -1, [], 0.0, {})
 
     _task_local.task_id = task_id
-    _set_task_id(task_id)
     assert _run_dir is not None
     _task_local.log_fh = open(_run_dir / f"{task_id}.log", "w", buffering=1, encoding="utf-8")
     try:
@@ -260,8 +255,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    finally:
-        from agent.tracer import close_tracer as _close_tracer
-        _close_tracer()
+    main()
