@@ -36,3 +36,33 @@ def test_lookup_routes_to_pipeline():
 def test_loop_module_deleted():
     with pytest.raises(ModuleNotFoundError):
         importlib.import_module("agent.loop")
+
+
+def test_run_agent_no_dead_stats():
+    """run_agent() result must not contain builder_*/contract_*/eval_rejection_count fields."""
+    with patch("agent.orchestrator.EcomRuntimeClientSync", return_value=_make_vm_mock()), \
+         patch("agent.orchestrator.run_pipeline") as mock_pipeline:
+        mock_pipeline.return_value = {
+            "outcome": "OUTCOME_OK",
+            "step_facts": [],
+            "done_ops": [],
+            "input_tokens": 10,
+            "output_tokens": 5,
+            "total_elapsed_ms": 0,
+        }
+        result = run_agent({}, "http://localhost:9001", "test", "t01")
+
+    dead_keys = {"builder_used", "builder_in_tok", "builder_out_tok", "builder_addendum",
+                 "contract_rounds_taken", "contract_is_default", "eval_rejection_count"}
+    found = dead_keys & result.keys()
+    assert not found, f"Dead stats keys found: {found}"
+
+
+def test_write_wiki_fragment_removed():
+    import agent.orchestrator as orch
+    assert not hasattr(orch, "write_wiki_fragment"), "write_wiki_fragment should be removed"
+
+
+def test_build_system_prompt_not_imported():
+    import agent.orchestrator as orch
+    assert not hasattr(orch, "build_system_prompt"), "build_system_prompt should not be in orchestrator"
