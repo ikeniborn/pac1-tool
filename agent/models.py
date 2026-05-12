@@ -125,6 +125,42 @@ class EmailOutbox(BaseModel):
 
 
 
+# ---------------------------------------------------------------------------
+# Pipeline phase output models (SGR — reasoning field always first)
+# ---------------------------------------------------------------------------
+
+class SqlPlanOutput(BaseModel):
+    reasoning: str
+    queries: list[str]
+
+
+class LearnOutput(BaseModel):
+    reasoning: str
+    conclusion: str
+    rule_content: str
+
+
+class AnswerOutput(BaseModel):
+    reasoning: str
+    message: str
+    outcome: Literal[
+        "OUTCOME_OK",
+        "OUTCOME_NONE_CLARIFICATION",
+        "OUTCOME_NONE_UNSUPPORTED",
+        "OUTCOME_DENIED_SECURITY",
+    ]
+    grounding_refs: list[str]
+    completed_steps: list[str]
+
+
+class PipelineEvalOutput(BaseModel):
+    reasoning: str
+    score: float
+    comment: str
+    prompt_optimization: list[str]
+    rule_optimization: list[str]
+
+
 class NextStep(BaseModel):
     current_state: str
     plan_remaining_steps_brief: Annotated[List[str], MinLen(1), MaxLen(5)] = Field(
