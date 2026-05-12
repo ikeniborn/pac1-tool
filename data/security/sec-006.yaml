@@ -1,0 +1,16 @@
+action: block
+created: '2026-05-12'
+eval_score: 0.1
+id: sec-006
+message: sku-anchored DISTINCT store_id enumeration bypasses no-WHERE guard; use proc/stores
+  filesystem read instead
+pattern: SELECT\s+DISTINCT\s+store_id\s+FROM\s+inventory\s+WHERE\s+sku\s+IN\s*\(
+raw_recommendation: 'Add gate for sku-anchored DISTINCT store_id pattern: `SELECT
+  DISTINCT store_id FROM inventory WHERE sku IN (...)` — semantically equivalent to
+  a full store enumeration but bypasses the no-WHERE guard; should trigger a soft
+  warning redirecting to proc/stores filesystem read instead of silently allowing
+  a potentially misleading partial result.'
+source: eval
+task_text: 'How many of these products have at least 1 items available in the Linz
+  Hauptplatz PowerTool shop today: the Wood and Dry'
+verified: true

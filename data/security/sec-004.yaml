@@ -1,0 +1,15 @@
+action: block
+created: '2026-05-12'
+eval_score: 0.15
+id: sec-004
+message: 'Open-ended key LIKE pattern blocked: bulk schema discovery risk. Require
+  sku or brand equality filter alongside key LIKE.'
+pattern: key\s+LIKE\s+'%[^']*%'
+raw_recommendation: 'Add gate for open-ended property key enumeration (`key LIKE ''%<pattern>%''`
+  without sku/brand anchor): prevents bulk schema discovery that could expose all
+  attribute keys across unrelated products. Require at least one indexed equality
+  filter (sku or brand confirmed in session) alongside any key LIKE pattern.'
+source: eval
+task_text: Do you have the Cleaning Liquid from Ajax in the Ajax Eco Classic 25C-DXE
+  Cleaning Liquid line that has cleaner type deg
+verified: true
