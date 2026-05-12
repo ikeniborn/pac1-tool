@@ -18,14 +18,17 @@ def test_lookup_routes_to_pipeline():
     """run_agent calls run_pipeline for all tasks."""
     with patch("agent.orchestrator.EcomRuntimeClientSync", return_value=_make_vm_mock()), \
          patch("agent.orchestrator.run_pipeline") as mock_pipeline:
-        mock_pipeline.return_value = {
-            "outcome": "OUTCOME_OK",
-            "step_facts": [],
-            "done_ops": [],
-            "input_tokens": 10,
-            "output_tokens": 5,
-            "total_elapsed_ms": 100,
-        }
+        mock_pipeline.return_value = (
+            {
+                "outcome": "OUTCOME_OK",
+                "step_facts": [],
+                "done_ops": [],
+                "input_tokens": 10,
+                "output_tokens": 5,
+                "total_elapsed_ms": 100,
+            },
+            None,
+        )
         result = run_agent({}, "http://localhost:9001", "How many Lawn Mowers?", "t01")
 
     mock_pipeline.assert_called_once()
@@ -42,14 +45,17 @@ def test_run_agent_no_dead_stats():
     """run_agent() result must not contain builder_*/contract_*/eval_rejection_count fields."""
     with patch("agent.orchestrator.EcomRuntimeClientSync", return_value=_make_vm_mock()), \
          patch("agent.orchestrator.run_pipeline") as mock_pipeline:
-        mock_pipeline.return_value = {
-            "outcome": "OUTCOME_OK",
-            "step_facts": [],
-            "done_ops": [],
-            "input_tokens": 10,
-            "output_tokens": 5,
-            "total_elapsed_ms": 0,
-        }
+        mock_pipeline.return_value = (
+            {
+                "outcome": "OUTCOME_OK",
+                "step_facts": [],
+                "done_ops": [],
+                "input_tokens": 10,
+                "output_tokens": 5,
+                "total_elapsed_ms": 0,
+            },
+            None,
+        )
         result = run_agent({}, "http://localhost:9001", "test", "t01")
 
     dead_keys = {"builder_used", "builder_in_tok", "builder_out_tok", "builder_addendum",
@@ -66,3 +72,25 @@ def test_write_wiki_fragment_removed():
 def test_build_system_prompt_not_imported():
     import agent.orchestrator as orch
     assert not hasattr(orch, "build_system_prompt"), "build_system_prompt should not be in orchestrator"
+
+
+def test_run_agent_returns_dict():
+    """run_agent() always returns a plain dict (public API unchanged)."""
+    import threading
+    with patch("agent.orchestrator.EcomRuntimeClientSync", return_value=_make_vm_mock()), \
+         patch("agent.orchestrator.run_pipeline") as mock_pipeline:
+        mock_pipeline.return_value = (
+            {
+                "outcome": "OUTCOME_OK",
+                "step_facts": [],
+                "done_ops": [],
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "total_elapsed_ms": 0,
+            },
+            None,
+        )
+        result = run_agent({}, "http://localhost:9001", "task", "t01")
+
+    assert isinstance(result, dict)
+    assert result["outcome"] == "OUTCOME_OK"

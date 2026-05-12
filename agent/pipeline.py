@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import threading
 import traceback
 from pathlib import Path
 
@@ -30,6 +31,23 @@ _MAX_CYCLES = 3
 _EVAL_ENABLED = os.environ.get("EVAL_ENABLED", "0") == "1"
 _MODEL_EVALUATOR = os.environ.get("MODEL_EVALUATOR", "")
 _EVAL_LOG = Path(__file__).parent.parent / "data" / "eval_log.jsonl"
+
+_rules_loader_cache: "RulesLoader | None" = None
+_security_gates_cache: "list[dict] | None" = None
+
+
+def _get_rules_loader() -> RulesLoader:
+    global _rules_loader_cache
+    if _rules_loader_cache is None:
+        _rules_loader_cache = RulesLoader(_RULES_DIR)
+    return _rules_loader_cache
+
+
+def _get_security_gates() -> list[dict]:
+    global _security_gates_cache
+    if _security_gates_cache is None:
+        _security_gates_cache = load_security_gates()
+    return _security_gates_cache
 
 
 def _exec_result_text(result) -> str:
@@ -127,22 +145,20 @@ def _relevant_agents_sections(agents_md_index: dict, task_text: str) -> dict[str
     return relevant
 
 
-def _build_system(
+def _build_static_system(
     phase: str,
     agents_md: str,
     agents_md_index: dict,
     db_schema: str,
     schema_digest: dict,
     rules_loader: RulesLoader,
-    session_rules: list[str],
     security_gates: list[dict],
     confirmed_values: dict | None = None,
-    highlighted_vault_rules: list[str] | None = None,
     task_text: str = "",
 ) -> str:
     parts: list[str] = []
 
-    if phase in ("sql_plan", "learn", "answer", "pipeline_evaluator"):
+    if phase in ("sql_plan", "learn", "answer"):
         if agents_md_index and task_text and phase in ("sql_plan", "learn"):
             relevant = _relevant_agents_sections(agents_md_index, task_text)
             index_line = "Section index: " + ", ".join(agents_md_index.keys())
@@ -170,14 +186,6 @@ def _build_system(
     if db_schema:
         parts.append(f"# DATABASE SCHEMA\n{db_schema}")
 
-    if phase in ("sql_plan", "learn"):
-        for r in session_rules:
-            parts.append(f"# IN-SESSION RULE\n{r}")
-
-    if highlighted_vault_rules:
-        for rule in highlighted_vault_rules:
-            parts.append(f"# HIGHLIGHTED VAULT RULE\n{rule}")
-
     if confirmed_values and phase in ("sql_plan", "learn"):
         parts.append(f"# CONFIRMED VALUES\n{_format_confirmed_values(confirmed_values)}")
 
@@ -186,6 +194,36 @@ def _build_system(
         parts.append(guide)
 
     return "\n\n".join(parts)
+
+
+def _build_sql_user_msg(
+    task_text: str,
+    session_rules: list[str],
+    highlighted_vault_rules: list[str],
+    last_error: str,
+) -> str:
+    parts: list[str] = []
+    for r in highlighted_vault_rules:
+        parts.append(f"# HIGHLIGHTED VAULT RULE\n{r}")
+    for r in session_rules:
+        parts.append(f"# IN-SESSION RULE\n{r}")
+    parts.append(f"TASK: {task_text}")
+    if last_error:
+        parts.append(f"PREVIOUS ERROR: {last_error}")
+    return "\n\n".join(parts)
+
+
+def _build_learn_user_msg(task_text: str, queries: list[str], error: str, error_type: str) -> str:
+    return (
+        f"TASK: {task_text}\n"
+        f"FAILED QUERIES: {json.dumps(queries)}\n"
+        f"ERROR: {error}\n"
+        f"ERROR_TYPE: {error_type}"
+    )
+
+
+def _build_answer_user_msg(task_text: str, sql_results: list[str]) -> str:
+    return f"TASK: {task_text}\n\nSQL RESULTS:\n" + "\n---\n".join(sql_results)
 
 
 def _extract_discovery_results(
@@ -215,10 +253,10 @@ def run_pipeline(
     task_text: str,
     pre: PrephaseResult,
     cfg: dict,
-) -> dict:
-    """Phase-based SQL pipeline. Returns stats dict compatible with run_loop()."""
-    rules_loader = RulesLoader(_RULES_DIR)
-    security_gates = load_security_gates()
+) -> tuple[dict, threading.Thread | None]:
+    """Phase-based SQL pipeline. Returns (stats dict, eval Thread or None)."""
+    rules_loader = _get_rules_loader()
+    security_gates = _get_security_gates()
     session_rules: list[str] = []
     highlighted_vault_rules: list[str] = []
     sgr_trace: list[dict] = []
@@ -237,23 +275,28 @@ def run_pipeline(
     if confirmed_values:
         print(f"{CLI_BLUE}[pipeline] RESOLVE: {list(confirmed_values.keys())}{CLI_CLR}")
 
+    static_sql = _build_static_system(
+        "sql_plan", pre.agents_md_content, pre.agents_md_index, pre.db_schema,
+        pre.schema_digest, rules_loader, security_gates,
+        confirmed_values=confirmed_values, task_text=task_text,
+    )
+    static_learn = _build_static_system(
+        "learn", pre.agents_md_content, pre.agents_md_index, pre.db_schema,
+        pre.schema_digest, rules_loader, security_gates,
+        confirmed_values=confirmed_values, task_text=task_text,
+    )
+    static_answer = _build_static_system(
+        "answer", pre.agents_md_content, pre.agents_md_index, pre.db_schema,
+        pre.schema_digest, rules_loader, security_gates,
+    )
+
     for cycle in range(_MAX_CYCLES):
         cycles_used = cycle + 1
         print(f"\n{CLI_BLUE}[pipeline] cycle={cycle + 1}/{_MAX_CYCLES}{CLI_CLR}")
 
         # ── SQL_PLAN ──────────────────────────────────────────────────────────
-        system = _build_system(
-            "sql_plan", pre.agents_md_content, pre.agents_md_index, pre.db_schema,
-            pre.schema_digest, rules_loader, session_rules, security_gates,
-            confirmed_values=confirmed_values,
-            highlighted_vault_rules=highlighted_vault_rules,
-            task_text=task_text,
-        )
-        user_msg = f"TASK: {task_text}"
-        if last_error:
-            user_msg += f"\n\nPREVIOUS ERROR: {last_error}"
-
-        sql_plan_out, sgr_entry, tok = _call_llm_phase(system, user_msg, model, cfg, SqlPlanOutput)
+        user_msg = _build_sql_user_msg(task_text, session_rules, highlighted_vault_rules, last_error)
+        sql_plan_out, sgr_entry, tok = _call_llm_phase(static_sql, user_msg, model, cfg, SqlPlanOutput)
         total_in_tok += tok.get("input", 0)
         total_out_tok += tok.get("output", 0)
         sgr_trace.append(sgr_entry)
@@ -261,10 +304,9 @@ def run_pipeline(
         if not sql_plan_out:
             print(f"{CLI_RED}[pipeline] SQL_PLAN LLM call failed{CLI_CLR}")
             last_error = "SQL_PLAN phase LLM call failed"
-            _run_learn(pre, model, cfg, task_text, [], last_error,
-                       rules_loader, session_rules, sgr_trace, security_gates,
-                       confirmed_values, highlighted_vault_rules,
-                       error_type="llm_fail")
+            _run_learn(static_learn, model, cfg, task_text, [], last_error,
+                       sgr_trace, session_rules, highlighted_vault_rules,
+                       pre.agents_md_index, error_type="llm_fail")
             continue
 
         sql_plan_outputs.append(sql_plan_out)
@@ -281,10 +323,9 @@ def run_pipeline(
             if index_terms_in_task:
                 last_error = "agents_md_refs empty despite known vocabulary terms in task"
                 print(f"{CLI_YELLOW}[pipeline] AGENTS.MD refs check failed: {last_error}{CLI_CLR}")
-                _run_learn(pre, model, cfg, task_text, queries, last_error,
-                           rules_loader, session_rules, sgr_trace, security_gates,
-                           confirmed_values, highlighted_vault_rules,
-                           error_type="semantic")
+                _run_learn(static_learn, model, cfg, task_text, queries, last_error,
+                           sgr_trace, session_rules, highlighted_vault_rules,
+                           pre.agents_md_index, error_type="semantic")
                 continue
 
         # ── SECURITY CHECK ────────────────────────────────────────────────────
@@ -292,10 +333,9 @@ def run_pipeline(
         if gate_err:
             print(f"{CLI_YELLOW}[pipeline] SECURITY gate blocked: {gate_err}{CLI_CLR}")
             last_error = gate_err
-            _run_learn(pre, model, cfg, task_text, queries, last_error,
-                       rules_loader, session_rules, sgr_trace, security_gates,
-                       confirmed_values, highlighted_vault_rules,
-                       error_type="security")
+            _run_learn(static_learn, model, cfg, task_text, queries, last_error,
+                       sgr_trace, session_rules, highlighted_vault_rules,
+                       pre.agents_md_index, error_type="security")
             continue
 
         # ── SCHEMA GATE ───────────────────────────────────────────────────────
@@ -303,10 +343,9 @@ def run_pipeline(
         if schema_err:
             print(f"{CLI_YELLOW}[pipeline] SCHEMA gate blocked: {schema_err}{CLI_CLR}")
             last_error = schema_err
-            _run_learn(pre, model, cfg, task_text, queries, last_error,
-                       rules_loader, session_rules, sgr_trace, security_gates,
-                       confirmed_values, highlighted_vault_rules,
-                       error_type="security")
+            _run_learn(static_learn, model, cfg, task_text, queries, last_error,
+                       sgr_trace, session_rules, highlighted_vault_rules,
+                       pre.agents_md_index, error_type="security")
             continue
 
         # ── VALIDATE ──────────────────────────────────────────────────────────
@@ -325,10 +364,9 @@ def run_pipeline(
         if validate_error:
             print(f"{CLI_YELLOW}[pipeline] VALIDATE failed: {validate_error}{CLI_CLR}")
             last_error = validate_error
-            _run_learn(pre, model, cfg, task_text, queries, last_error,
-                       rules_loader, session_rules, sgr_trace, security_gates,
-                       confirmed_values, highlighted_vault_rules,
-                       error_type="syntax")
+            _run_learn(static_learn, model, cfg, task_text, queries, last_error,
+                       sgr_trace, session_rules, highlighted_vault_rules,
+                       pre.agents_md_index, error_type="syntax")
             continue
 
         # ── EXECUTE ───────────────────────────────────────────────────────────
@@ -349,9 +387,9 @@ def run_pipeline(
             err = execute_error or f"Empty result set: {(sql_results[-1] if sql_results else '').strip()[:120]}"
             print(f"{CLI_YELLOW}[pipeline] EXECUTE failed: {err}{CLI_CLR}")
             last_error = err
-            _run_learn(pre, model, cfg, task_text, queries, last_error,
-                       rules_loader, session_rules, sgr_trace, security_gates,
-                       confirmed_values, highlighted_vault_rules,
+            _run_learn(static_learn, model, cfg, task_text, queries, last_error,
+                       sgr_trace, session_rules, highlighted_vault_rules,
+                       pre.agents_md_index,
                        error_type="empty" if last_empty and not execute_error else "semantic")
             continue
 
@@ -362,6 +400,7 @@ def run_pipeline(
         success = True
         break
 
+    outcome = "OUTCOME_NONE_CLARIFICATION"
     if not success:
         print(f"{CLI_RED}[pipeline] All {_MAX_CYCLES} cycles exhausted — clarification{CLI_CLR}")
         try:
@@ -372,57 +411,50 @@ def run_pipeline(
             ))
         except Exception as e:
             print(f"{CLI_RED}[pipeline] vm.answer error: {e}{CLI_CLR}")
-        return {
-            "outcome": "OUTCOME_NONE_CLARIFICATION",
-            "step_facts": [f"cycles={_MAX_CYCLES}"],
-            "done_ops": [],
-            "input_tokens": total_in_tok,
-            "output_tokens": total_out_tok,
-            "total_elapsed_ms": 0,
-        }
+    else:
+        # ── ANSWER ────────────────────────────────────────────────────────────
+        answer_user = _build_answer_user_msg(task_text, sql_results)
+        answer_out, sgr_answer, tok = _call_llm_phase(static_answer, answer_user, model, cfg, AnswerOutput)
+        total_in_tok += tok.get("input", 0)
+        total_out_tok += tok.get("output", 0)
+        sgr_trace.append(sgr_answer)
 
-    # ── ANSWER ────────────────────────────────────────────────name────────────
-    answer_system = _build_system(
-        "answer", pre.agents_md_content, pre.agents_md_index, pre.db_schema,
-        pre.schema_digest, rules_loader, session_rules, security_gates,
-    )
-    answer_user = f"TASK: {task_text}\n\nSQL RESULTS:\n" + "\n---\n".join(sql_results)
-    answer_out, sgr_answer, tok = _call_llm_phase(answer_system, answer_user, model, cfg, AnswerOutput)
-    total_in_tok += tok.get("input", 0)
-    total_out_tok += tok.get("output", 0)
-    sgr_trace.append(sgr_answer)
+        if answer_out:
+            outcome = answer_out.outcome
+            print(f"{CLI_GREEN}[pipeline] ANSWER: {outcome} — {answer_out.message[:100]}{CLI_CLR}")
+            try:
+                vm.answer(AnswerRequest(
+                    message=answer_out.message,
+                    outcome=OUTCOME_BY_NAME[outcome],
+                    refs=answer_out.grounding_refs,
+                ))
+            except Exception as e:
+                print(f"{CLI_RED}[pipeline] vm.answer error: {e}{CLI_CLR}")
 
-    outcome = "OUTCOME_NONE_CLARIFICATION"
-    if answer_out:
-        outcome = answer_out.outcome
-        print(f"{CLI_GREEN}[pipeline] ANSWER: {outcome} — {answer_out.message[:100]}{CLI_CLR}")
-        try:
-            vm.answer(AnswerRequest(
-                message=answer_out.message,
-                outcome=OUTCOME_BY_NAME[outcome],
-                refs=answer_out.grounding_refs,
-            ))
-        except Exception as e:
-            print(f"{CLI_RED}[pipeline] vm.answer error: {e}{CLI_CLR}")
-
-    # ── EVALUATE ──────────────────────────────────────────────────────────────
+    # ── EVALUATE (always, success or fail) ────────────────────────────────────
+    eval_thread: threading.Thread | None = None
     if _EVAL_ENABLED and _MODEL_EVALUATOR:
-        _run_evaluator_safe(
-            task_text=task_text,
-            agents_md=pre.agents_md_content,
-            agents_md_index=pre.agents_md_index,
-            db_schema=pre.db_schema,
-            schema_digest=pre.schema_digest,
-            sgr_trace=sgr_trace,
-            cycles=cycles_used,
-            final_outcome=outcome,
-            sql_plan_outputs=sql_plan_outputs,
-            executed_queries=executed_queries,
-            model=_MODEL_EVALUATOR,
-            cfg=cfg,
+        eval_thread = threading.Thread(
+            target=_run_evaluator_safe,
+            kwargs={
+                "task_text": task_text,
+                "agents_md": pre.agents_md_content,
+                "agents_md_index": pre.agents_md_index,
+                "db_schema": pre.db_schema,
+                "schema_digest": pre.schema_digest,
+                "sgr_trace": sgr_trace,
+                "cycles": cycles_used,
+                "final_outcome": outcome,
+                "sql_plan_outputs": sql_plan_outputs,
+                "executed_queries": executed_queries,
+                "model": _MODEL_EVALUATOR,
+                "cfg": cfg,
+            },
+            daemon=False,
         )
+        eval_thread.start()
 
-    return {
+    stats = {
         "outcome": outcome,
         "step_facts": [f"pipeline cycles={cycles_used}"],
         "done_ops": [],
@@ -430,44 +462,32 @@ def run_pipeline(
         "output_tokens": total_out_tok,
         "total_elapsed_ms": 0,
     }
+    return stats, eval_thread
 
 
 def _run_learn(
-    pre: PrephaseResult,
+    static_learn: str,
     model: str,
     cfg: dict,
     task_text: str,
     queries: list[str],
     error: str,
-    rules_loader: RulesLoader,
-    session_rules: list[str],
     sgr_trace: list[dict],
-    security_gates: list[dict],
-    confirmed_values: dict,
+    session_rules: list[str],
     highlighted_vault_rules: list[str],
+    agents_md_index: dict,
     error_type: str = "semantic",
 ) -> None:
-    learn_system = _build_system(
-        "learn", pre.agents_md_content, pre.agents_md_index, pre.db_schema,
-        pre.schema_digest, rules_loader, session_rules, security_gates,
-        confirmed_values=confirmed_values,
-        highlighted_vault_rules=highlighted_vault_rules,
-        task_text=task_text,
-    )
-    learn_user = (
-        f"TASK: {task_text}\n"
-        f"FAILED QUERIES: {json.dumps(queries)}\n"
-        f"ERROR: {error}"
-    )
-    learn_out, sgr_learn, _ = _call_llm_phase(learn_system, learn_user, model, cfg, LearnOutput, max_tokens=2048)
+    learn_user = _build_learn_user_msg(task_text, queries, error, error_type)
+    learn_out, sgr_learn, _ = _call_llm_phase(static_learn, learn_user, model, cfg, LearnOutput, max_tokens=2048)
     sgr_learn["error_type"] = error_type
     sgr_trace.append(sgr_learn)
     if learn_out and error_type != "llm_fail":
         anchor = learn_out.agents_md_anchor
         if anchor:
             anchor_section = anchor.split(">")[0].strip()
-            if anchor_section in pre.agents_md_index:
-                anchor_lines = pre.agents_md_index[anchor_section]
+            if anchor_section in agents_md_index:
+                anchor_lines = agents_md_index[anchor_section]
                 highlighted_vault_rules.append(f"[{anchor_section}]\n" + "\n".join(anchor_lines))
                 print(f"{CLI_BLUE}[pipeline] LEARN: anchor={anchor!r}, elevating vault rule{CLI_CLR}")
                 return

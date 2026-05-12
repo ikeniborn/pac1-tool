@@ -17,7 +17,11 @@ def run_agent(model_configs: dict, harness_url: str, task_text: str, task_id: st
     model = _MODEL
     cfg = model_configs.get(model, {}) if model_configs else {}
     pre = run_prephase(vm, task_text)
-    stats = run_pipeline(vm, model, task_text, pre, cfg)
+    stats, eval_thread = run_pipeline(vm, model, task_text, pre, cfg)
+    if eval_thread is not None:
+        eval_thread.join(timeout=30)
+        if eval_thread.is_alive():
+            print("[orchestrator] evaluator timeout — log may be incomplete")
     stats["model_used"] = model
     stats["task_type"] = "lookup"
     return stats

@@ -1,4 +1,5 @@
 import json
+import threading
 from unittest.mock import MagicMock, patch, call
 import pytest
 from agent.pipeline import run_pipeline, _extract_discovery_results, _format_confirmed_values, _format_schema_digest
@@ -56,7 +57,7 @@ def test_happy_path(tmp_path):
          patch("agent.pipeline.load_security_gates", return_value=[]), \
          patch("agent.pipeline.run_resolve", return_value={}), \
          patch("agent.pipeline.check_schema_compliance", return_value=None):
-        stats = run_pipeline(vm, "anthropic/claude-sonnet-4-6", "How many Lawn Mowers?", pre, {})
+        stats, _thread = run_pipeline(vm, "anthropic/claude-sonnet-4-6", "How many Lawn Mowers?", pre, {})
 
     assert stats["outcome"] == "OUTCOME_OK"
     vm.answer.assert_called_once()
@@ -94,7 +95,7 @@ def test_validate_error_triggers_learn_and_retry(tmp_path):
          patch("agent.pipeline.load_security_gates", return_value=[]), \
          patch("agent.pipeline.run_resolve", return_value={}), \
          patch("agent.pipeline.check_schema_compliance", return_value=None):
-        stats = run_pipeline(vm, "anthropic/claude-sonnet-4-6", "How many?", pre, {})
+        stats, _thread = run_pipeline(vm, "anthropic/claude-sonnet-4-6", "How many?", pre, {})
 
     assert stats["outcome"] == "OUTCOME_OK"
 
@@ -119,7 +120,7 @@ def test_max_cycles_exhausted_returns_clarification(tmp_path):
          patch("agent.pipeline.load_security_gates", return_value=[]), \
          patch("agent.pipeline.run_resolve", return_value={}), \
          patch("agent.pipeline.check_schema_compliance", return_value=None):
-        stats = run_pipeline(vm, "anthropic/claude-sonnet-4-6", "?", pre, {})
+        stats, _thread = run_pipeline(vm, "anthropic/claude-sonnet-4-6", "?", pre, {})
 
     assert stats["outcome"] == "OUTCOME_NONE_CLARIFICATION"
     vm.answer.assert_called_once()
@@ -157,7 +158,7 @@ def test_security_gate_ddl_triggers_learn(tmp_path):
          patch("agent.pipeline.load_security_gates", return_value=ddl_gate), \
          patch("agent.pipeline.run_resolve", return_value={}), \
          patch("agent.pipeline.check_schema_compliance", return_value=None):
-        stats = run_pipeline(vm, "anthropic/claude-sonnet-4-6", "drop test", pre, {})
+        stats, _thread = run_pipeline(vm, "anthropic/claude-sonnet-4-6", "drop test", pre, {})
 
     assert stats["outcome"] == "OUTCOME_OK"
 
@@ -185,7 +186,7 @@ def test_learn_does_not_persist_auto_rule(tmp_path):
          patch("agent.pipeline.load_security_gates", return_value=[]), \
          patch("agent.pipeline.run_resolve", return_value={}), \
          patch("agent.pipeline.check_schema_compliance", return_value=None):
-        stats = run_pipeline(vm, "anthropic/claude-sonnet-4-6", "count X", pre, {})
+        stats, _thread = run_pipeline(vm, "anthropic/claude-sonnet-4-6", "count X", pre, {})
 
     assert stats["outcome"] == "OUTCOME_OK"
     # append_rule has been removed — no auto YAML files should be written
@@ -276,24 +277,15 @@ def test_learn_llm_fail_does_not_add_session_rule(tmp_path):
     """_run_learn with error_type='llm_fail' must not add to session_rules."""
     from agent.pipeline import _run_learn
 
-    rules_dir = tmp_path / "rules"
-    rules_dir.mkdir()
-
     learn_json = json.dumps({"reasoning": "x", "conclusion": "y", "rule_content": "should not appear"})
     session_rules: list[str] = []
     sgr_trace: list[dict] = []
 
-    pre = _make_pre()
-    rules_loader_mock = MagicMock()
-    rules_loader_mock.get_rules_markdown.return_value = ""
-
-    with patch("agent.pipeline.call_llm_raw", return_value=learn_json), \
-         patch("agent.pipeline._RULES_DIR", rules_dir), \
-         patch("agent.pipeline.load_security_gates", return_value=[]):
+    with patch("agent.pipeline.call_llm_raw", return_value=learn_json):
         _run_learn(
-            pre, "model", {}, "task", [], "llm error",
-            rules_loader_mock, session_rules, sgr_trace, [],
-            {}, [],
+            "system prompt",
+            "model", {}, "task", [], "llm error",
+            sgr_trace, session_rules, [], {},
             error_type="llm_fail",
         )
 
@@ -304,24 +296,15 @@ def test_sgr_learn_entry_has_error_type(tmp_path):
     """LEARN sgr_trace entry must contain 'error_type' field."""
     from agent.pipeline import _run_learn
 
-    rules_dir = tmp_path / "rules"
-    rules_dir.mkdir()
-
     learn_json = json.dumps({"reasoning": "x", "conclusion": "y", "rule_content": "rule"})
     session_rules: list[str] = []
     sgr_trace: list[dict] = []
 
-    pre = _make_pre()
-    rules_loader_mock = MagicMock()
-    rules_loader_mock.get_rules_markdown.return_value = ""
-
-    with patch("agent.pipeline.call_llm_raw", return_value=learn_json), \
-         patch("agent.pipeline._RULES_DIR", rules_dir), \
-         patch("agent.pipeline.load_security_gates", return_value=[]):
+    with patch("agent.pipeline.call_llm_raw", return_value=learn_json):
         _run_learn(
-            pre, "model", {}, "task", ["SELECT 1"], "syntax error",
-            rules_loader_mock, session_rules, sgr_trace, [],
-            {}, [],
+            "system prompt",
+            "model", {}, "task", ["SELECT 1"], "syntax error",
+            sgr_trace, session_rules, [], {},
             error_type="syntax",
         )
 
@@ -332,15 +315,9 @@ def test_sgr_learn_entry_has_error_type(tmp_path):
 def test_session_rules_fifo_cap(tmp_path):
     """session_rules never exceeds 3 entries (FIFO) across multiple LEARN calls."""
     from agent.pipeline import _run_learn
-    from agent.rules_loader import RulesLoader
-
-    rules_dir = tmp_path / "rules"
-    rules_dir.mkdir()
-    rl = RulesLoader(rules_dir)
 
     session_rules: list[str] = []
     sgr_trace: list[dict] = []
-    pre = _make_pre()
 
     call_count = [0]
     def _fake_llm(*a, **kw):
@@ -350,16 +327,44 @@ def test_session_rules_fifo_cap(tmp_path):
             kw["token_out"]["output"] = 1
         return json.dumps({"reasoning": "x", "conclusion": "y", "rule_content": f"rule-{call_count[0]}"})
 
-    with patch("agent.pipeline.call_llm_raw", side_effect=_fake_llm), \
-         patch("agent.pipeline._RULES_DIR", rules_dir), \
-         patch("agent.pipeline.load_security_gates", return_value=[]):
+    with patch("agent.pipeline.call_llm_raw", side_effect=_fake_llm):
         for i in range(5):
-            _run_learn(pre, "model", {}, "task", ["SELECT 1"], f"err-{i}",
-                       rl, session_rules, sgr_trace, [], {}, [],
+            _run_learn("system prompt", "model", {}, "task", ["SELECT 1"], f"err-{i}",
+                       sgr_trace, session_rules, [], {},
                        error_type="syntax")
 
     assert len(session_rules) <= 3, f"session_rules has {len(session_rules)} entries: {session_rules}"
     assert session_rules[-1] == "rule-5", f"last rule wrong: {session_rules}"
+
+
+def test_build_static_system_sql_plan_has_security_gates(tmp_path):
+    """_build_static_system('sql_plan') includes security gates; 'learn' does not."""
+    from agent.pipeline import _build_static_system
+    from agent.rules_loader import RulesLoader
+
+    rules_dir = tmp_path / "rules"
+    rules_dir.mkdir()
+    rl = RulesLoader(rules_dir)
+    gates = [{"id": "sec-001", "message": "no DDL"}]
+
+    sql_system = _build_static_system("sql_plan", "AGENTS", {}, "SCHEMA", {}, rl, gates)
+    learn_system = _build_static_system("learn", "AGENTS", {}, "SCHEMA", {}, rl, gates)
+
+    assert "sec-001" in sql_system, "sql_plan system must include security gates"
+    assert "sec-001" not in learn_system, "learn system must NOT include security gates"
+
+
+def test_build_static_system_no_session_rules(tmp_path):
+    """_build_static_system does not include IN-SESSION RULE (those go to user_msg)."""
+    from agent.pipeline import _build_static_system
+    from agent.rules_loader import RulesLoader
+
+    rules_dir = tmp_path / "rules"
+    rules_dir.mkdir()
+    rl = RulesLoader(rules_dir)
+
+    system = _build_static_system("sql_plan", "AGENTS", {}, "SCHEMA", {}, rl, [])
+    assert "IN-SESSION RULE" not in system
 
 
 def test_pipeline_token_counts_nonzero(tmp_path):
@@ -387,7 +392,66 @@ def test_pipeline_token_counts_nonzero(tmp_path):
     with patch("agent.pipeline.call_llm_raw", side_effect=_fake_llm), \
          patch("agent.pipeline._RULES_DIR", rules_dir), \
          patch("agent.pipeline.load_security_gates", return_value=[]):
-        stats = run_pipeline(vm, "anthropic/claude-sonnet-4-6", "How many Lawn Mowers?", pre, {})
+        stats, _thread = run_pipeline(vm, "anthropic/claude-sonnet-4-6", "How many Lawn Mowers?", pre, {})
 
     assert stats["input_tokens"] > 0, f"input_tokens still 0: {stats}"
     assert stats["output_tokens"] > 0, f"output_tokens still 0: {stats}"
+
+
+def test_run_pipeline_returns_tuple(tmp_path):
+    """run_pipeline returns (dict, Thread | None)."""
+    vm = MagicMock()
+    vm.exec.return_value = _make_exec_result('[{"count": 1}]')
+
+    pre = _make_pre()
+    rules_dir = tmp_path / "rules"
+    rules_dir.mkdir()
+
+    call_seq = [_sql_plan_json(), _answer_json()]
+    call_iter = iter(call_seq)
+
+    with patch("agent.pipeline.call_llm_raw", side_effect=lambda *a, **kw: next(call_iter)), \
+         patch("agent.pipeline._rules_loader_cache", None), \
+         patch("agent.pipeline._security_gates_cache", None), \
+         patch("agent.pipeline._RULES_DIR", rules_dir), \
+         patch("agent.pipeline.load_security_gates", return_value=[]), \
+         patch("agent.pipeline._EVAL_ENABLED", False):
+        result = run_pipeline(vm, "model", "task", pre, {})
+
+    assert isinstance(result, tuple) and len(result) == 2, f"expected 2-tuple, got {type(result)}"
+    stats, thread = result
+    assert isinstance(stats, dict)
+    assert thread is None
+
+
+def test_evaluator_thread_starts_on_failure(tmp_path):
+    """Evaluator thread starts even when all cycles fail."""
+    vm = MagicMock()
+    vm.exec.return_value = _make_exec_result("Error: syntax error")
+
+    pre = _make_pre()
+    rules_dir = tmp_path / "rules"
+    rules_dir.mkdir()
+
+    learn_json = json.dumps({"reasoning": "x", "conclusion": "y", "rule_content": "z"})
+    call_seq = ([_sql_plan_json(), learn_json]) * 4
+    call_iter = iter(call_seq)
+
+    thread_started = []
+
+    def _fake_evaluator(*args, **kwargs):
+        thread_started.append(True)
+
+    with patch("agent.pipeline.call_llm_raw", side_effect=lambda *a, **kw: next(call_iter)), \
+         patch("agent.pipeline._rules_loader_cache", None), \
+         patch("agent.pipeline._security_gates_cache", None), \
+         patch("agent.pipeline._RULES_DIR", rules_dir), \
+         patch("agent.pipeline.load_security_gates", return_value=[]), \
+         patch("agent.pipeline._EVAL_ENABLED", True), \
+         patch("agent.pipeline._MODEL_EVALUATOR", "eval-model"), \
+         patch("agent.pipeline._run_evaluator_safe", side_effect=_fake_evaluator):
+        stats, thread = run_pipeline(vm, "model", "task", pre, {})
+        if thread is not None:
+            thread.join(timeout=5)
+
+    assert thread_started, "Evaluator must start even on pipeline failure"
