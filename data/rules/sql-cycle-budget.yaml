@@ -1,0 +1,14 @@
+content: 'When discovery queries (SELECT DISTINCT model, SELECT DISTINCT key) have
+
+  confirmed model name and attribute key names, include the final verification
+
+  query (with WHERE brand/model/EXISTS filters) as the LAST query in the same
+
+  plan. Never end a plan with only discovery queries — that wastes a cycle.
+
+  '
+created: '2026-05-12'
+id: sql-cycle-budget
+phase: sql_plan
+source: manual
+verified: true

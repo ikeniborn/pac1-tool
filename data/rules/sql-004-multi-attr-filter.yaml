@@ -11,5 +11,4 @@ created: '2026-05-12'
 id: sql-009
 phase: sql_plan
 source: manual
-task_id: null
 verified: true

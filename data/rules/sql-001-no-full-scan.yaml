@@ -1,9 +1,10 @@
-id: "sql-001"
-phase: sql_plan
-verified: true
-source: manual
-content: |
-  Never SELECT without a WHERE clause. Use product_properties
+content: 'Never SELECT without a WHERE clause. Use product_properties
+
   for attribute filtering, not LIKE on name column.
-created: "2026-05-12"
-task_id: null
+
+  '
+created: '2026-05-12'
+id: sql-001
+phase: sql_plan
+source: manual
+verified: true
