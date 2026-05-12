@@ -26,8 +26,8 @@ def test_vault_models_removed():
         assert not hasattr(m, name), f"Vault model still present: {name}"
 
 
-def test_models_has_exactly_four_classes():
-    """Test that models.py contains exactly 4 BaseModel classes"""
+def test_models_has_exactly_six_classes():
+    """Test that models.py contains exactly 6 BaseModel classes (4 pipeline + 2 resolve)"""
     m = importlib.import_module("agent.models")
     from pydantic import BaseModel
     classes = [
@@ -35,4 +35,6 @@ def test_models_has_exactly_four_classes():
         if issubclass(obj, BaseModel) and obj is not BaseModel
         and obj.__module__ == "agent.models"
     ]
-    assert len(classes) == 4, f"Expected 4 pipeline classes, got {len(classes)}: {classes}"
+    assert len(classes) == 6, f"Expected 6 pipeline classes, got {len(classes)}: {classes}"
+    assert "ResolveCandidate" in classes
+    assert "ResolveOutput" in classes
