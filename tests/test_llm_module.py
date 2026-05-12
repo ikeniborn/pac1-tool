@@ -19,3 +19,21 @@ def test_llm_exports_cli_colors():
 def test_dispatch_function_removed():
     import agent.llm as llm
     assert not hasattr(llm, "dispatch"), "dispatch() should be removed from llm.py"
+
+
+def test_system_as_str_from_blocks():
+    """_system_as_str flattens list[dict] blocks to newline-joined text."""
+    from agent.llm import _system_as_str
+    blocks = [
+        {"type": "text", "text": "block one"},
+        {"type": "text", "text": "block two", "cache_control": {"type": "ephemeral"}},
+    ]
+    result = _system_as_str(blocks)
+    assert "block one" in result
+    assert "block two" in result
+
+
+def test_system_as_str_passthrough_str():
+    """_system_as_str returns str unchanged."""
+    from agent.llm import _system_as_str
+    assert _system_as_str("plain text") == "plain text"

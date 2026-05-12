@@ -236,6 +236,13 @@ _THINK_RE = re.compile(r"<think>.*?</think>", re.DOTALL)
 _LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()  # DEBUG → log think blocks
 
 
+def _system_as_str(system: "str | list[dict]") -> str:
+    """Flatten system prompt blocks to plain string for non-caching tiers."""
+    if isinstance(system, str):
+        return system
+    return "\n\n".join(b.get("text", "") for b in system if b.get("type") == "text")
+
+
 def is_ollama_model(model: str) -> bool:
     """True for Ollama-format models (name:tag, no slash).
     Examples: qwen3.5:9b, deepseek-v3.1:671b-cloud, qwen3.5:cloud.
@@ -269,7 +276,7 @@ def get_provider(model: str, cfg: dict) -> str:
 
 
 def _call_raw_single_model(
-    system: str,
+    system: "str | list[dict]",
     user_msg: str,
     model: str,
     cfg: dict,
@@ -286,11 +293,6 @@ def _call_raw_single_model(
     max_retries controls retry count per tier (0 = 1 attempt only).
     plain_text=True skips response_format constraints (use for code generation)."""
 
-    msgs = [
-        {"role": "system", "content": system},
-        {"role": "user", "content": user_msg},
-    ]
-
     # FIX-197: extract seed for cross-tier forwarding (Anthropic has no seed param)
     _seed = None
     _opts = cfg.get("ollama_options")
@@ -298,6 +300,19 @@ def _call_raw_single_model(
         _seed = _opts.get("seed")
 
     _provider = get_provider(model, cfg)
+
+    # Prompt-caching tier routing: Anthropic SDK and OpenRouter+Claude accept list[dict]
+    # with cache_control; all other tiers receive a flattened plain string.
+    _is_anthropic = (_provider == "anthropic" and anthropic_client is not None)
+    _is_claude_via_or = (_provider == "openrouter" and is_claude_model(model))
+    _msgs_system: "str | list[dict]" = (
+        system if (_is_anthropic or _is_claude_via_or) else _system_as_str(system)
+    )
+
+    msgs = [
+        {"role": "system", "content": _msgs_system},
+        {"role": "user", "content": user_msg},
+    ]
 
     # --- Tier 1: Anthropic SDK ---
     # FIX-197: Anthropic SDK has no seed param; temperature from cfg (FIX-187) is the best determinism lever
@@ -495,7 +510,7 @@ def _call_raw_single_model(
 
 
 def call_llm_raw(
-    system: str,
+    system: "str | list[dict]",
     user_msg: str,
     model: str,
     cfg: dict,

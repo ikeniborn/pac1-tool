@@ -347,11 +347,14 @@ def test_build_static_system_sql_plan_has_security_gates(tmp_path):
     rl = RulesLoader(rules_dir)
     gates = [{"id": "sec-001", "message": "no DDL"}]
 
-    sql_system = _build_static_system("sql_plan", "AGENTS", {}, "SCHEMA", {}, rl, gates)
-    learn_system = _build_static_system("learn", "AGENTS", {}, "SCHEMA", {}, rl, gates)
+    sql_blocks = _build_static_system("sql_plan", "AGENTS", {}, "SCHEMA", {}, rl, gates)
+    learn_blocks = _build_static_system("learn", "AGENTS", {}, "SCHEMA", {}, rl, gates)
 
-    assert "sec-001" in sql_system, "sql_plan system must include security gates"
-    assert "sec-001" not in learn_system, "learn system must NOT include security gates"
+    sql_text = " ".join(b.get("text", "") for b in sql_blocks)
+    learn_text = " ".join(b.get("text", "") for b in learn_blocks)
+
+    assert "sec-001" in sql_text, "sql_plan must include security gates"
+    assert "sec-001" not in learn_text, "learn must NOT include security gates"
 
 
 def test_build_static_system_no_session_rules(tmp_path):
@@ -363,8 +366,27 @@ def test_build_static_system_no_session_rules(tmp_path):
     rules_dir.mkdir()
     rl = RulesLoader(rules_dir)
 
-    system = _build_static_system("sql_plan", "AGENTS", {}, "SCHEMA", {}, rl, [])
-    assert "IN-SESSION RULE" not in system
+    blocks = _build_static_system("sql_plan", "AGENTS", {}, "SCHEMA", {}, rl, [])
+    combined = " ".join(b.get("text", "") for b in blocks)
+    assert "IN-SESSION RULE" not in combined
+
+
+def test_build_static_system_returns_list_of_blocks(tmp_path):
+    """_build_static_system returns list[dict], last block has cache_control."""
+    from agent.pipeline import _build_static_system
+    from agent.rules_loader import RulesLoader
+
+    rules_dir = tmp_path / "rules"
+    rules_dir.mkdir()
+    rl = RulesLoader(rules_dir)
+
+    blocks = _build_static_system("sql_plan", "AGENTS", {}, "SCHEMA", {}, rl, [])
+
+    assert isinstance(blocks, list), f"Expected list, got {type(blocks)}"
+    assert all(isinstance(b, dict) for b in blocks)
+    last = blocks[-1]
+    assert last.get("cache_control") == {"type": "ephemeral"}, \
+        f"Last block must have cache_control: {last}"
 
 
 def test_pipeline_token_counts_nonzero(tmp_path):

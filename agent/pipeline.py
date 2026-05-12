@@ -73,7 +73,7 @@ def _csv_has_data(result_txt: str) -> bool:
 
 
 def _call_llm_phase(
-    system: str,
+    system: "str | list[dict]",
     user_msg: str,
     model: str,
     cfg: dict,
@@ -84,9 +84,10 @@ def _call_llm_phase(
     tok_info: dict = {}
     raw = call_llm_raw(system, user_msg, model, cfg, max_tokens=max_tokens, token_out=tok_info)
     phase_name = output_cls.__name__
+    _system_preview = system[:300] if isinstance(system, str) else str(system)[:300]
     sgr_entry: dict = {
         "phase": phase_name,
-        "guide_prompt": system[:300],
+        "guide_prompt": _system_preview,
         "reasoning": "",
         "output": raw or "",
     }
@@ -155,8 +156,8 @@ def _build_static_system(
     security_gates: list[dict],
     confirmed_values: dict | None = None,
     task_text: str = "",
-) -> str:
-    parts: list[str] = []
+) -> list[dict]:
+    blocks: list[dict] = []
 
     if phase in ("sql_plan", "learn", "answer"):
         if agents_md_index and task_text and phase in ("sql_plan", "learn"):
@@ -166,34 +167,36 @@ def _build_static_system(
                 section_blocks = "\n\n".join(
                     f"### {k}\n" + "\n".join(lines) for k, lines in relevant.items()
                 )
-                parts.append(f"# VAULT RULES\n{index_line}\n\n{section_blocks}")
+                blocks.append({"type": "text", "text": f"# VAULT RULES\n{index_line}\n\n{section_blocks}"})
             elif agents_md:
-                parts.append(f"# VAULT RULES\n{agents_md}")
+                blocks.append({"type": "text", "text": f"# VAULT RULES\n{agents_md}"})
         elif agents_md:
-            parts.append(f"# VAULT RULES\n{agents_md}")
+            blocks.append({"type": "text", "text": f"# VAULT RULES\n{agents_md}"})
 
     if phase in ("sql_plan", "learn"):
         rules_md = rules_loader.get_rules_markdown(phase="sql_plan", verified_only=True)
         if rules_md:
-            parts.append(f"# PIPELINE RULES\n{rules_md}")
+            blocks.append({"type": "text", "text": f"# PIPELINE RULES\n{rules_md}"})
 
     if phase == "sql_plan" and security_gates:
-        parts.append(f"# SECURITY GATES\n{_gates_summary(security_gates)}")
+        blocks.append({"type": "text", "text": f"# SECURITY GATES\n{_gates_summary(security_gates)}"})
 
     if schema_digest and phase in ("sql_plan", "learn"):
-        parts.append(f"# SCHEMA DIGEST\n{_format_schema_digest(schema_digest)}")
+        blocks.append({"type": "text", "text": f"# SCHEMA DIGEST\n{_format_schema_digest(schema_digest)}"})
 
     if db_schema:
-        parts.append(f"# DATABASE SCHEMA\n{db_schema}")
+        blocks.append({"type": "text", "text": f"# DATABASE SCHEMA\n{db_schema}"})
 
     if confirmed_values and phase in ("sql_plan", "learn"):
-        parts.append(f"# CONFIRMED VALUES\n{_format_confirmed_values(confirmed_values)}")
+        blocks.append({"type": "text", "text": f"# CONFIRMED VALUES\n{_format_confirmed_values(confirmed_values)}"})
 
     guide = load_prompt(phase)
-    if guide:
-        parts.append(guide)
-
-    return "\n\n".join(parts)
+    blocks.append({
+        "type": "text",
+        "text": guide or f"# PHASE: {phase}",
+        "cache_control": {"type": "ephemeral"},
+    })
+    return blocks
 
 
 def _build_sql_user_msg(
@@ -466,7 +469,7 @@ def run_pipeline(
 
 
 def _run_learn(
-    static_learn: str,
+    static_learn: "str | list[dict]",
     model: str,
     cfg: dict,
     task_text: str,
