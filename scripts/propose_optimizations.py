@@ -122,12 +122,12 @@ def _synthesize_security_gate(raw_rec: str, existing_security_md: str, model: st
     from agent.json_extract import _extract_json_from_text
 
     system = (
-        "Convert the security recommendation into a gate spec. "
+        "If the recommendation is already fully covered by an existing gate, respond with exactly: null\n\n"
+        f"Existing gates:\n{existing_security_md}\n\n"
+        "Otherwise, convert the security recommendation into a gate spec. "
         "Return JSON: {\"pattern\": \"<regex or null>\", \"check\": \"<name or null>\", \"message\": \"<block reason>\"}. "
         "Exactly one of pattern or check must be non-null. "
-        "If not blockable as a regex/check, return exactly: null\n"
-        "If the recommendation is already fully covered by an existing gate, respond with exactly: null\n\n"
-        f"Existing gates:\n{existing_security_md}"
+        "If not blockable as a regex/check, return exactly: null"
     )
     result = call_llm_raw(system, f"Security recommendation:\n{raw_rec}",
                           model, cfg, max_tokens=256)
@@ -149,11 +149,11 @@ def _synthesize_prompt_patch(raw_rec: str, existing_prompts_md: str, model: str,
     from agent.json_extract import _extract_json_from_text
 
     system = (
-        "Convert the prompt optimization recommendation into a markdown rule block. "
-        "Return JSON: {\"target_file\": \"<basename e.g. answer.md>\", \"content\": \"<markdown section starting with ## heading>\"}. "
-        "If too vague to produce a concrete rule, return exactly: null\n"
         "If the recommendation is already present in the existing prompt content, respond with exactly: null\n\n"
-        f"Existing prompt files:\n{existing_prompts_md}"
+        f"Existing prompt files:\n{existing_prompts_md}\n\n"
+        "Otherwise, convert the prompt optimization recommendation into a markdown rule block. "
+        "Return JSON: {\"target_file\": \"<basename e.g. answer.md>\", \"content\": \"<markdown section starting with ## heading>\"}. "
+        "If too vague to produce a concrete rule, return exactly: null"
     )
     result = call_llm_raw(system, f"Prompt recommendation:\n{raw_rec}",
                           model, cfg, max_tokens=512)
