@@ -1,0 +1,9 @@
+id: "sql-003"
+phase: sql_plan
+verified: true
+source: manual
+content: |
+  To check attribute values before filtering, run:
+  SELECT DISTINCT <attr> FROM products WHERE <narrowing_condition> LIMIT 50
+created: "2026-05-12"
+task_id: null

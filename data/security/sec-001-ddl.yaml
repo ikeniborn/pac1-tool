@@ -1,0 +1,4 @@
+id: "sec-001"
+pattern: "^\\s*(DROP|INSERT|UPDATE|DELETE|ALTER|CREATE)"
+action: block
+message: "DDL/DML prohibited"
