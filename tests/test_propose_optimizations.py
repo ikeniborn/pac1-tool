@@ -30,17 +30,20 @@ def _setup(tmp_path):
     rules_dir.mkdir()
     security_dir = tmp_path / "security"
     security_dir.mkdir()
-    prompts_optimized_dir = tmp_path / "prompts_optimized"
+    prompts_dir = tmp_path / "prompts"
+    prompts_dir.mkdir()
+    prompts_optimized_dir = prompts_dir / "optimized"
     prompts_optimized_dir.mkdir()
     processed_file = tmp_path / ".eval_optimizations_processed"
-    return eval_log, rules_dir, security_dir, prompts_optimized_dir, processed_file
+    return eval_log, rules_dir, security_dir, prompts_dir, prompts_optimized_dir, processed_file
 
 
-def _base_patches(eval_log, rules_dir, security_dir, prompts_optimized_dir, processed_file):
+def _base_patches(eval_log, rules_dir, security_dir, prompts_dir, prompts_optimized_dir, processed_file):
     return [
         patch.object(po, "_EVAL_LOG", eval_log),
         patch.object(po, "_RULES_DIR", rules_dir),
         patch.object(po, "_SECURITY_DIR", security_dir),
+        patch.object(po, "_PROMPTS_DIR", prompts_dir),
         patch.object(po, "_PROMPTS_OPTIMIZED_DIR", prompts_optimized_dir),
         patch.object(po, "_PROCESSED_FILE", processed_file),
         patch.object(po, "_load_model_cfg", return_value={}),
@@ -50,12 +53,12 @@ def _base_patches(eval_log, rules_dir, security_dir, prompts_optimized_dir, proc
 
 
 def test_writes_rule_yaml(tmp_path):
-    eval_log, rules_dir, security_dir, prom_dir, processed = _setup(tmp_path)
+    eval_log, rules_dir, security_dir, prompts_dir, prom_dir, processed = _setup(tmp_path)
     _write_eval_log(eval_log, [_eval_entry(rule_opts=["Never prefix model with brand."])])
 
-    patches = _base_patches(eval_log, rules_dir, security_dir, prom_dir, processed)
+    patches = _base_patches(eval_log, rules_dir, security_dir, prompts_dir, prom_dir, processed)
     with patches[0], patches[1], patches[2], patches[3], patches[4], \
-         patches[5], patches[6], patches[7], \
+         patches[5], patches[6], patches[7], patches[8], \
          patch.object(po, "_synthesize_rule", return_value="Never prefix model with brand."), \
          patch.object(po, "_synthesize_security_gate", return_value=None), \
          patch.object(po, "_synthesize_prompt_patch", return_value=None):
@@ -72,13 +75,13 @@ def test_writes_rule_yaml(tmp_path):
 
 
 def test_writes_security_yaml(tmp_path):
-    eval_log, rules_dir, security_dir, prom_dir, processed = _setup(tmp_path)
+    eval_log, rules_dir, security_dir, prompts_dir, prom_dir, processed = _setup(tmp_path)
     _write_eval_log(eval_log, [_eval_entry(security_opts=["Add gate for UNION SELECT"])])
 
     gate_spec = {"pattern": "UNION.*SELECT", "check": None, "message": "UNION SELECT prohibited"}
-    patches = _base_patches(eval_log, rules_dir, security_dir, prom_dir, processed)
+    patches = _base_patches(eval_log, rules_dir, security_dir, prompts_dir, prom_dir, processed)
     with patches[0], patches[1], patches[2], patches[3], patches[4], \
-         patches[5], patches[6], patches[7], \
+         patches[5], patches[6], patches[7], patches[8], \
          patch.object(po, "_synthesize_rule", return_value=None), \
          patch.object(po, "_synthesize_security_gate", return_value=gate_spec), \
          patch.object(po, "_synthesize_prompt_patch", return_value=None):
@@ -95,13 +98,13 @@ def test_writes_security_yaml(tmp_path):
 
 
 def test_writes_prompt_md(tmp_path):
-    eval_log, rules_dir, security_dir, prom_dir, processed = _setup(tmp_path)
+    eval_log, rules_dir, security_dir, prompts_dir, prom_dir, processed = _setup(tmp_path)
     _write_eval_log(eval_log, [_eval_entry(prompt_opts=["answer.md: add rule for empty grounding_refs"])])
 
     patch_result = {"target_file": "answer.md", "content": "## Grounding guard\nNever emit empty grounding_refs."}
-    patches = _base_patches(eval_log, rules_dir, security_dir, prom_dir, processed)
+    patches = _base_patches(eval_log, rules_dir, security_dir, prompts_dir, prom_dir, processed)
     with patches[0], patches[1], patches[2], patches[3], patches[4], \
-         patches[5], patches[6], patches[7], \
+         patches[5], patches[6], patches[7], patches[8], \
          patch.object(po, "_synthesize_rule", return_value=None), \
          patch.object(po, "_synthesize_security_gate", return_value=None), \
          patch.object(po, "_synthesize_prompt_patch", return_value=patch_result):
@@ -115,16 +118,16 @@ def test_writes_prompt_md(tmp_path):
 
 
 def test_dry_run_writes_nothing(tmp_path):
-    eval_log, rules_dir, security_dir, prom_dir, processed = _setup(tmp_path)
+    eval_log, rules_dir, security_dir, prompts_dir, prom_dir, processed = _setup(tmp_path)
     _write_eval_log(eval_log, [_eval_entry(
         rule_opts=["r"], security_opts=["s"], prompt_opts=["p"]
     )])
 
     gate_spec = {"pattern": "DROP", "check": None, "message": "no drop"}
     patch_result = {"target_file": "sql_plan.md", "content": "## X\nDo X."}
-    patches = _base_patches(eval_log, rules_dir, security_dir, prom_dir, processed)
+    patches = _base_patches(eval_log, rules_dir, security_dir, prompts_dir, prom_dir, processed)
     with patches[0], patches[1], patches[2], patches[3], patches[4], \
-         patches[5], patches[6], patches[7], \
+         patches[5], patches[6], patches[7], patches[8], \
          patch.object(po, "_synthesize_rule", return_value="Never X."), \
          patch.object(po, "_synthesize_security_gate", return_value=gate_spec), \
          patch.object(po, "_synthesize_prompt_patch", return_value=patch_result):
@@ -137,16 +140,16 @@ def test_dry_run_writes_nothing(tmp_path):
 
 
 def test_dedup_skips_processed(tmp_path):
-    eval_log, rules_dir, security_dir, prom_dir, processed = _setup(tmp_path)
+    eval_log, rules_dir, security_dir, prompts_dir, prom_dir, processed = _setup(tmp_path)
     rec = "Never prefix model."
     entry = _eval_entry(rule_opts=[rec])
     _write_eval_log(eval_log, [entry])
     h = po._entry_hash(entry["task_text"], "rule", rec)
     processed.write_text(h + "\n")
 
-    patches = _base_patches(eval_log, rules_dir, security_dir, prom_dir, processed)
+    patches = _base_patches(eval_log, rules_dir, security_dir, prompts_dir, prom_dir, processed)
     with patches[0], patches[1], patches[2], patches[3], patches[4], \
-         patches[5], patches[6], patches[7], \
+         patches[5], patches[6], patches[7], patches[8], \
          patch.object(po, "_synthesize_rule", return_value="Never X.") as mock_synth, \
          patch.object(po, "_synthesize_security_gate", return_value=None), \
          patch.object(po, "_synthesize_prompt_patch", return_value=None):
@@ -156,7 +159,7 @@ def test_dedup_skips_processed(tmp_path):
 
 
 def test_missing_model_evaluator_exits(tmp_path):
-    eval_log, rules_dir, security_dir, prom_dir, processed = _setup(tmp_path)
+    eval_log, rules_dir, security_dir, prompts_dir, prom_dir, processed = _setup(tmp_path)
     _write_eval_log(eval_log, [_eval_entry(rule_opts=["x"])])
 
     with patch.object(po, "_EVAL_LOG", eval_log), \
@@ -218,13 +221,13 @@ def test_existing_prompts_text_empty_dir(tmp_path):
 
 
 def test_synthesize_security_gate_receives_existing_context(tmp_path):
-    eval_log, rules_dir, security_dir, prom_dir, processed = _setup(tmp_path)
+    eval_log, rules_dir, security_dir, prompts_dir, prom_dir, processed = _setup(tmp_path)
     _write_eval_log(eval_log, [_eval_entry(security_opts=["Add gate for UNION SELECT"])])
 
     gate_spec = {"pattern": "UNION.*SELECT", "check": None, "message": "UNION SELECT prohibited"}
-    patches = _base_patches(eval_log, rules_dir, security_dir, prom_dir, processed)
+    patches = _base_patches(eval_log, rules_dir, security_dir, prompts_dir, prom_dir, processed)
     with patches[0], patches[1], patches[2], patches[3], patches[4], \
-         patches[5], patches[6], patches[7], \
+         patches[5], patches[6], patches[7], patches[8], \
          patch.object(po, "_synthesize_rule", return_value=None), \
          patch.object(po, "_synthesize_security_gate", return_value=gate_spec) as mock_sec, \
          patch.object(po, "_synthesize_prompt_patch", return_value=None), \
@@ -236,13 +239,13 @@ def test_synthesize_security_gate_receives_existing_context(tmp_path):
 
 
 def test_synthesize_prompt_patch_receives_existing_context(tmp_path):
-    eval_log, rules_dir, security_dir, prom_dir, processed = _setup(tmp_path)
+    eval_log, rules_dir, security_dir, prompts_dir, prom_dir, processed = _setup(tmp_path)
     _write_eval_log(eval_log, [_eval_entry(prompt_opts=["answer.md: add grounding rule"])])
 
     patch_result = {"target_file": "answer.md", "content": "## Guard\nNever X."}
-    patches = _base_patches(eval_log, rules_dir, security_dir, prom_dir, processed)
+    patches = _base_patches(eval_log, rules_dir, security_dir, prompts_dir, prom_dir, processed)
     with patches[0], patches[1], patches[2], patches[3], patches[4], \
-         patches[5], patches[6], patches[7], \
+         patches[5], patches[6], patches[7], patches[8], \
          patch.object(po, "_synthesize_rule", return_value=None), \
          patch.object(po, "_synthesize_security_gate", return_value=None), \
          patch.object(po, "_synthesize_prompt_patch", return_value=patch_result) as mock_prompt, \

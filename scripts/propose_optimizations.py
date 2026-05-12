@@ -19,8 +19,8 @@ _ROOT = Path(__file__).parent.parent
 _EVAL_LOG = _ROOT / "data" / "eval_log.jsonl"
 _RULES_DIR = _ROOT / "data" / "rules"
 _SECURITY_DIR = _ROOT / "data" / "security"
-_PROMPTS_OPTIMIZED_DIR = _ROOT / "data" / "prompts" / "optimized"
 _PROMPTS_DIR = _ROOT / "data" / "prompts"
+_PROMPTS_OPTIMIZED_DIR = _PROMPTS_DIR / "optimized"
 _PROCESSED_FILE = _ROOT / "data" / ".eval_optimizations_processed"
 _MODELS_JSON = _ROOT / "models.json"
 
