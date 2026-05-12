@@ -1,0 +1,17 @@
+content: "Always filter inventory by city via store table lookup, not `LIKE '%City%'`\
+  \ on `store_id`. Resolve city → store_ids first (JOIN or IN subquery against store\
+  \ metadata), then filter inventory by exact `store_id`. LIKE on `store_id` is fragile:\
+  \ misses renamed stores, matches unrelated ids. Example:\n```sql\nSELECT i.sku,\
+  \ i.qty, i.store_id FROM inventory i\nWHERE i.store_id IN (SELECT s.store_id FROM\
+  \ stores s WHERE s.city = 'Vienna')\n  AND i.sku = '...';\n```"
+created: '2026-05-12'
+eval_score: 0.4
+id: sql-026
+phase: sql_plan
+raw_recommendation: 'Add new rule sql-store-location-filter.yaml: When task specifies
+  a city (''Vienna'', ''Berlin'', etc.), require inventory queries to include a store_id
+  drawn from a store-metadata lookup (JOIN or IN subquery against store table/path),
+  not a LIKE ''%CityName%'' pattern on store_id. Rationale: LIKE on store_id is fragile
+  and may miss stores or include non-target stores.'
+source: eval
+verified: true

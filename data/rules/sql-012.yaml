@@ -1,0 +1,16 @@
+content: 'Never put dependent queries in same SqlPlan batch. Each query in batch must
+  run independently — no query can reference value another query in same batch returns.
+  If query B needs result from query A (e.g., sku discovered by A, attribute key confirmed
+  by A), defer B to next cycle. Example wrong: batch contains `SELECT sku FROM products
+  WHERE model=''X''` AND `SELECT * FROM product_properties WHERE sku=''<from prev>''`.
+  Right: run discovery query alone, then dependent query next cycle.'
+created: '2026-05-12'
+eval_score: 0.15
+id: sql-012
+phase: sql_plan
+raw_recommendation: 'data/rules/sql-batch-gating.yaml: New rule — queries within a
+  single SqlPlan batch must be independent (no query may use a value that another
+  query in the same batch is supposed to return). Dependent queries must be deferred
+  to the next cycle.'
+source: eval
+verified: true

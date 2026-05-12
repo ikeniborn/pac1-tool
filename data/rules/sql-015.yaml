@@ -1,0 +1,15 @@
+content: 'Always treat zero-row key-discovery result under a brand+model filter as
+  signal that model string wrong, not that attribute missing. Stop. Do not emit final
+  EXISTS filter query. Enumerate models first: `SELECT DISTINCT model FROM products
+  WHERE brand=''<Brand>'' LIMIT 50`, then re-run key discovery with corrected model
+  before planning final filter.'
+created: '2026-05-12'
+eval_score: 0.3
+id: sql-015
+phase: sql_plan
+raw_recommendation: 'data/rules/sql-plan.yaml: Add guard — if key-discovery query
+  returns zero rows AND model filter was used, block progression to final filter;
+  require a series/model enumeration query first. Encode the rule produced in LearnOutput
+  as a named rule: ''empty-discovery-implies-bad-model-filter''.'
+source: eval
+verified: true

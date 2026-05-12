@@ -1,0 +1,16 @@
+content: 'Always append inventory query (COUNT/aggregation against `products` with
+  brand/model/EXISTS filters) after metadata discovery queries (`SELECT DISTINCT model`,
+  `SELECT DISTINCT key`). Plan ending with only schema/metadata probes gets rejected
+  — wastes cycle without answering user. Example: after `SELECT DISTINCT key FROM
+  product_properties WHERE sku IN (...)`, append `SELECT COUNT(*) FROM products p
+  WHERE p.brand=''X'' AND p.model=''Y'' AND EXISTS (SELECT 1 FROM product_properties
+  pp WHERE pp.sku=p.sku AND pp.key=''<discovered>'' AND pp.value_number=<val>)`.'
+created: '2026-05-12'
+eval_score: 0.1
+id: sql-020
+phase: sql_plan
+raw_recommendation: 'Add rule: if plan phase emits only metadata/schema queries (DISTINCT
+  model, DISTINCT key) with no aggregation/count query against inventory, validator
+  must reject the plan and require an inventory query to be appended before execution'
+source: eval
+verified: true

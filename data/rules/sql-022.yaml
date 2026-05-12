@@ -1,0 +1,13 @@
+content: 'Always include `available_today` in inventory queries. SELECT must list
+  it; any GROUP BY store_id must aggregate it via `SUM(available_today)`. Omitting
+  = incomplete, retry. Example: `SELECT store_id, SUM(available_today) AS qty FROM
+  inventory WHERE sku = ''ABC'' GROUP BY store_id;`'
+created: '2026-05-12'
+eval_score: 0.35
+id: sql-022
+phase: sql_plan
+raw_recommendation: 'data/rules/sql-inventory-projection.yaml (new): Inventory queries
+  must SELECT available_today. Queries that GROUP BY store_id without SUM(available_today)
+  or that omit available_today from SELECT are flagged as incomplete and must be retried.'
+source: eval
+verified: true

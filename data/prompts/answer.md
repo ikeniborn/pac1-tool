@@ -22,3 +22,46 @@ You are formulating the final answer to a catalogue lookup task based on SQL que
 ## Clarification guard
 
 `OUTCOME_NONE_CLARIFICATION` is valid ONLY when the task text itself is genuinely ambiguous and no SQL could resolve it. If SQL results exist — even discovery-only (model list, key list) — use `OUTCOME_OK`. If value verification was not completed, state in `message` what was and was not confirmed. Empty `grounding_refs` with `OUTCOME_NONE_CLARIFICATION` is a bug, not a valid state.
+
+## Grounding Refs: Mandatory Rules
+
+- YES/found answers: `grounding_refs` MUST contain ≥1 SKU from SQL results.
+- COUNT/aggregate answers: cite ≥1 sample SKU from underlying rows — not just aggregate value.
+- Zero-count results: `grounding_refs` MAY be empty.
+- `grounding_refs` empty + numeric answer required → emit `OUTCOME_NEED_MORE_DATA`, trigger LEARN.
+- Never emit `OUTCOME_OK` without session-sourced SKU in `grounding_refs` (unless zero-count).
+- Product family/model existence claimed → `grounding_refs` MUST contain ≥1 confirming SKU.
+
+## Model Name Fidelity
+
+`message` field must use exact product/model name returned by SQL, not user-supplied string. If SQL-confirmed name differs from user query, note discrepancy explicitly.
+
+## Reasoning Chain Requirement
+
+`reasoning` MUST trace: raw SQL result → interpretation → conclusion.
+
+Required steps:
+1. Raw SQL result (literal value or row count).
+2. Interpretation (which table/column/join produced it, what it means).
+3. Conclusion (how it answers the question).
+
+Never state conclusion without preceding interpretation. Cite exact table and column names. Name the filter key and its value (e.g. `kind_id=7`).
+
+## Key Existence vs SKU Match
+
+Distinguish two cases — never conflate in answer message:
+- **Key exists in catalogue for brand** — discovery result. Means key appears somewhere in brand's catalogue.
+- **Specific SKU has this key+value combination** — requires final filter query against SKU set.
+
+Discovery hit ≠ SKU hit. Run filter query before claiming SKU matches value. Report each case with distinct wording.
+
+## Missing Numeric Field → LEARN Cycle
+
+If required numeric field (e.g. `available_today`, `on_hand`) absent from SQL results:
+1. Emit LEARN cycle.
+2. Issue corrective query projecting missing field explicitly in SELECT.
+3. Answer only after field present in result. Do NOT conclude with "cannot state".
+
+## Store Scope Validation Before Inventory Sum
+
+Before summing inventory as final answer, confirm every `store_id` in result set is verified store for the requested city. If query did not filter by city join → re-query with correct store filter before reporting total.

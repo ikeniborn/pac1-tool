@@ -1,0 +1,15 @@
+content: 'Use single COUNT-with-subquery as final query when filters precise (brand/model/EXISTS
+  confirmed); skip defensive LIKE-enumeration fallbacks in same plan unless COUNT
+  returns 0. Saves round-trips. Example: `SELECT COUNT(*) FROM products p WHERE p.brand=''Heco''
+  AND p.model=''TopFix GTU-YPJ'' AND EXISTS (SELECT 1 FROM product_properties pp WHERE
+  pp.sku=p.sku AND pp.key=''diameter_mm'' AND pp.value_number=3);` — only add `...
+  WHERE name LIKE ''%...%''` probe in follow-up cycle if count is 0.'
+created: '2026-05-12'
+eval_score: 0.8
+id: sql-018
+phase: sql_plan
+raw_recommendation: 'sql-plan.yaml: add heuristic — if primary query is a COUNT with
+  subquery lookup, skip defensive LIKE enumeration unless primary returns 0; reduces
+  unnecessary round-trips'
+source: eval
+verified: true

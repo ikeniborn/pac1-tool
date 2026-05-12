@@ -1,0 +1,16 @@
+content: 'Always pair COUNT queries with a sample SELECT returning at least one SKU/ID
+  using identical filters, so result count is grounded in verifiable rows. Bare `SELECT
+  COUNT(*)` without companion sample is invalid — emit both in same plan. Example:
+  alongside `SELECT COUNT(*) FROM products WHERE brand=''Heco'' AND model=''TopFix
+  GTU-YPJ''`, also run `SELECT sku, name FROM products WHERE brand=''Heco'' AND model=''TopFix
+  GTU-YPJ'' LIMIT 5` to confirm filter matches real rows before trusting count.'
+created: '2026-05-12'
+eval_score: 0.8
+id: sql-013
+phase: sql_plan
+raw_recommendation: 'sql-count.yaml (or equivalent): add rule that COUNT queries must
+  be preceded by or paired with a SELECT that returns at least one SKU or ID for grounding
+  validation; bare COUNT with no sample rows should trigger a LEARN cycle to fetch
+  grounding data'
+source: eval
+verified: true

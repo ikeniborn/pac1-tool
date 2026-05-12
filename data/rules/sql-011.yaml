@@ -1,0 +1,16 @@
+content: 'Always confirm brand string with `SELECT DISTINCT brand FROM products WHERE
+  brand LIKE ''%<brand>%'' LIMIT 20` as first query before using exact-equality `brand
+  = ''...''` filter. Never use `brand = ''<literal>''` on unconfirmed string in same
+  session — casing, spacing, suffixes vary. Once discovery returns exact value, use
+  it verbatim in final query. Example: discover `WHERE brand LIKE ''%Heco%''` → returns
+  `''Heco-Schrauben''` → then `WHERE brand = ''Heco-Schrauben''`.'
+created: '2026-05-12'
+eval_score: 0.15
+id: sql-011
+phase: sql_plan
+raw_recommendation: 'data/rules/sql-brand-verify.yaml: Add rule — brand literals must
+  come from a prior LIKE discovery result in the same session. Exact-equality brand
+  filters on unconfirmed strings must be blocked; require brand LIKE ''%{brand}%''
+  as the first query whenever brand has not been confirmed in the current cycle.'
+source: eval
+verified: true

@@ -1,0 +1,16 @@
+content: Always resolve full store list by reading `proc/stores` filesystem directory
+  before any inventory query. Never enumerate stores via sku-anchored discovery like
+  `SELECT DISTINCT store_id FROM inventory WHERE sku IN (...)` — returns only subset
+  carrying those SKUs, not all stores. Use filesystem read first, then filter inventory
+  by resolved `store_id` set.
+created: '2026-05-12'
+eval_score: 0.1
+id: sql-029
+phase: sql_plan
+raw_recommendation: 'data/rules/sql-store-discovery.yaml: Add rule — store_id MUST
+  be resolved via proc/stores filesystem directory read before any inventory query;
+  sku-anchored store discovery (SELECT DISTINCT store_id FROM inventory WHERE sku
+  IN (...)) is explicitly FORBIDDEN for the purpose of enumerating all stores because
+  it returns a subset, not the full store list.'
+source: eval
+verified: true

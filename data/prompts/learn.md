@@ -25,3 +25,12 @@ Given the task, the failed SQL queries, and the error or empty-result message, d
 
 ## Output format (JSON only)
 {"reasoning": "<diagnosis of what went wrong>", "conclusion": "<one-sentence summary>", "rule_content": "<markdown rule text>"}
+
+## Discovery Fallback Rule
+
+When discovery query (kind lookup) returns 0 rows, MUST issue fallback `LIKE` probe before count step.
+
+- Empty discovery result = ambiguous, not authoritative.
+- Never skip to count on silent empty discovery.
+- Sequence: `discovery (exact kind) → if 0 rows → LIKE probe → count`.
+- Proceed to count only after LIKE probe confirms absence or yields candidates.
