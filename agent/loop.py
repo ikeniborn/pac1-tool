@@ -23,7 +23,6 @@ from .dispatch import (
 from .json_extract import _extract_json_from_text, _normalize_parsed
 from .models import NextStep, ReportTaskCompletion, Req_Write, Req_Delete
 from .prephase import PrephaseResult
-from .tracer import get_task_tracer
 
 _LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
 MAX_STEPS = int(os.environ.get("MAX_STEPS", "5"))
@@ -261,9 +260,6 @@ def run_loop(
     outcome = "OUTCOME_NONE_CLARIFICATION"
     done_ops: list[str] = []
 
-    _tracer = get_task_tracer()
-    _tracer.emit("task_start", 0, {"model": model, "task_text": task_text[:200]})
-
     for step in range(max_steps):
         step_label = f"step_{step + 1}"
         print(f"\n--- {step_label} --- ")
@@ -303,7 +299,6 @@ def run_loop(
         if isinstance(cmd, ReportTaskCompletion):
             outcome = cmd.outcome
             step_facts.append(f"report_completion: {cmd.outcome}")
-            _tracer.emit(step_label, step, {"action": "report_completion", "outcome": outcome})
             print(f"  tool='report_completion' completed_steps_laconic={cmd.completed_steps_laconic!r} "
                   f"message='{cmd.message[:100]}' grounding_refs={cmd.grounding_refs!r} outcome='{outcome}'")
             try:
@@ -322,7 +317,6 @@ def run_loop(
 
         # Execute tool
         step_facts.append(f"{action_name}: {getattr(cmd, 'path', getattr(cmd, 'pattern', ''))}")
-        _tracer.emit(step_label, step, {"action": action_name})
         print(f"  tool='{cmd.tool}' " + " ".join(f"{k}={repr(v)}" for k, v in _tool_args.items()))
 
         try:
@@ -343,8 +337,6 @@ def run_loop(
         print(f"OUT: {result_txt[:200]}")
 
         log.append({"role": "user", "content": f"Result of {action_name}: {result_txt[:_raw_limit] if _raw_limit else result_txt}"})
-
-    _tracer.emit("task_end", max_steps, {"outcome": outcome, "total_in_tok": total_in_tok, "total_out_tok": total_out_tok})
 
     return {
         "outcome": outcome,
