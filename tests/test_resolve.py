@@ -49,7 +49,6 @@ def test_first_value_strips_quotes():
 
 def _make_pre(agents_md_index=None, schema_digest=None):
     return PrephaseResult(
-        log=[], preserve_prefix=[],
         agents_md_index=agents_md_index or {"brand_aliases": ["heco = Heco"]},
         schema_digest=schema_digest or {"top_keys": ["diameter_mm", "screw_type"]},
     )

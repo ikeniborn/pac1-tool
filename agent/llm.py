@@ -365,7 +365,7 @@ def _call_raw_single_model(
             print("[ClaudeCode] Skipped — CC_ENABLED != 1")
             return None
         raw = _cc_complete(
-            system, user_msg,
+            _system_as_str(system), user_msg,
             cfg=cfg,
             max_tokens=max_tokens,
             plain_text=plain_text,
