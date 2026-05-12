@@ -1,7 +1,10 @@
 # tests/test_pipeline_models.py
 from pydantic import ValidationError
 import pytest
-from agent.models import SqlPlanOutput, LearnOutput, AnswerOutput, PipelineEvalOutput
+from agent.models import (
+    SqlPlanOutput, LearnOutput, AnswerOutput, PipelineEvalOutput,
+    ResolveCandidate, ResolveOutput,
+)
 
 
 def test_sql_plan_output_valid():
@@ -63,3 +66,73 @@ def test_pipeline_eval_output_valid():
         rule_optimization=["add rule for brand filtering"],
     )
     assert 0.0 <= obj.score <= 1.0
+
+
+def test_sql_plan_output_agents_md_refs_defaults_empty():
+    obj = SqlPlanOutput(reasoning="r", queries=["SELECT 1 WHERE 1=1"])
+    assert obj.agents_md_refs == []
+
+
+def test_sql_plan_output_agents_md_refs_set():
+    obj = SqlPlanOutput(reasoning="r", queries=["SELECT 1 WHERE 1=1"], agents_md_refs=["brand_aliases"])
+    assert obj.agents_md_refs == ["brand_aliases"]
+
+
+def test_learn_output_agents_md_anchor_defaults_none():
+    obj = LearnOutput(reasoning="r", conclusion="c", rule_content="Always use X")
+    assert obj.agents_md_anchor is None
+
+
+def test_learn_output_agents_md_anchor_set():
+    obj = LearnOutput(reasoning="r", conclusion="c", rule_content="r", agents_md_anchor="brand_aliases > Heco")
+    assert obj.agents_md_anchor == "brand_aliases > Heco"
+
+
+def test_pipeline_eval_output_new_metrics_default():
+    obj = PipelineEvalOutput(
+        reasoning="r", score=0.8, comment="c",
+        prompt_optimization=[], rule_optimization=[],
+    )
+    assert obj.agents_md_coverage == 0.0
+    assert obj.schema_grounding == 0.0
+
+
+def test_pipeline_eval_output_new_metrics_set():
+    obj = PipelineEvalOutput(
+        reasoning="r", score=0.8, comment="c",
+        prompt_optimization=[], rule_optimization=[],
+        agents_md_coverage=0.75, schema_grounding=1.0,
+    )
+    assert obj.agents_md_coverage == 0.75
+    assert obj.schema_grounding == 1.0
+
+
+def test_resolve_candidate_minimal():
+    c = ResolveCandidate(
+        term="Heco",
+        field="brand",
+        discovery_query="SELECT DISTINCT brand FROM products WHERE brand ILIKE '%Heco%' LIMIT 10",
+    )
+    assert c.confirmed_value is None
+
+
+def test_resolve_candidate_with_value():
+    c = ResolveCandidate(
+        term="heco", field="brand",
+        discovery_query="SELECT DISTINCT brand FROM products WHERE brand ILIKE '%heco%' LIMIT 10",
+        confirmed_value="Heco",
+    )
+    assert c.confirmed_value == "Heco"
+
+
+def test_resolve_output_validate():
+    obj = ResolveOutput(
+        reasoning="found brand",
+        candidates=[
+            ResolveCandidate(
+                term="heco", field="brand",
+                discovery_query="SELECT DISTINCT brand FROM products WHERE brand ILIKE '%heco%' LIMIT 10",
+            )
+        ],
+    )
+    assert len(obj.candidates) == 1
