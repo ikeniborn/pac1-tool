@@ -1,7 +1,7 @@
 import json
 from unittest.mock import MagicMock, patch, call
 import pytest
-from agent.pipeline import run_pipeline
+from agent.pipeline import run_pipeline, _extract_discovery_results, _format_confirmed_values, _format_schema_digest
 from agent.prephase import PrephaseResult
 from pathlib import Path
 
@@ -55,7 +55,9 @@ def test_happy_path(tmp_path):
 
     with patch("agent.pipeline.call_llm_raw", side_effect=lambda *a, **kw: next(call_iter)), \
          patch("agent.pipeline._RULES_DIR", rules_dir), \
-         patch("agent.pipeline.load_security_gates", return_value=[]):
+         patch("agent.pipeline.load_security_gates", return_value=[]), \
+         patch("agent.pipeline.run_resolve", return_value={}), \
+         patch("agent.pipeline.check_schema_compliance", return_value=None):
         stats = run_pipeline(vm, "anthropic/claude-sonnet-4-6", "How many Lawn Mowers?", pre, {})
 
     assert stats["outcome"] == "OUTCOME_OK"
@@ -91,7 +93,9 @@ def test_validate_error_triggers_learn_and_retry(tmp_path):
 
     with patch("agent.pipeline.call_llm_raw", side_effect=lambda *a, **kw: next(call_iter)), \
          patch("agent.pipeline._RULES_DIR", rules_dir), \
-         patch("agent.pipeline.load_security_gates", return_value=[]):
+         patch("agent.pipeline.load_security_gates", return_value=[]), \
+         patch("agent.pipeline.run_resolve", return_value={}), \
+         patch("agent.pipeline.check_schema_compliance", return_value=None):
         stats = run_pipeline(vm, "anthropic/claude-sonnet-4-6", "How many?", pre, {})
 
     assert stats["outcome"] == "OUTCOME_OK"
@@ -114,7 +118,9 @@ def test_max_cycles_exhausted_returns_clarification(tmp_path):
 
     with patch("agent.pipeline.call_llm_raw", side_effect=lambda *a, **kw: next(call_iter)), \
          patch("agent.pipeline._RULES_DIR", rules_dir), \
-         patch("agent.pipeline.load_security_gates", return_value=[]):
+         patch("agent.pipeline.load_security_gates", return_value=[]), \
+         patch("agent.pipeline.run_resolve", return_value={}), \
+         patch("agent.pipeline.check_schema_compliance", return_value=None):
         stats = run_pipeline(vm, "anthropic/claude-sonnet-4-6", "?", pre, {})
 
     assert stats["outcome"] == "OUTCOME_NONE_CLARIFICATION"
@@ -150,7 +156,9 @@ def test_security_gate_ddl_triggers_learn(tmp_path):
 
     with patch("agent.pipeline.call_llm_raw", side_effect=lambda *a, **kw: next(call_iter)), \
          patch("agent.pipeline._RULES_DIR", rules_dir), \
-         patch("agent.pipeline.load_security_gates", return_value=ddl_gate):
+         patch("agent.pipeline.load_security_gates", return_value=ddl_gate), \
+         patch("agent.pipeline.run_resolve", return_value={}), \
+         patch("agent.pipeline.check_schema_compliance", return_value=None):
         stats = run_pipeline(vm, "anthropic/claude-sonnet-4-6", "drop test", pre, {})
 
     assert stats["outcome"] == "OUTCOME_OK"
@@ -176,7 +184,9 @@ def test_learn_does_not_persist_auto_rule(tmp_path):
 
     with patch("agent.pipeline.call_llm_raw", side_effect=lambda *a, **kw: next(call_iter)), \
          patch("agent.pipeline._RULES_DIR", rules_dir), \
-         patch("agent.pipeline.load_security_gates", return_value=[]):
+         patch("agent.pipeline.load_security_gates", return_value=[]), \
+         patch("agent.pipeline.run_resolve", return_value={}), \
+         patch("agent.pipeline.check_schema_compliance", return_value=None):
         stats = run_pipeline(vm, "anthropic/claude-sonnet-4-6", "count X", pre, {})
 
     assert stats["outcome"] == "OUTCOME_OK"
@@ -184,3 +194,61 @@ def test_learn_does_not_persist_auto_rule(tmp_path):
     assert not hasattr(__import__("agent.rules_loader", fromlist=["RulesLoader"]).RulesLoader, "append_rule")
     written_files = list(rules_dir.glob("*.yaml"))
     assert written_files == [], f"No rule files should be written, found: {written_files}"
+
+
+def test_extract_discovery_results_basic():
+    queries = ["SELECT DISTINCT brand FROM products WHERE brand ILIKE '%heco%' LIMIT 10"]
+    results = ["brand\nHeco\nMaker"]
+    cv: dict = {}
+    _extract_discovery_results(queries, results, cv)
+    assert cv.get("brand") == ["Heco", "Maker"]
+
+
+def test_extract_discovery_results_skips_non_distinct():
+    queries = ["SELECT sku FROM products WHERE brand = 'Heco'"]
+    results = ["sku\nABC-001"]
+    cv: dict = {}
+    _extract_discovery_results(queries, results, cv)
+    assert cv == {}
+
+
+def test_extract_discovery_results_accumulates():
+    cv = {"brand": ["Heco"]}
+    queries = ["SELECT DISTINCT brand FROM products WHERE brand ILIKE '%maker%' LIMIT 10"]
+    results = ["brand\nMaker"]
+    _extract_discovery_results(queries, results, cv)
+    assert cv["brand"] == ["Heco", "Maker"]
+
+
+def test_extract_discovery_results_no_duplicates():
+    cv = {"brand": ["Heco"]}
+    queries = ["SELECT DISTINCT brand FROM products WHERE brand ILIKE '%heco%' LIMIT 10"]
+    results = ["brand\nHeco"]
+    _extract_discovery_results(queries, results, cv)
+    assert cv["brand"] == ["Heco"]
+
+
+def test_format_confirmed_values_single():
+    cv = {"brand": ["Heco"]}
+    text = _format_confirmed_values(cv)
+    assert 'brand → confirmed: "Heco"' in text
+
+
+def test_format_confirmed_values_multiple():
+    cv = {"kind": ["wood screw", "self-tapping screw"]}
+    text = _format_confirmed_values(cv)
+    assert "wood screw" in text
+    assert "self-tapping screw" in text
+
+
+def test_format_schema_digest_lists_tables():
+    digest = {
+        "tables": {
+            "products": {"columns": [{"name": "sku", "type": "TEXT"}, {"name": "brand", "type": "TEXT"}]}
+        },
+        "top_keys": ["diameter_mm"],
+    }
+    text = _format_schema_digest(digest)
+    assert "products" in text
+    assert "sku" in text
+    assert "diameter_mm" in text
