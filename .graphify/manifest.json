@@ -1,7 +1,7 @@
 {
   "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/main.py": {
-    "mtime": 1778564730.4771154,
-    "hash": "f0b950a07d6b83d1446cc7e38c771c1a"
+    "mtime": 1778581752.318598,
+    "hash": "bf26f763fa8e4ab227a7e96921a07662"
   },
   "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/agent/__init__.py": {
     "mtime": 1778564730.463115,
@@ -22,14 +22,6 @@
   "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/agent/json_extract.py": {
     "mtime": 1778564730.4641151,
     "hash": "82578cb52b2e5b013bfbdadfefe7e600"
-  },
-  "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/agent/loop.py": {
-    "mtime": 1778564730.4641151,
-    "hash": "321f3b2cbdf6553ba9759efbad0d969e"
-  },
-  "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/agent/tracer.py": {
-    "mtime": 1778564730.465115,
-    "hash": "6daf01055807a03f933b52845e2ca39e"
   },
   "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/agent/models.py": {
     "mtime": 1778571673.8301022,
@@ -62,6 +54,10 @@
   "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/agent/orchestrator.py": {
     "mtime": 1778576377.0739863,
     "hash": "be2747ad863ab7d084015a3ffd47ccb0"
+  },
+  "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/agent/loop.py": {
+    "mtime": 1778581597.6673665,
+    "hash": "28abce0fc180fbbcce6b87e7d8ad7d1e"
   },
   "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/bitgn/__init__.py": {
     "mtime": 1778564730.465115,
