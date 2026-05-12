@@ -159,7 +159,7 @@ class PipelineEvalOutput(BaseModel):
     comment: str
     prompt_optimization: list[str]
     rule_optimization: list[str]
-    security_optimization: list[str] = []
+    security_optimization: list[str] = []  # optional: not all evals surface security issues
 
 
 class NextStep(BaseModel):

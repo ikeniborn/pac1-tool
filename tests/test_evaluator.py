@@ -39,6 +39,9 @@ def test_run_evaluator_writes_to_log(tmp_path):
     assert result.score == 0.9
     assert result.security_optimization == ["Add gate for UNION SELECT injection"]
     line = json.loads(log_path.read_text().strip())
+    assert line["score"] == 0.9
+    assert line["task_text"] == "How many Lawn Mowers?"
+    assert line["final_outcome"] == "OUTCOME_OK"
     assert line["security_optimization"] == ["Add gate for UNION SELECT injection"]
 
 
