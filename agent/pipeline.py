@@ -263,7 +263,8 @@ def run_pipeline(
             last_error = "SQL_PLAN phase LLM call failed"
             _run_learn(pre, model, cfg, task_text, [], last_error,
                        rules_loader, session_rules, sgr_trace, security_gates,
-                       confirmed_values, highlighted_vault_rules)
+                       confirmed_values, highlighted_vault_rules,
+                       error_type="llm_fail")
             continue
 
         sql_plan_outputs.append(sql_plan_out)
@@ -282,7 +283,8 @@ def run_pipeline(
                 print(f"{CLI_YELLOW}[pipeline] AGENTS.MD refs check failed: {last_error}{CLI_CLR}")
                 _run_learn(pre, model, cfg, task_text, queries, last_error,
                            rules_loader, session_rules, sgr_trace, security_gates,
-                           confirmed_values, highlighted_vault_rules)
+                           confirmed_values, highlighted_vault_rules,
+                           error_type="semantic")
                 continue
 
         # ── SECURITY CHECK ────────────────────────────────────────────────────
@@ -292,7 +294,8 @@ def run_pipeline(
             last_error = gate_err
             _run_learn(pre, model, cfg, task_text, queries, last_error,
                        rules_loader, session_rules, sgr_trace, security_gates,
-                       confirmed_values, highlighted_vault_rules)
+                       confirmed_values, highlighted_vault_rules,
+                       error_type="security")
             continue
 
         # ── SCHEMA GATE ───────────────────────────────────────────────────────
@@ -302,7 +305,8 @@ def run_pipeline(
             last_error = schema_err
             _run_learn(pre, model, cfg, task_text, queries, last_error,
                        rules_loader, session_rules, sgr_trace, security_gates,
-                       confirmed_values, highlighted_vault_rules)
+                       confirmed_values, highlighted_vault_rules,
+                       error_type="security")
             continue
 
         # ── VALIDATE ──────────────────────────────────────────────────────────
@@ -323,7 +327,8 @@ def run_pipeline(
             last_error = validate_error
             _run_learn(pre, model, cfg, task_text, queries, last_error,
                        rules_loader, session_rules, sgr_trace, security_gates,
-                       confirmed_values, highlighted_vault_rules)
+                       confirmed_values, highlighted_vault_rules,
+                       error_type="syntax")
             continue
 
         # ── EXECUTE ───────────────────────────────────────────────────────────
@@ -346,7 +351,8 @@ def run_pipeline(
             last_error = err
             _run_learn(pre, model, cfg, task_text, queries, last_error,
                        rules_loader, session_rules, sgr_trace, security_gates,
-                       confirmed_values, highlighted_vault_rules)
+                       confirmed_values, highlighted_vault_rules,
+                       error_type="empty" if last_empty and not execute_error else "semantic")
             continue
 
         # ── CARRYOVER: update confirmed_values from DISTINCT results ──────────
@@ -439,6 +445,7 @@ def _run_learn(
     security_gates: list[dict],
     confirmed_values: dict,
     highlighted_vault_rules: list[str],
+    error_type: str = "semantic",
 ) -> None:
     learn_system = _build_system(
         "learn", pre.agents_md_content, pre.agents_md_index, pre.db_schema,
@@ -453,8 +460,9 @@ def _run_learn(
         f"ERROR: {error}"
     )
     learn_out, sgr_learn, _ = _call_llm_phase(learn_system, learn_user, model, cfg, LearnOutput, max_tokens=2048)
+    sgr_learn["error_type"] = error_type
     sgr_trace.append(sgr_learn)
-    if learn_out:
+    if learn_out and error_type != "llm_fail":
         anchor = learn_out.agents_md_anchor
         if anchor:
             anchor_section = anchor.split(">")[0].strip()
@@ -464,6 +472,7 @@ def _run_learn(
                 print(f"{CLI_BLUE}[pipeline] LEARN: anchor={anchor!r}, elevating vault rule{CLI_CLR}")
                 return
         session_rules.append(learn_out.rule_content)
+        session_rules[:] = session_rules[-3:]
         print(f"{CLI_BLUE}[pipeline] LEARN: rule added to session, retrying{CLI_CLR}")
 
 

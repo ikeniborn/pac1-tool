@@ -272,6 +272,96 @@ def test_call_llm_phase_returns_three_tuple(tmp_path):
     assert tok.get("output") == 7
 
 
+def test_learn_llm_fail_does_not_add_session_rule(tmp_path):
+    """_run_learn with error_type='llm_fail' must not add to session_rules."""
+    from agent.pipeline import _run_learn
+
+    rules_dir = tmp_path / "rules"
+    rules_dir.mkdir()
+
+    learn_json = json.dumps({"reasoning": "x", "conclusion": "y", "rule_content": "should not appear"})
+    session_rules: list[str] = []
+    sgr_trace: list[dict] = []
+
+    pre = _make_pre()
+    rules_loader_mock = MagicMock()
+    rules_loader_mock.get_rules_markdown.return_value = ""
+
+    with patch("agent.pipeline.call_llm_raw", return_value=learn_json), \
+         patch("agent.pipeline._RULES_DIR", rules_dir), \
+         patch("agent.pipeline.load_security_gates", return_value=[]):
+        _run_learn(
+            pre, "model", {}, "task", [], "llm error",
+            rules_loader_mock, session_rules, sgr_trace, [],
+            {}, [],
+            error_type="llm_fail",
+        )
+
+    assert session_rules == [], f"session_rules should be empty, got: {session_rules}"
+
+
+def test_sgr_learn_entry_has_error_type(tmp_path):
+    """LEARN sgr_trace entry must contain 'error_type' field."""
+    from agent.pipeline import _run_learn
+
+    rules_dir = tmp_path / "rules"
+    rules_dir.mkdir()
+
+    learn_json = json.dumps({"reasoning": "x", "conclusion": "y", "rule_content": "rule"})
+    session_rules: list[str] = []
+    sgr_trace: list[dict] = []
+
+    pre = _make_pre()
+    rules_loader_mock = MagicMock()
+    rules_loader_mock.get_rules_markdown.return_value = ""
+
+    with patch("agent.pipeline.call_llm_raw", return_value=learn_json), \
+         patch("agent.pipeline._RULES_DIR", rules_dir), \
+         patch("agent.pipeline.load_security_gates", return_value=[]):
+        _run_learn(
+            pre, "model", {}, "task", ["SELECT 1"], "syntax error",
+            rules_loader_mock, session_rules, sgr_trace, [],
+            {}, [],
+            error_type="syntax",
+        )
+
+    assert len(sgr_trace) == 1
+    assert sgr_trace[0].get("error_type") == "syntax", f"sgr_trace entry: {sgr_trace[0]}"
+
+
+def test_session_rules_fifo_cap(tmp_path):
+    """session_rules never exceeds 3 entries (FIFO) across multiple LEARN calls."""
+    from agent.pipeline import _run_learn
+    from agent.rules_loader import RulesLoader
+
+    rules_dir = tmp_path / "rules"
+    rules_dir.mkdir()
+    rl = RulesLoader(rules_dir)
+
+    session_rules: list[str] = []
+    sgr_trace: list[dict] = []
+    pre = _make_pre()
+
+    call_count = [0]
+    def _fake_llm(*a, **kw):
+        call_count[0] += 1
+        if kw.get("token_out") is not None:
+            kw["token_out"]["input"] = 1
+            kw["token_out"]["output"] = 1
+        return json.dumps({"reasoning": "x", "conclusion": "y", "rule_content": f"rule-{call_count[0]}"})
+
+    with patch("agent.pipeline.call_llm_raw", side_effect=_fake_llm), \
+         patch("agent.pipeline._RULES_DIR", rules_dir), \
+         patch("agent.pipeline.load_security_gates", return_value=[]):
+        for i in range(5):
+            _run_learn(pre, "model", {}, "task", ["SELECT 1"], f"err-{i}",
+                       rl, session_rules, sgr_trace, [], {}, [],
+                       error_type="syntax")
+
+    assert len(session_rules) <= 3, f"session_rules has {len(session_rules)} entries: {session_rules}"
+    assert session_rules[-1] == "rule-5", f"last rule wrong: {session_rules}"
+
+
 def test_pipeline_token_counts_nonzero(tmp_path):
     """total_in_tok and total_out_tok are non-zero after successful pipeline run."""
     from unittest.mock import MagicMock, patch
