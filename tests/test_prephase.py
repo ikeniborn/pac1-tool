@@ -23,7 +23,8 @@ def test_prephase_result_fields():
     """PrephaseResult has exactly the expected fields."""
     import dataclasses
     fields = {f.name for f in dataclasses.fields(PrephaseResult)}
-    assert fields == {"log", "preserve_prefix", "agents_md_content", "agents_md_path", "bin_sql_content"}
+    assert fields == {"log", "preserve_prefix", "agents_md_content", "agents_md_path",
+                      "bin_sql_content", "db_schema"}
 
 
 def test_normal_mode_reads_only_agents_md():
@@ -101,3 +102,45 @@ def test_write_dry_run_format():
     assert line["agents_md"] == "AGENTS"
     assert line["bin_sql_content"] == "SQL"
     assert "sql_schema" not in line
+    assert "db_schema" not in line
+
+
+def test_prephase_result_has_db_schema_field():
+    """PrephaseResult now has db_schema field."""
+    import dataclasses
+    fields = {f.name for f in dataclasses.fields(PrephaseResult)}
+    assert "db_schema" in fields
+
+
+def test_normal_mode_reads_schema():
+    """Normal mode (not dry_run) still calls vm.exec for schema."""
+    vm = MagicMock()
+    agents_r = MagicMock(); agents_r.content = "AGENTS CONTENT"
+    exec_r = MagicMock(); exec_r.stdout = "CREATE TABLE products ..."
+    vm.read.return_value = agents_r
+    vm.exec.return_value = exec_r
+    result = run_prephase(vm, "find products", "sys prompt")
+    assert vm.exec.call_count == 1
+    assert result.db_schema == "CREATE TABLE products ..."
+
+
+def test_schema_exec_fail_sets_empty_db_schema():
+    """vm.exec exception → db_schema is empty string, no crash."""
+    vm = MagicMock()
+    agents_r = MagicMock(); agents_r.content = "AGENTS"
+    vm.read.return_value = agents_r
+    vm.exec.side_effect = Exception("exec failed")
+    result = run_prephase(vm, "task", "sys")
+    assert result.db_schema == ""
+
+
+def test_schema_not_in_log():
+    """db_schema content must NOT appear in LLM log messages."""
+    vm = MagicMock()
+    agents_r = MagicMock(); agents_r.content = "AGENTS"
+    exec_r = MagicMock(); exec_r.stdout = "UNIQUE_SCHEMA_MARKER_XYZ"
+    vm.read.return_value = agents_r
+    vm.exec.return_value = exec_r
+    result = run_prephase(vm, "task", "sys")
+    for msg in result.log:
+        assert "UNIQUE_SCHEMA_MARKER_XYZ" not in msg.get("content", "")

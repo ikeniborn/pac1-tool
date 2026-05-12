@@ -2,7 +2,8 @@ import os
 from dataclasses import dataclass
 
 from bitgn.vm.ecom.ecom_connect import EcomRuntimeClientSync
-from bitgn.vm.ecom.ecom_pb2 import ReadRequest
+from bitgn.vm.ecom.ecom_pb2 import ReadRequest, ExecRequest
+from google.protobuf.json_format import MessageToDict
 
 from .dispatch import CLI_BLUE, CLI_CLR, CLI_GREEN, CLI_YELLOW
 
@@ -16,6 +17,7 @@ class PrephaseResult:
     agents_md_content: str = ""
     agents_md_path: str = ""
     bin_sql_content: str = ""
+    db_schema: str = ""
 
 
 # Few-shot user→assistant pair — strongest signal for JSON-only output.
@@ -84,6 +86,20 @@ def run_prephase(
         except Exception as e:
             print(f"{CLI_YELLOW}[prephase] /bin/sql: {e}{CLI_CLR}")
 
+    db_schema = ""
+    try:
+        schema_result = vm.exec(ExecRequest(path="/bin/sql", args=[".schema"]))
+        try:
+            d = MessageToDict(schema_result)
+            db_schema = d.get("stdout", "") or d.get("output", "")
+        except Exception:
+            db_schema = ""
+        if not db_schema:
+            db_schema = getattr(schema_result, "stdout", "") or getattr(schema_result, "output", "") or ""
+        print(f"{CLI_BLUE}[prephase] /bin/sql .schema:{CLI_CLR} {CLI_GREEN}ok{CLI_CLR}")
+    except Exception as e:
+        print(f"{CLI_YELLOW}[prephase] /bin/sql .schema: {e}{CLI_CLR}")
+
     print(f"{CLI_BLUE}[prephase] done{CLI_CLR}")
 
     return PrephaseResult(
@@ -92,4 +108,5 @@ def run_prephase(
         agents_md_content=agents_md_content,
         agents_md_path=agents_md_path,
         bin_sql_content=bin_sql_content,
+        db_schema=db_schema,
     )
