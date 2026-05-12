@@ -24,7 +24,7 @@ def test_prephase_result_fields():
     import dataclasses
     fields = {f.name for f in dataclasses.fields(PrephaseResult)}
     assert fields == {"log", "preserve_prefix", "agents_md_content", "agents_md_path",
-                      "bin_sql_content", "db_schema"}
+                      "db_schema"}
 
 
 def test_normal_mode_reads_only_agents_md():
@@ -33,7 +33,6 @@ def test_normal_mode_reads_only_agents_md():
     result = run_prephase(vm, "find products", "sys prompt")
     assert vm.read.call_count == 1
     assert result.agents_md_content == "AGENTS CONTENT"
-    assert result.bin_sql_content == ""
 
 
 def test_normal_mode_log_structure():
@@ -54,22 +53,6 @@ def test_normal_mode_no_tree_no_context():
     assert vm.context.call_count == 0
 
 
-def test_dry_run_reads_bin_sql():
-    """dry_run=True: 2 vm.read calls, bin_sql_content populated."""
-    vm = _make_vm()
-    result = run_prephase(vm, "task", "sys", dry_run=True)
-    assert vm.read.call_count == 2
-    assert result.bin_sql_content == "SQL CONTENT"
-
-
-def test_dry_run_bin_sql_not_in_log():
-    """bin_sql content must NOT appear in LLM log messages."""
-    vm = _make_vm(bin_sql="UNIQUE_BIN_SQL_MARKER")
-    result = run_prephase(vm, "task", "sys", dry_run=True)
-    for msg in result.log:
-        assert "UNIQUE_BIN_SQL_MARKER" not in msg.get("content", "")
-
-
 def test_agents_md_not_found():
     """If AGENTS.MD missing, agents_md_content is empty, no crash."""
     vm = MagicMock()
@@ -86,24 +69,6 @@ def test_preserve_prefix_equals_log():
     assert result.preserve_prefix == result.log
 
 
-def test_write_dry_run_format():
-    """_write_dry_run writes correct JSON fields to jsonl."""
-    from agent.orchestrator import _write_dry_run, _DRY_RUN_LOG
-    pre = PrephaseResult(log=[], preserve_prefix=[], agents_md_content="AGENTS", bin_sql_content="SQL")
-    with tempfile.TemporaryDirectory() as tmpdir:
-        log_path = Path(tmpdir) / "dry_run_analysis.jsonl"
-        with patch("agent.orchestrator._DRY_RUN_LOG", log_path):
-            _write_dry_run("t01", "find products", pre)
-        line = json.loads(log_path.read_text().strip())
-    assert line["task_id"] == "t01"
-    assert line["task"] == "find products"
-    assert line["agents_md"] == "AGENTS"
-    assert line["bin_sql_content"] == "SQL"
-    assert "sql_schema" not in line
-    # db_schema IS included in _write_dry_run output
-    assert "db_schema" in line
-
-
 def test_prephase_result_has_db_schema_field():
     """PrephaseResult now has db_schema field."""
     import dataclasses
@@ -112,7 +77,7 @@ def test_prephase_result_has_db_schema_field():
 
 
 def test_normal_mode_reads_schema():
-    """Normal mode (not dry_run) still calls vm.exec for schema."""
+    """Normal mode still calls vm.exec for schema."""
     vm = MagicMock()
     agents_r = MagicMock(); agents_r.content = "AGENTS CONTENT"
     exec_r = MagicMock(); exec_r.stdout = "CREATE TABLE products ..."
