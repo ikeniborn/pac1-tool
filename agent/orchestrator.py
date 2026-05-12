@@ -8,7 +8,6 @@ from pathlib import Path
 from bitgn.vm.ecom.ecom_connect import EcomRuntimeClientSync
 
 from agent.prephase import run_prephase
-from agent.loop import run_loop
 from agent.pipeline import run_pipeline
 from agent.prompt import build_system_prompt
 
@@ -58,11 +57,7 @@ def run_agent(model_configs: dict, harness_url: str, task_text: str, task_id: st
             "outcome": "DRY_RUN",
         }
 
-    if task_type == "lookup":
-        stats = run_pipeline(vm, model, task_text, pre, cfg)
-    else:
-        stats = run_loop(vm, model, task_text, pre, cfg)
-
+    stats = run_pipeline(vm, model, task_text, pre, cfg)
     stats["model_used"] = model
     stats["task_type"] = task_type
     stats["builder_used"] = False

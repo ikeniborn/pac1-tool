@@ -102,7 +102,8 @@ def test_write_dry_run_format():
     assert line["agents_md"] == "AGENTS"
     assert line["bin_sql_content"] == "SQL"
     assert "sql_schema" not in line
-    assert "db_schema" not in line
+    # db_schema IS included in _write_dry_run output
+    assert "db_schema" in line
 
 
 def test_prephase_result_has_db_schema_field():
