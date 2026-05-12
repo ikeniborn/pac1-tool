@@ -22,7 +22,7 @@ from .dispatch import (
     _THINK_RE,
     dispatch,
 )
-from .json_extract import _extract_json_from_text, _normalize_parsed
+from .json_extract import _extract_json_from_text
 from .prephase import PrephaseResult
 # Vault models imported lazily in run_loop() to avoid breaking tests when models are cleaned
 
@@ -127,8 +127,6 @@ def _call_openai_tier(
                     break
                 print(f"{CLI_YELLOW}[{label}] JSON extracted from free-form text{CLI_CLR}")
 
-            if isinstance(parsed, dict):
-                parsed = _normalize_parsed(parsed)
             try:
                 return NextStep.model_validate(parsed), elapsed_ms, in_tok, out_tok, think_tok
             except ValidationError as e:
@@ -175,8 +173,6 @@ def _call_llm(
                 _raw_limit = None if _LOG_LEVEL == "DEBUG" else 500
                 print(f"{CLI_YELLOW}[Anthropic] RAW: {raw[:_raw_limit]}{CLI_CLR}")
                 parsed = _extract_json_from_text(raw) or {}
-                if isinstance(parsed, dict):
-                    parsed = _normalize_parsed(parsed)
                 try:
                     return NextStep.model_validate(parsed), elapsed_ms, in_tok, out_tok, think_tok
                 except ValidationError as e:
