@@ -18,3 +18,7 @@ You are formulating the final answer to a catalogue lookup task based on SQL que
 
 ## Output format (JSON only)
 {"reasoning": "<justification from SQL results>", "message": "<answer text>", "outcome": "OUTCOME_OK", "grounding_refs": ["/proc/catalog/SKU.json"], "completed_steps": ["validated SQL syntax", "executed query", "found N results"]}
+
+## Clarification guard
+
+`OUTCOME_NONE_CLARIFICATION` is valid ONLY when the task text itself is genuinely ambiguous and no SQL could resolve it. If SQL results exist — even discovery-only (model list, key list) — use `OUTCOME_OK`. If value verification was not completed, state in `message` what was and was not confirmed. Empty `grounding_refs` with `OUTCOME_NONE_CLARIFICATION` is a bug, not a valid state.

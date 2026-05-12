@@ -3,6 +3,7 @@ from unittest.mock import MagicMock, patch, call
 import pytest
 from agent.pipeline import run_pipeline
 from agent.prephase import PrephaseResult
+from pathlib import Path
 
 
 def _make_pre(agents_md="AGENTS", db_schema="CREATE TABLE products(id INT, type TEXT, brand TEXT, sku TEXT, model TEXT)"):
@@ -154,3 +155,33 @@ def test_security_gate_ddl_triggers_learn(tmp_path):
         stats = run_pipeline(vm, "anthropic/claude-sonnet-4-6", "drop test", pre, {})
 
     assert stats["outcome"] == "OUTCOME_OK"
+
+
+def test_learn_does_not_persist_auto_rule(tmp_path):
+    """LEARN updates session_rules but does not write rule files (append_rule removed)."""
+    vm = MagicMock()
+    vm.exec.side_effect = [
+        _make_exec_result("Error: syntax error"),
+        _make_exec_result(""),
+        _make_exec_result('[{"count": 1}]'),
+    ]
+    pre = _make_pre()
+    rules_dir = tmp_path / "rules"
+    rules_dir.mkdir()
+
+    learn_json = json.dumps({
+        "reasoning": "x", "conclusion": "y", "rule_content": "Never do X.",
+    })
+    call_seq = [_sql_plan_json(), learn_json, _sql_plan_json(), _answer_json()]
+    call_iter = iter(call_seq)
+
+    with patch("agent.pipeline.call_llm_raw", side_effect=lambda *a, **kw: next(call_iter)), \
+         patch("agent.pipeline._RULES_DIR", rules_dir), \
+         patch("agent.pipeline.load_security_gates", return_value=[]):
+        stats = run_pipeline(vm, "anthropic/claude-sonnet-4-6", "count X", pre, {})
+
+    assert stats["outcome"] == "OUTCOME_OK"
+    # append_rule has been removed — no auto YAML files should be written
+    assert not hasattr(__import__("agent.rules_loader", fromlist=["RulesLoader"]).RulesLoader, "append_rule")
+    written_files = list(rules_dir.glob("*.yaml"))
+    assert written_files == [], f"No rule files should be written, found: {written_files}"

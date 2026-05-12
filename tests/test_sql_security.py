@@ -106,3 +106,19 @@ def test_load_security_gates_from_dir(tmp_path):
 def test_load_security_gates_empty_dir(tmp_path):
     gates = load_security_gates(tmp_path)
     assert gates == []
+
+
+def test_unverified_gate_is_skipped(tmp_path):
+    """Gates with verified: false are not loaded."""
+    import yaml
+    from agent.sql_security import load_security_gates
+    (tmp_path / "sec-active.yaml").write_text(yaml.dump({
+        "id": "sec-active", "pattern": "DROP", "action": "block", "message": "no drop"
+    }))
+    (tmp_path / "sec-unverified.yaml").write_text(yaml.dump({
+        "id": "sec-unverified", "pattern": "UNION", "action": "block",
+        "message": "no union", "verified": False
+    }))
+    gates = load_security_gates(tmp_path)
+    assert len(gates) == 1
+    assert gates[0]["id"] == "sec-active"

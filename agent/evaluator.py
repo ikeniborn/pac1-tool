@@ -82,6 +82,7 @@ def _append_log(eval_input: EvalInput, result: PipelineEvalOutput) -> None:
         "comment": result.comment,
         "prompt_optimization": result.prompt_optimization,
         "rule_optimization": result.rule_optimization,
+        "security_optimization": result.security_optimization,
         "reasoning": result.reasoning,
     }
     _EVAL_LOG.parent.mkdir(parents=True, exist_ok=True)

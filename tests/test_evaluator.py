@@ -28,6 +28,7 @@ def test_run_evaluator_writes_to_log(tmp_path):
         "comment": "solid",
         "prompt_optimization": [],
         "rule_optimization": [],
+        "security_optimization": ["Add gate for UNION SELECT injection"],
     })
     log_path = tmp_path / "eval_log.jsonl"
     with patch("agent.evaluator.call_llm_raw", return_value=eval_json), \
@@ -36,11 +37,12 @@ def test_run_evaluator_writes_to_log(tmp_path):
 
     assert result is not None
     assert result.score == 0.9
-    assert log_path.exists()
+    assert result.security_optimization == ["Add gate for UNION SELECT injection"]
     line = json.loads(log_path.read_text().strip())
     assert line["score"] == 0.9
     assert line["task_text"] == "How many Lawn Mowers?"
     assert line["final_outcome"] == "OUTCOME_OK"
+    assert line["security_optimization"] == ["Add gate for UNION SELECT injection"]
 
 
 def test_run_evaluator_llm_failure_returns_none(tmp_path):

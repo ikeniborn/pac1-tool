@@ -29,3 +29,7 @@ WHERE p.brand = 'Heco' AND p.model = 'TopFix GTU-YPJ'
 
 ## Output format (JSON only)
 {"reasoning": "<chain-of-thought: why these queries answer the task>", "queries": ["SELECT ...", "SELECT ..."]}
+
+## Final query obligation
+
+If your plan includes discovery queries (`SELECT DISTINCT model`, `SELECT DISTINCT key`), you MUST also include the final verification query as the last query in the same plan. A plan consisting only of discovery queries is incomplete. The pipeline has a limited cycle budget — every plan must advance toward a definitive answer.

@@ -10,6 +10,7 @@ Evaluate the quality of a SQL pipeline execution trace. Produce actionable optim
 3. SQL efficiency: fewer cycles is better — each retry costs a LEARN round-trip.
 4. Answer grounding: are `grounding_refs` present and derived from actual SQL `sku` values?
 5. What SPECIFIC changes to `data/prompts/*.md` or `data/rules/*.yaml` would prevent observed failures?
+6. Security: Did any query use patterns not covered by existing gates (UNION, subquery injection, bulk reads without filter, schema enumeration via information_schema)? Would a new gate have blocked a problem?
 
 ## Score
 - 1.0 = perfect first-cycle answer with genuine reasoning and correct grounding
@@ -17,4 +18,4 @@ Evaluate the quality of a SQL pipeline execution trace. Produce actionable optim
 - 0.0 = wrong outcome, missing grounding, or hallucinated content
 
 ## Output format (JSON only)
-{"reasoning": "<analysis of trace quality>", "score": 0.8, "comment": "<one-line verdict>", "prompt_optimization": ["specific suggestion for data/prompts/X.md"], "rule_optimization": ["specific suggestion for data/rules/sql-XXX-*.yaml"]}
+{"reasoning": "<analysis>", "score": 0.8, "comment": "<one-line verdict>", "prompt_optimization": ["specific suggestion for data/prompts/X.md"], "rule_optimization": ["specific suggestion for data/rules/sql-XXX.yaml"], "security_optimization": ["Add gate for <pattern>: <reason>"]}
