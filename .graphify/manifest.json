@@ -8,16 +8,20 @@
     "hash": "b7b52aabd50127d258b9120a9ad3e8fb"
   },
   "agent/pipeline.py": {
-    "mtime": 1778585363.7912757,
-    "hash": "7f8ac504a0e42da589624fdf93aead90"
+    "mtime": 1778616032.1796365,
+    "hash": "88bb7edf58f85e4aefb19bfb9d79aa89"
   },
   "agent/json_extract.py": {
     "mtime": 1778585363.7910557,
     "hash": "fb6f604a3de89475c9eaf5b2c272eb2c"
   },
+  "agent/resolve.py": {
+    "mtime": 1778611352.8417072,
+    "hash": "0d045b1d8500316abdca2f41b55be794"
+  },
   "agent/evaluator.py": {
-    "mtime": 1778585363.7909918,
-    "hash": "82ae09677e2802a24485073d1f62ae23"
+    "mtime": 1778611352.8411267,
+    "hash": "66f292f23c6570563e4f0dc334404ba2"
   },
   "agent/contract_models.py": {
     "mtime": 1778584945.021877,
@@ -31,29 +35,37 @@
     "mtime": 1778584945.021877,
     "hash": "8f0f07d6c3a57b8d82785a4e65986641"
   },
+  "agent/schema_gate.py": {
+    "mtime": 1778611352.8418489,
+    "hash": "4bc243d14c74ee5945e4fcaac9b079d9"
+  },
+  "agent/agents_md_parser.py": {
+    "mtime": 1778611352.8409941,
+    "hash": "b94fab21fe19b1da54d13cfd503c61f9"
+  },
   "agent/sql_security.py": {
-    "mtime": 1778585363.791403,
-    "hash": "0070d643381294a3232ec8552a3fe2be"
+    "mtime": 1778615778.6040282,
+    "hash": "f32af1810978b4c9c0b85f0479956dd2"
   },
   "agent/orchestrator.py": {
-    "mtime": 1778586479.6471791,
-    "hash": "e76811bab140fdb1e18347ecab5eff31"
+    "mtime": 1778615550.1391337,
+    "hash": "e6362c8bb8c7cee241ab61c3471bfab1"
   },
   "agent/llm.py": {
-    "mtime": 1778585363.7911367,
-    "hash": "798c3afce646675ba6437b87fdf17466"
+    "mtime": 1778616259.359463,
+    "hash": "d3916f79a23978413716d7da5bddce86"
   },
   "agent/prephase.py": {
-    "mtime": 1778586245.3320184,
-    "hash": "f58623adfecac071f71c57faf9434026"
+    "mtime": 1778612458.2991347,
+    "hash": "4f4da76714b8e18013a723d6d8b7956a"
   },
   "agent/rules_loader.py": {
     "mtime": 1778585363.791362,
     "hash": "4a392772fcddb842b82d57dc78670708"
   },
   "agent/models.py": {
-    "mtime": 1778585363.7911954,
-    "hash": "994770f49ca2eb1e7e5276e8d5674242"
+    "mtime": 1778611352.8412607,
+    "hash": "4437428634adea3a82c204c5c127842d"
   },
   "bitgn/harness_connect.py": {
     "mtime": 1778584945.0228078,
@@ -100,8 +112,8 @@
     "hash": "9cb5b5df2c8ee308ea587a845bc80fab"
   },
   "tests/test_prephase.py": {
-    "mtime": 1778586425.730547,
-    "hash": "d0cb5f1925d0e22a6290de2b33e22642"
+    "mtime": 1778612425.7794294,
+    "hash": "695041fc30c1d24665c1c1c070e98b24"
   },
   "tests/test_evaluator.py": {
     "mtime": 1778585363.7927213,
@@ -115,49 +127,77 @@
     "mtime": 1778584945.0255494,
     "hash": "d41d8cd98f00b204e9800998ecf8427e"
   },
+  "tests/conftest.py": {
+    "mtime": 1778614099.9009347,
+    "hash": "2801fb91fd4584a959f90a88f3fa6b44"
+  },
+  "tests/test_agents_md_parser.py": {
+    "mtime": 1778611352.8423932,
+    "hash": "edc0501a83cd4464437b26b7d6609ff5"
+  },
   "tests/test_pipeline.py": {
-    "mtime": 1778586678.8148007,
-    "hash": "991e3713fd106b09e48b0ef4a3bc243c"
+    "mtime": 1778615949.2664235,
+    "hash": "03665262bc30cd9e7cb26fec37c01416"
+  },
+  "tests/test_resolve.py": {
+    "mtime": 1778616245.3765974,
+    "hash": "47fd19fe90648a21f4bce8c4074471b2"
   },
   "tests/test_propose_optimizations.py": {
-    "mtime": 1778585363.7930021,
-    "hash": "03182c30aedc70f74efe60013bfe9b29"
+    "mtime": 1778603247.9275095,
+    "hash": "1ee7217708ccca89dfc135ace2da4295"
+  },
+  "tests/test_schema_gate.py": {
+    "mtime": 1778611352.8430803,
+    "hash": "193d2a42c1d48338526ebe8527081a54"
   },
   "tests/test_llm_module.py": {
-    "mtime": 1778585363.7927759,
-    "hash": "d7d83e65463c7c959d5780a31f1ff7d7"
+    "mtime": 1778615931.7785888,
+    "hash": "0f7ed1aae906cc9abeeacc046f15dce5"
   },
   "tests/test_json_extract_cleanup.py": {
     "mtime": 1778585363.7927518,
     "hash": "4c4788ebf06a12a129adec192840356e"
   },
   "tests/test_models_cleanup.py": {
-    "mtime": 1778585363.792803,
-    "hash": "1e29f91de7584912ff533fdad14e9818"
+    "mtime": 1778611352.84251,
+    "hash": "dac406a46edb39731996021945650ceb"
+  },
+  "tests/test_eval_metrics.py": {
+    "mtime": 1778611352.842447,
+    "hash": "64dd27ca6bf92e9b962c8d08216552d7"
   },
   "tests/test_orchestrator_pipeline.py": {
-    "mtime": 1778586654.203041,
-    "hash": "84ea0f87e0bbc31c8d850a539b765d6a"
+    "mtime": 1778614994.2826173,
+    "hash": "e0aaec0c36067d6e94bec102670d0b1a"
   },
   "tests/test_sql_security.py": {
-    "mtime": 1778585363.7930934,
-    "hash": "3e019abfa940447510d11172153299fc"
+    "mtime": 1778615751.1242845,
+    "hash": "da88e262c0c452982e647931f675ad79"
   },
   "tests/test_pipeline_models.py": {
-    "mtime": 1778584945.0257032,
-    "hash": "76a0a3148ed859684d8febebd130e603"
+    "mtime": 1778611352.8427143,
+    "hash": "7b7878ecde7de5d2f68523da3ac81701"
   },
   "scripts/__init__.py": {
     "mtime": 1778585363.7925415,
     "hash": "d41d8cd98f00b204e9800998ecf8427e"
   },
   "scripts/propose_optimizations.py": {
-    "mtime": 1778585363.7926393,
-    "hash": "aa2eb9c7db4fd69eb88efb9aec986c44"
+    "mtime": 1778603206.5384278,
+    "hash": "eb5eb16a39b537421970a4787e06f8ae"
+  },
+  "CLAUDE.md": {
+    "mtime": 1778603329.4488232,
+    "hash": "0da7d61439a8bcab0022ca4e0cc4aa45"
   },
   "agent/CLAUDE.md": {
     "mtime": 1778586810.3645382,
     "hash": "cb17e04afb24f35097a32866ef51b5e2"
+  },
+  "scripts/CLAUDE.md": {
+    "mtime": 1778603443.5044284,
+    "hash": "7e83e1ef4dfcc2d1e3f08afc647b5602"
   },
   "scripts/README.md": {
     "mtime": 1778585363.7925415,

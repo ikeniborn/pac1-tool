@@ -1,8 +1,8 @@
 # EcomRuntimeClientSync
 
-> God node · 16 connections · `bitgn/vm/ecom/ecom_connect.py`
+> God node · 14 connections · `/home/UF.RT.RU/i.y.tischenko/Документы/Git/ecom1-agent/bitgn/vm/ecom/ecom_connect.py`
 
-**Community:** [[Connect-RPC Client Layer]]
+**Community:** [[BitGN Connect Layer]]
 
 ## Connections by Relation
 
@@ -25,10 +25,6 @@
 - [[.delete()]] `EXTRACTED`
 - [[.stat()]] `EXTRACTED`
 - [[.answer()]] `EXTRACTED`
-
-### uses
-- [[ConnectClient]] `INFERRED`
-- [[PrephaseResult]] `INFERRED`
 
 ---
 
