@@ -9,13 +9,22 @@ import time
 import zoneinfo
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+from typing import IO
 
 _task_local = threading.local()
 _run_dir: "Path | None" = None
+_stats_fh: "IO[str] | None" = None  # opened by _setup_logging()
+_ansi_re = re.compile(r"\x1B\[[0-9;]*[A-Za-z]")
 
 
-def _setup_log_tee() -> None:
-    """Tee stdout to logs/{ts}_{model}.log. ANSI codes are stripped in file."""
+def _log_stats(text: str) -> None:
+    if _stats_fh is not None:
+        _stats_fh.write(_ansi_re.sub("", text) + "\n")
+        _stats_fh.flush()
+
+
+def _setup_logging() -> None:
+    """Create run dir, open main.log for stats, wrap stdout for [task_id] terminal prefix."""
     _env_path = Path(__file__).parent / ".env"
     _dotenv: dict[str, str] = {}
     try:
@@ -43,26 +52,29 @@ def _setup_log_tee() -> None:
     run_name = f"{_now.strftime('%Y%m%d_%H%M%S')}_{_safe}"
     run_path = logs_dir / run_name
     run_path.mkdir(exist_ok=True)
-    global _run_dir
-    _run_dir = run_path
 
-    _fh = open(run_path / "main.log", "w", buffering=1, encoding="utf-8")
-    _ansi = re.compile(r"\x1B\[[0-9;]*[A-Za-z]")
+    global _run_dir, _stats_fh
+    _run_dir = run_path
+    _stats_fh = open(run_path / "main.log", "w", buffering=1, encoding="utf-8")
+    _stats_fh.write(f"[LOG] {run_path}/  (LOG_LEVEL={log_level})\n")
+    _stats_fh.flush()
+
     _orig = sys.stdout
 
-    class _Tee:
+    class _PrefixWriter:
         def write(self, data: str) -> None:
             prefix = getattr(_task_local, "task_id", None)
-            clean = _ansi.sub("", data)
             if prefix and data and data != "\n":
                 _orig.write(f"[{prefix}] {data}")
             else:
                 _orig.write(data)
-            _fh.write(clean)
+
+        def writelines(self, lines) -> None:
+            for line in lines:
+                self.write(line)
 
         def flush(self) -> None:
             _orig.flush()
-            _fh.flush()
 
         def isatty(self) -> bool:
             return _orig.isatty()
@@ -71,11 +83,11 @@ def _setup_log_tee() -> None:
         def encoding(self) -> str:
             return _orig.encoding
 
-    sys.stdout = _Tee()
+    sys.stdout = _PrefixWriter()
     print(f"[LOG] {run_path}/  (LOG_LEVEL={log_level})")
 
 
-_setup_log_tee()
+_setup_logging()
 
 from bitgn.harness_connect import HarnessServiceClientSync
 from bitgn.harness_pb2 import (
@@ -178,11 +190,16 @@ def _run_single_task(trial_id: str, task_filter: list) -> tuple:
 
 
 def _print_table_header() -> None:
-    print(f"\n{'=' * 80}")
-    print(f"{'ИТОГОВАЯ СТАТИСТИКА':^80}")
-    print('=' * 80)
-    print(f"{'Задание':<10} {'Оценка':>7} {'Время':>8}  {'Вход(tok)':>10} {'Выход(tok)':>10}  {'Тип':<11} {'Модель':<30}  Проблемы")
-    print("-" * 80)
+    lines = [
+        f"\n{'=' * 80}",
+        f"{'ИТОГОВАЯ СТАТИСТИКА':^80}",
+        '=' * 80,
+        f"{'Задание':<10} {'Оценка':>7} {'Время':>8}  {'Вход(tok)':>10} {'Выход(tok)':>10}  {'Тип':<11} {'Модель':<30}  Проблемы",
+        "-" * 80,
+    ]
+    for line in lines:
+        print(line)
+        _log_stats(line)
 
 
 def _print_table_row(task_id: str, score: float, detail: list, elapsed: float, ts: dict) -> None:
@@ -192,7 +209,9 @@ def _print_table_row(task_id: str, score: float, detail: list, elapsed: float, t
     m = ts.get("model_used", "—")
     m_short = m.split("/")[-1] if "/" in m else m
     t_type = ts.get("task_type", "—")
-    print(f"{task_id:<10} {score:>7.2f} {elapsed:>7.1f}s  {in_t:>10,} {out_t:>10,}  {t_type:<11} {m_short:<30}  {issues}")
+    line = f"{task_id:<10} {score:>7.2f} {elapsed:>7.1f}s  {in_t:>10,} {out_t:>10,}  {t_type:<11} {m_short:<30}  {issues}"
+    print(line)
+    _log_stats(line)
 
 
 def _write_summary(scores: list, run_start: float) -> None:
@@ -201,9 +220,14 @@ def _write_summary(scores: list, run_start: float) -> None:
     total_elapsed = time.time() - run_start
     total_in = sum(ts.get("input_tokens", 0) for *_, ts in scores)
     total_out = sum(ts.get("output_tokens", 0) for *_, ts in scores)
-    print('=' * 80)
-    print(f"{'ИТОГО':<10} {total:>6.2f}% {total_elapsed:>7.1f}s  {total_in:>10,} {total_out:>10,}")
-    print('=' * 80)
+    lines = [
+        '=' * 80,
+        f"{'ИТОГО':<10} {total:>6.2f}% {total_elapsed:>7.1f}s  {total_in:>10,} {total_out:>10,}",
+        '=' * 80,
+    ]
+    for line in lines:
+        print(line)
+        _log_stats(line)
 
 
 def main() -> None:

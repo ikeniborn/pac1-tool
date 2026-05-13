@@ -37,3 +37,30 @@ def test_run_single_task_creates_jsonl_and_removes_log(tmp_path, monkeypatch):
     types = [r["type"] for r in records]
     assert "header" in types
     assert "task_result" in types
+
+
+def test_main_log_contains_only_stats(tmp_path, monkeypatch):
+    """main.log must contain stats rows but NOT pipeline cycle lines."""
+    monkeypatch.setenv("MODEL", "test-model")
+    import main as m
+    import io
+
+    stats_buf = io.StringIO()
+    monkeypatch.setattr(m, "_run_dir", tmp_path)
+    monkeypatch.setattr(m, "_stats_fh", stats_buf)
+
+    # Simulate a table header + one row + summary
+    m._print_table_header()
+    m._print_table_row("t01", 1.0, [], 12.5, {
+        "input_tokens": 100, "output_tokens": 50,
+        "task_type": "lookup", "model_used": "anthropic/claude-sonnet-4-6",
+    })
+    m._write_summary([("t01", 1.0, [], 12.5, {"input_tokens": 100, "output_tokens": 50})], 0.0)
+
+    contents = stats_buf.getvalue()
+    assert "ИТОГОВАЯ СТАТИСТИКА" in contents
+    assert "t01" in contents
+    assert "ИТОГО" in contents
+    # Must NOT contain pipeline noise
+    assert "[pipeline]" not in contents
+    assert "cycle=" not in contents
