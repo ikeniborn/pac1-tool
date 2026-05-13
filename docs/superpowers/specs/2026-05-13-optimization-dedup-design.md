@@ -19,10 +19,12 @@ Three compounding issues cause 76+ duplicate/contradictory rules and 87 prompt p
 Shared module exposing three functions previously duplicated across `scripts/propose_optimizations.py` and (after this change) `agent/evaluator.py`:
 
 ```python
-def existing_rules_text() -> str: ...      # reads data/rules/*.yaml
-def existing_security_text() -> str: ...   # reads data/security/*.yaml
-def existing_prompts_text() -> str: ...    # reads data/prompts/*.md
+def existing_rules_text() -> str: ...      # reads data/rules/*.yaml — format: "- {id}: {content}"
+def existing_security_text() -> str: ...   # reads data/security/*.yaml — format: "- {id}: {message}"
+def existing_prompts_text() -> str: ...    # reads data/prompts/*.md AND data/prompts/optimized/*.md
 ```
+
+Rules format MUST include ID (`- sql-001: Never SELECT...`) so contradiction detection can reference it.
 
 Both evaluator and synthesizer import from here.
 
@@ -66,12 +68,25 @@ Same for `security_md` after `_write_security()` and `prompts_md` after `_write_
 
 **File:** `scripts/propose_optimizations.py`
 
-New function `_cluster_recs(recs, existing_md, model, cfg) -> list[str]`:
-- Single LLM call per channel before the main loop
-- Input: all unprocessed raw_recs for the channel + existing_md
-- Output: deduplicated representative list (semantically merged, covered items removed)
-- Hash tracking: cluster representative maps to all original hashes → all mapped hashes marked processed immediately upon successful write of the representative; on failure, none are marked
-- Fallback: if `_cluster_recs` LLM call fails, fall back to original unflattened raw_recs (fail-open, no crash)
+**Pre-clustering data structure:**
+
+Before main loop, flatten per-entry recs into channel buckets:
+```python
+# list of (raw_rec, entry_dict, hash) tuples per channel
+rule_items: list[tuple[str, dict, str]] = [
+    (rec, entry, _entry_hash(entry["task_text"], "rule", rec))
+    for entry in entries
+    for rec in entry.get("rule_optimization", [])
+    if _entry_hash(entry["task_text"], "rule", rec) not in processed
+]
+```
+
+New function `_cluster_recs(items, existing_md, model, cfg) -> list[tuple[str, dict, list[str]]]`:
+- Input: `items` = flat list of `(raw_rec, entry, hash)` tuples + `existing_md`
+- Single LLM call per channel; LLM receives only `[raw_rec, ...]` strings
+- Output: list of `(representative_rec, first_matching_entry, all_original_hashes)` — representative carries the first entry for write-time metadata (task_text, eval_score)
+- All original hashes in the group marked processed immediately upon successful write of the representative; on failure, none are marked
+- Fallback: if `_cluster_recs` LLM call fails, return items as-is (one tuple per item, singleton hash list) — fail-open, no crash
 
 Prompt instruction:
 > "Return a JSON array of unique, non-redundant recommendations. Merge semantically equivalent items. Drop items already covered by existing content. Keep the most specific/actionable wording."
@@ -116,6 +131,7 @@ eval_log.jsonl
 | `agent/evaluator.py` | `_build_eval_system` + `run_evaluator` accept existing content |
 | `data/prompts/pipeline_evaluator.md` | Add rule 7: check existing before suggesting |
 | `scripts/propose_optimizations.py` | Pre-cluster, live refresh, contradiction check; import knowledge_loader |
+| `tests/test_propose_optimizations.py` | Add tests for `_cluster_recs`, `_check_contradiction`, and live-refresh behaviour |
 
 ## Out of Scope
 
