@@ -531,3 +531,54 @@ def test_answer_fallback_called_when_parse_fails(tmp_path):
     vm.answer.assert_called_once()
     req = vm.answer.call_args.args[0]   # AnswerRequest positional arg
     assert "Could not synthesize" in req.message
+
+
+def test_discovery_only_detection_fires_without_all_distinct(tmp_path):
+    """Schema query (non-DISTINCT) mixed with DISTINCT batch → discovery-only fires if no sku/path.
+
+    Old code: all_discovery = all(SELECT DISTINCT ...) → False → ANSWER after cycle 1
+              call_seq[1] = _sql_plan_json (invalid AnswerOutput) → parse fails → vm.answer not called
+    New code: not new_refs and not has_count_result → continue → cycle 2 → sku/path → vm.answer called
+    """
+    vm = MagicMock()
+
+    def mock_exec(req):
+        arg = req.args[0] if req.args else ""
+        if arg.startswith("EXPLAIN"):
+            return _make_exec_result("")
+        if "sqlite_schema" in arg:
+            return _make_exec_result("")
+        if "DISTINCT" in arg.upper() and "kind_id" in arg:
+            return _make_exec_result("kind_id\ntool_boxes\n")
+        return _make_exec_result("sku,path\nSKU-001,/proc/catalog/SKU-001.json\n")
+
+    vm.exec.side_effect = mock_exec
+    pre = _make_pre()
+    rules_dir = tmp_path / "rules"
+    rules_dir.mkdir()
+
+    # call_seq designed for new code: SQL_PLAN cycle1 → (discovery-only) → SQL_PLAN cycle2 → ANSWER
+    # With old code: cycle1 goes directly to ANSWER, consuming call_seq[1] = _sql_plan_json
+    # → AnswerOutput.model_validate fails → answer_out=None → vm.answer never called
+    call_seq = [
+        json.dumps({
+            "reasoning": "discover schema then kind_id",
+            "queries": [
+                "SELECT name, sql FROM sqlite_schema WHERE name = 'kinds'",
+                "SELECT DISTINCT kind_id FROM products WHERE kind_id LIKE '%tool%'",
+            ],
+        }),
+        _sql_plan_json(["SELECT p.sku, p.path FROM products p WHERE p.kind_id = 'tool_boxes'"]),
+        _answer_json(),
+    ]
+    call_iter = iter(call_seq)
+
+    with patch("agent.pipeline.call_llm_raw", side_effect=lambda *a, **kw: next(call_iter)), \
+         patch("agent.pipeline._RULES_DIR", rules_dir), \
+         patch("agent.pipeline.load_security_gates", return_value=[]), \
+         patch("agent.pipeline.run_resolve", return_value={}), \
+         patch("agent.pipeline.check_schema_compliance", return_value=None):
+        run_pipeline(vm, "test-model", "find tool boxes", pre, {})
+
+    # New code: cycle 2 ran → sku refs found → vm.answer called
+    vm.answer.assert_called_once()

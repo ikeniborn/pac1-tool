@@ -520,13 +520,16 @@ def run_pipeline(
         sku_refs.extend(new_refs)
 
         # ── DISCOVERY-ONLY DETECTION ──────────────────────────────────────────
-        # If queries returned data but no product rows (path/sku), the cycle was
-        # discovery-only. Rebuild static_sql with updated confirmed_values and
-        # continue so sql_plan can emit the final SKU filter in the next cycle.
-        all_discovery = all(
-            re.search(r'SELECT\s+DISTINCT\b', q, re.IGNORECASE) for q in queries
+        # Structural check: if no sku/path refs AND no COUNT aggregate result,
+        # this cycle produced only discovery data regardless of SELECT DISTINCT.
+        # Dependency: sql_plan.md rule requires p.sku + p.path in final queries;
+        # a final query missing those columns will also trigger this — forcing
+        # the model to comply with the projection rule.
+        has_count_result = any(
+            re.search(r'\bCOUNT\s*\(', q, re.IGNORECASE) and _csv_has_data(r)
+            for q, r in zip(queries, sql_results)
         )
-        if all_discovery and not new_refs:
+        if not new_refs and not has_count_result:
             static_sql = _build_static_system(
                 "sql_plan", pre.agents_md_content, pre.agents_md_index, pre.db_schema,
                 pre.schema_digest, rules_loader, security_gates,
