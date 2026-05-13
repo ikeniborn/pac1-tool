@@ -14,12 +14,26 @@ Given the task description and database schema, produce an ordered list of SQL q
 - Every SELECT must include a WHERE clause.
 - Use `SELECT DISTINCT <attr> FROM products WHERE <narrowing_condition> LIMIT 50` to discover attribute values before filtering.
 - Use `model` column (not `series`) for product line names.
-- Use `/proc/catalog/{sku}.json` paths for grounding_refs in the ANSWER phase — never construct them here.
+- Always project `p.path` in final product queries so the ANSWER phase can populate `grounding_refs` from the `path` column.
 - `agents_md_refs` field MUST list every AGENTS.MD section key you consulted (e.g. `["brand_aliases", "kind_synonyms"]`). If you used no AGENTS.MD sections, return `[]`.
 
 ## CONFIRMED VALUES
 
 When a `# CONFIRMED VALUES` block is present in your context, you MUST use those values as literals in WHERE clauses — do not re-invent them. Example: if `brand → confirmed: "Heco"`, use `WHERE brand = 'Heco'` not `WHERE brand ILIKE '%Heco%'`.
+
+**CONFIRMED VALUES = Resolve phase already ran discovery for these terms.** Do NOT re-run discovery queries for any term present in CONFIRMED VALUES. Discovery Query Isolation applies only to terms NOT yet confirmed. When all required filter values are present in CONFIRMED VALUES, emit the final SKU filter query directly in this cycle — no separate discovery cycle needed.
+
+**attr_value confirmed but attr_key NOT confirmed:** When `CONFIRMED VALUES` contains `attr_value` entries but NO corresponding `attr_key`, filter by `value_text` directly — do NOT guess or invent the key name:
+
+```sql
+-- CORRECT: attr_value confirmed, key unknown → filter by value only
+AND EXISTS (SELECT 1 FROM product_properties pp WHERE pp.sku = p.sku AND pp.value_text = 'facade paint')
+
+-- WRONG: key 'product_type' was not in CONFIRMED VALUES → never invent it
+AND EXISTS (SELECT 1 FROM product_properties pp WHERE pp.sku = p.sku AND pp.key = 'product_type' AND pp.value_text = 'facade paint')
+```
+
+If both `attr_key` and `attr_value` are confirmed, use both in the EXISTS clause.
 
 ## Multi-attribute filtering (CRITICAL)
 
@@ -78,16 +92,16 @@ WHERE brand = 'Festool'
 
 The SCHEMA gate explicitly allows literals inside LIKE — it blocks them in `=` context when unconfirmed.
 
-## SKU Projection in Final Query (REQUIRED)
+## SKU and Path Projection in Final Query (REQUIRED)
 
-The final query in any plan claiming product existence MUST include `p.sku` in SELECT:
+The final query in any plan claiming product existence MUST include both `p.sku` and `p.path` in SELECT:
 
 ```sql
--- REQUIRED: sku in SELECT so ANSWER phase can construct grounding_refs
-SELECT p.sku, p.brand, p.model FROM products p WHERE ...
+-- REQUIRED: sku AND path in SELECT so ANSWER phase can populate grounding_refs
+SELECT p.sku, p.path, p.brand, p.model FROM products p WHERE ...
 ```
 
-Without `p.sku`, the ANSWER phase cannot build `/proc/catalog/{sku}.json` paths.
+Without `p.path`, the ANSWER phase cannot populate `grounding_refs` with the correct catalogue paths.
 
 ## Kind Name Probing
 
@@ -122,6 +136,21 @@ SELECT DISTINCT value_text, value_number FROM product_properties WHERE key = '<k
 ```
 
 Do not write final EXISTS clauses until value domain confirmed for every key in use.
+
+## Numeric Attributes With Units (CRITICAL)
+
+Never assume the key name or stored unit for numeric values from task text (volume, length, diameter, power, weight, etc.).
+
+- Task says "3 l" → do NOT assume `volume_ml = 300` or `volume_l = 3`. Discover the actual key first.
+- Task says "125 mm" → do NOT assume `diameter_mm = 125`. The key may be `disc_diameter_mm` or another variant.
+- Task says "650 W" → do NOT assume `power_w = 650`. The key may be `wattage_w`.
+
+**Required sequence for any numeric+unit value:**
+1. Discover key: `SELECT DISTINCT key FROM product_properties WHERE key LIKE '%<unit_stem>%' LIMIT 20`
+2. Discover value domain: `SELECT DISTINCT value_text, value_number FROM product_properties WHERE key = '<confirmed_key>' LIMIT 20`
+3. Only then emit EXISTS clause with confirmed key and confirmed numeric/text value.
+
+Never invent `value_number` literals from unit conversion — the stored value and unit may differ from the task text.
 
 ## Multi-Product Lookups: Consolidate Into Single Query
 

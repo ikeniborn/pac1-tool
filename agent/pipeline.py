@@ -294,22 +294,30 @@ def _extract_discovery_results(
 
 
 def _extract_sku_refs(queries: list[str], results: list[str]) -> list[str]:
-    """Extract /proc/catalog/{sku}.json paths from SQL results that contain a sku column."""
+    """Extract catalogue paths from SQL results. Uses 'path' column when present,
+    falls back to constructing /proc/catalog/{sku}.json from 'sku' column."""
     refs: list[str] = []
     for result_txt in results:
         lines = [ln.strip() for ln in result_txt.strip().splitlines() if ln.strip()]
         if len(lines) < 2:
             continue
         headers = [h.strip().lower() for h in lines[0].split(",")]
-        if "sku" not in headers:
-            continue
-        sku_idx = headers.index("sku")
-        for row in lines[1:]:
-            cols = row.split(",")
-            if sku_idx < len(cols):
-                sku = cols[sku_idx].strip().strip('"')
-                if sku:
-                    refs.append(f"/proc/catalog/{sku}.json")
+        if "path" in headers:
+            path_idx = headers.index("path")
+            for row in lines[1:]:
+                cols = row.split(",")
+                if path_idx < len(cols):
+                    path = cols[path_idx].strip().strip('"')
+                    if path:
+                        refs.append(path)
+        elif "sku" in headers:
+            sku_idx = headers.index("sku")
+            for row in lines[1:]:
+                cols = row.split(",")
+                if sku_idx < len(cols):
+                    sku = cols[sku_idx].strip().strip('"')
+                    if sku:
+                        refs.append(f"/proc/catalog/{sku}.json")
     return refs
 
 
@@ -508,7 +516,25 @@ def run_pipeline(
         # ── CARRYOVER: update confirmed_values from DISTINCT results ──────────
         executed_queries.extend(queries)
         _extract_discovery_results(queries, sql_results, confirmed_values)
-        sku_refs.extend(_extract_sku_refs(queries, sql_results))
+        new_refs = _extract_sku_refs(queries, sql_results)
+        sku_refs.extend(new_refs)
+
+        # ── DISCOVERY-ONLY DETECTION ──────────────────────────────────────────
+        # If queries returned data but no product rows (path/sku), the cycle was
+        # discovery-only. Rebuild static_sql with updated confirmed_values and
+        # continue so sql_plan can emit the final SKU filter in the next cycle.
+        all_discovery = all(
+            re.search(r'SELECT\s+DISTINCT\b', q, re.IGNORECASE) for q in queries
+        )
+        if all_discovery and not new_refs:
+            static_sql = _build_static_system(
+                "sql_plan", pre.agents_md_content, pre.agents_md_index, pre.db_schema,
+                pre.schema_digest, rules_loader, security_gates,
+                confirmed_values=confirmed_values, task_text=task_text,
+            )
+            last_error = "Discovery cycle complete. All confirmed values updated. Now emit the final SKU filter query using confirmed values — do NOT run more discovery."
+            print(f"{CLI_BLUE}[pipeline] DISCOVERY-ONLY cycle — continuing for final filter{CLI_CLR}")
+            continue
 
         success = True
         break

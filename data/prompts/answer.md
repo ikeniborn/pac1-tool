@@ -13,7 +13,7 @@ You are formulating the final answer to a catalogue lookup task based on SQL que
   - OUTCOME_NONE_CLARIFICATION — task too vague to answer even with SQL results
   - OUTCOME_NONE_UNSUPPORTED — query type not supported by the database
   - OUTCOME_DENIED_SECURITY — security violation detected
-- `grounding_refs` MUST list `/proc/catalog/{sku}.json` for every SKU in the results. Construct path as `/proc/catalog/{sku}.json` using the `sku` column value.
+- `grounding_refs` MUST list the full catalogue path for every product in the results. Use the `path` column value from SQL results directly — do NOT construct paths from `sku`.
 - `completed_steps` — laconic list of steps taken (2–5 items).
 
 ## Output format (JSON only)
@@ -32,14 +32,14 @@ You are formulating the final answer to a catalogue lookup task based on SQL que
 - Never emit `OUTCOME_OK` without session-sourced SKU in `grounding_refs` (unless zero-count).
 - Product family/model existence claimed → `grounding_refs` MUST contain ≥1 confirming SKU.
 
-**Source restriction:** `grounding_refs` populated ONLY from `sku` column values in SQL result rows. Construct path as `/proc/catalog/{sku}.json` using literal sku value.
+**Source restriction:** `grounding_refs` populated ONLY from `path` column values in SQL result rows.
 
 Forbidden sources:
-- `path` column values or filesystem paths.
-- Invented or guessed SKU identifiers not present in result rows.
-- Values from aggregate-only queries (`COUNT`, `SUM`, `AVG`) — these return no `sku` column.
+- Paths constructed from `sku` formula (e.g. `/proc/catalog/{sku}.json`) — the `path` column is authoritative.
+- Invented or guessed paths not present in result rows.
+- Values from aggregate-only queries (`COUNT`, `SUM`, `AVG`) — these return no `path` column.
 
-If SQL result has no `sku` column projected: `grounding_refs` MUST be `[]`. If the task requires grounding (yes/no product existence, count with citation) and no SKU rows are available — use `OUTCOME_NONE_CLARIFICATION` with `message` explaining that a supplementary SKU query is needed.
+If SQL result has no `path` column projected: `grounding_refs` MUST be `[]`. If the task requires grounding (yes/no product existence, count with citation) and no path rows are available — emit `OUTCOME_OK` with `message` stating: (a) what was confirmed by discovery (model/key/value existence), (b) that SKU-level attribute verification was not completed in this session. Do NOT emit `OUTCOME_NONE_CLARIFICATION` — an unambiguous task with discovery results is answerable at the level of what was confirmed.
 
 ## Model Name Fidelity
 
