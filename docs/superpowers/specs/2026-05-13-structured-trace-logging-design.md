@@ -97,13 +97,13 @@ Written once per unique system prompt, just before the first `llm_call` that use
 {
   "type": "gate_check",
   "cycle": 1,
-  "gate_type": "security",
+  "gate_type": "schema",
   "queries": ["SELECT ..."],
   "blocked": true,
   "error": "SCHEMA gate blocked: unverified literal: 'Heco'"
 }
 ```
-`gate_type`: `"security"` | `"schema"`.
+`gate_type`: `"security"` | `"schema"`. `error` is `null` when `blocked: false`.
 
 ### `sql_validate`
 ```json
@@ -156,15 +156,16 @@ Written once per unique system prompt, just before the first `llm_call` that use
 
 | File | Location | Action |
 |------|-----------|--------|
-| `main.py` | after `log_fh` open | `set_trace(TraceLogger(run_dir / f"{task_id}.jsonl", task_id))` + `log_header` |
-| `main.py` | `finally` block | `log_task_result` + `trace.close()` + `set_trace(None)` |
+| `main.py` | after task start | `set_trace(TraceLogger(run_dir / f"{task_id}.jsonl", task_id))` + `log_header` |
+| `main.py` | after `end_trial()`, before `return` | `log_task_result(score, score_detail, ...)` |
+| `main.py` | `finally` block | `trace.close()` + `set_trace(None)` |
 | `main.py` | `_Tee.write` + `_run_single_task` | remove per-task `log_fh` open/write/close |
-| `pipeline.py` | `_call_llm_phase` | wrap `call_llm_raw` with timer, call `log_llm_call` |
+| `pipeline.py` | `_call_llm_phase` signature | add `cycle: int` parameter; wrap `call_llm_raw` with timer, call `log_llm_call` |
 | `pipeline.py` | after `check_sql_queries` | `log_gate_check(gate_type="security")` always (blocked or not) |
 | `pipeline.py` | after `check_schema_compliance` | `log_gate_check(gate_type="schema")` always |
 | `pipeline.py` | VALIDATE loop | `log_sql_validate` per query |
 | `pipeline.py` | EXECUTE loop | `log_sql_execute` per query with timer |
-| `resolve.py:_run` | after `call_llm_raw` | `log_llm_call(phase="resolve", cycle=0)` |
+| `resolve.py:_run` | after `call_llm_raw` | `log_llm_call(phase="resolve", cycle=0)`; pass `token_out=tok` to `call_llm_raw` to capture token counts |
 | `resolve.py:_run` | after each `_exec_sql` | `log_resolve_exec` |
 
 ## Files Changed
