@@ -257,8 +257,15 @@ def _build_learn_user_msg(task_text: str, queries: list[str], error: str, error_
     )
 
 
-def _build_answer_user_msg(task_text: str, sql_results: list[str]) -> str:
-    return f"TASK: {task_text}\n\nSQL RESULTS:\n" + "\n---\n".join(sql_results)
+def _build_answer_user_msg(task_text: str, sql_results: list[str], auto_refs: list[str]) -> str:
+    base = f"TASK: {task_text}\n\nSQL RESULTS:\n" + "\n---\n".join(sql_results)
+    if not auto_refs:
+        return base
+    refs_block = "\n".join(auto_refs)
+    return (
+        base
+        + f"\n\nAUTO_REFS (from sku column in SQL results — MUST be included in grounding_refs):\n{refs_block}"
+    )
 
 
 def _extract_discovery_results(
@@ -282,6 +289,26 @@ def _extract_discovery_results(
                     confirmed_values[col].append(val)
 
 
+def _extract_sku_refs(queries: list[str], results: list[str]) -> list[str]:
+    """Extract /proc/catalog/{sku}.json paths from SQL results that contain a sku column."""
+    refs: list[str] = []
+    for result_txt in results:
+        lines = [ln.strip() for ln in result_txt.strip().splitlines() if ln.strip()]
+        if len(lines) < 2:
+            continue
+        headers = [h.strip().lower() for h in lines[0].split(",")]
+        if "sku" not in headers:
+            continue
+        sku_idx = headers.index("sku")
+        for row in lines[1:]:
+            cols = row.split(",")
+            if sku_idx < len(cols):
+                sku = cols[sku_idx].strip().strip('"')
+                if sku:
+                    refs.append(f"/proc/catalog/{sku}.json")
+    return refs
+
+
 def run_pipeline(
     vm: EcomRuntimeClientSync,
     model: str,
@@ -301,6 +328,7 @@ def run_pipeline(
     last_error = ""
     sql_results: list[str] = []
     executed_queries: list[str] = []
+    sku_refs: list[str] = []
     sql_plan_outputs: list[SqlPlanOutput] = []
     success = False
     cycles_used = 0
@@ -449,6 +477,7 @@ def run_pipeline(
         # ── CARRYOVER: update confirmed_values from DISTINCT results ──────────
         executed_queries.extend(queries)
         _extract_discovery_results(queries, sql_results, confirmed_values)
+        sku_refs.extend(_extract_sku_refs(queries, sql_results))
 
         success = True
         break
@@ -466,7 +495,7 @@ def run_pipeline(
             print(f"{CLI_RED}[pipeline] vm.answer error: {e}{CLI_CLR}")
     else:
         # ── ANSWER ────────────────────────────────────────────────────────────
-        answer_user = _build_answer_user_msg(task_text, sql_results)
+        answer_user = _build_answer_user_msg(task_text, sql_results, sku_refs)
         answer_out, sgr_answer, tok = _call_llm_phase(
             static_answer, answer_user, model, cfg, AnswerOutput,
             phase="answer", cycle=cycle + 1,
