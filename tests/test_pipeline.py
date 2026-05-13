@@ -446,6 +446,19 @@ def test_run_pipeline_returns_tuple(tmp_path):
     assert thread is None
 
 
+def test_max_cycles_reads_env(monkeypatch):
+    monkeypatch.setenv("MAX_STEPS", "7")
+    import importlib
+    import agent.pipeline as pipeline_mod
+    try:
+        importlib.reload(pipeline_mod)
+        assert pipeline_mod._MAX_CYCLES == 7
+    finally:
+        monkeypatch.delenv("MAX_STEPS", raising=False)
+        importlib.reload(pipeline_mod)
+    assert pipeline_mod._MAX_CYCLES == 3  # default
+
+
 def test_evaluator_thread_starts_on_failure(tmp_path):
     """Evaluator thread starts even when all cycles fail."""
     vm = MagicMock()

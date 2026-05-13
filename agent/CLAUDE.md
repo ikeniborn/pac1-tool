@@ -18,7 +18,7 @@ LOG_LEVEL=DEBUG uv run python main.py           # full LLM response logging
 Key env vars:
 - `MODEL` — primary LLM (e.g. `anthropic/claude-sonnet-4-6`)
 - `EVAL_ENABLED=1` + `MODEL_EVALUATOR` — post-task LLM evaluation
-- `MAX_STEPS` — unused in current pipeline (pipeline uses `_MAX_CYCLES=3`)
+- `MAX_STEPS` — max pipeline retry cycles (default: 3). Controls `_MAX_CYCLES` in `pipeline.py`.
 
 ## Agent Package Architecture
 

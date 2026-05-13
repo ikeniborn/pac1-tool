@@ -33,7 +33,7 @@ from .sql_security import (
 )
 from .trace import get_trace
 
-_MAX_CYCLES = 3
+_MAX_CYCLES = int(os.environ.get("MAX_STEPS", "3"))
 _EVAL_ENABLED = os.environ.get("EVAL_ENABLED", "0") == "1"
 _MODEL_EVALUATOR = os.environ.get("MODEL_EVALUATOR", "")
 _EVAL_LOG = Path(__file__).parent.parent / "data" / "eval_log.jsonl"
