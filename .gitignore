@@ -13,5 +13,5 @@ data/wiki/fragments
 tmp/*
 .pytest_cache/*
 .ruff_cache/*
-.venv/*.worktrees/
+.venv/*
 .worktrees/
