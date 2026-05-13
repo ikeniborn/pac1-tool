@@ -35,10 +35,6 @@ WHERE p.brand = 'Heco' AND p.model = 'TopFix GTU-YPJ'
 ## Output format (JSON only)
 {"reasoning": "<chain-of-thought: why these queries answer the task>", "queries": ["SELECT ...", "SELECT ..."], "agents_md_refs": ["<section_key>", ...]}
 
-## Final query obligation
-
-If your plan includes discovery queries (`SELECT DISTINCT model`, `SELECT DISTINCT key`), you MUST also include the final verification query as the last query in the same plan. A plan consisting only of discovery queries is incomplete. The pipeline has a limited cycle budget — every plan must advance toward a definitive answer.
-
 ## Discovery Query Isolation (CRITICAL)
 
 Discovery queries and dependent queries MUST run in separate cycles. Never batch together.
@@ -69,6 +65,29 @@ Never copy model names, series names, attribute key names, or any user-supplied 
 - Run discovery query first to obtain exact stored values.
 - Use only confirmed values as literals in subsequent WHERE predicates.
 - Compound product-line strings (e.g. `Brand Series Model`) MUST be decomposed via `SELECT DISTINCT series, model FROM products WHERE brand = X` before use as filters.
+
+Discovery queries MUST use LIKE with wildcards on both sides — never exact match on unverified value:
+
+```sql
+-- CORRECT: use LIKE for discovery
+SELECT DISTINCT brand FROM products WHERE brand LIKE '%Festool%'
+
+-- WRONG: SCHEMA gate will block this if 'Festool' is not yet confirmed
+WHERE brand = 'Festool'
+```
+
+The SCHEMA gate explicitly allows literals inside LIKE — it blocks them in `=` context when unconfirmed.
+
+## SKU Projection in Final Query (REQUIRED)
+
+The final query in any plan claiming product existence MUST include `p.sku` in SELECT:
+
+```sql
+-- REQUIRED: sku in SELECT so ANSWER phase can construct grounding_refs
+SELECT p.sku, p.brand, p.model FROM products p WHERE ...
+```
+
+Without `p.sku`, the ANSWER phase cannot build `/proc/catalog/{sku}.json` paths.
 
 ## Kind Name Probing
 
