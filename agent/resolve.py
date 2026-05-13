@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+import time
 
 from bitgn.vm.ecom.ecom_connect import EcomRuntimeClientSync
 from bitgn.vm.ecom.ecom_pb2 import ExecRequest
@@ -12,6 +13,7 @@ from .llm import call_llm_raw
 from .models import ResolveOutput
 from .prephase import PrephaseResult
 from .prompt import load_prompt
+from .trace import get_trace
 
 _DDL_RE = re.compile(r"^\s*(DROP|INSERT|UPDATE|DELETE|ALTER|CREATE|REPLACE)\b", re.IGNORECASE)
 _DISCOVERY_RE = re.compile(r"\b(ILIKE|DISTINCT)\b", re.IGNORECASE)
@@ -82,18 +84,31 @@ def _run(
     cfg: dict,
 ) -> dict:
     system = _build_resolve_system(pre)
-    raw = call_llm_raw(system, f"TASK: {task_text}", model, cfg, max_tokens=1024)
+    tok_info: dict = {}
+    _t0 = time.monotonic()
+    raw = call_llm_raw(system, f"TASK: {task_text}", model, cfg, max_tokens=1024, token_out=tok_info)
+    _dur = int((time.monotonic() - _t0) * 1000)
     if not raw:
         return {}
 
     parsed = _extract_json_from_text(raw)
     if not isinstance(parsed, dict):
+        if t := get_trace():
+            t.log_llm_call("resolve", 0, system, f"TASK: {task_text}", raw, None,
+                           tok_info.get("input", 0), tok_info.get("output", 0), _dur)
         return {}
 
     try:
         resolve_out = ResolveOutput.model_validate(parsed)
     except Exception:
+        if t := get_trace():
+            t.log_llm_call("resolve", 0, system, f"TASK: {task_text}", raw, None,
+                           tok_info.get("input", 0), tok_info.get("output", 0), _dur)
         return {}
+
+    if t := get_trace():
+        t.log_llm_call("resolve", 0, system, f"TASK: {task_text}", raw, parsed,
+                       tok_info.get("input", 0), tok_info.get("output", 0), _dur)
 
     confirmed_values: dict[str, list[str]] = {}
 
@@ -105,6 +120,8 @@ def _run(
 
         result_txt = _exec_sql(vm, candidate.discovery_query)
         value = _first_value(result_txt)
+        if t := get_trace():
+            t.log_resolve_exec(candidate.discovery_query, result_txt, value or "")
         if value:
             field = candidate.field
             if field not in confirmed_values:
