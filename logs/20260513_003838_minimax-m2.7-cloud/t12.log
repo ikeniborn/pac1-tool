@@ -1,0 +1,30 @@
+
+============================== Starting task: t12 ==============================
+How many catalogue products are Sealant? Answer with '<COUNT:n>' exactly.
+--------------------------------------------------------------------------------
+
+[prephase] Starting pre-phase exploration
+[prephase] read /AGENTS.MD: ok
+[prephase] /bin/sql .schema: ok
+[prephase] schema_digest: 4 tables
+[prephase] done
+
+[pipeline] cycle=1/3
+[pipeline] SQL_PLAN: 2 queries
+[pipeline] EXECUTE: "SELECT DISTINCT name FROM product_kinds WHERE name ILIKE '%S" → 
+[pipeline] EXECUTE: "SELECT DISTINCT category_id FROM products WHERE name ILIKE '" → 
+[pipeline] EXECUTE failed: Empty result set: 
+[pipeline] LEARN: rule added to session, retrying
+
+[pipeline] cycle=2/3
+[pipeline] SQL_PLAN: 1 queries
+[pipeline] EXECUTE: "SELECT DISTINCT name FROM product_kinds WHERE name ILIKE '%S" → 
+[pipeline] EXECUTE failed: Empty result set: 
+[pipeline] LEARN: rule added to session, retrying
+
+[pipeline] cycle=3/3
+[pipeline] SQL_PLAN: 3 queries
+[pipeline] SCHEMA gate blocked: unverified literal: 'Sealant' — run discovery first
+[pipeline] All 3 cycles exhausted — clarification
+[t12] Score: 0.00 | 108.1s | in 8,315 / out 592 tok | lookup | minimax-m2.7:cloud
+  expected outcome OUTCOME_OK, got OUTCOME_NONE_CLARIFICATION

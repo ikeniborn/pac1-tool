@@ -1,0 +1,39 @@
+[LOG] /home/ikeniborn/Documents/Project/ecom1-agent/logs/20260513_003838_minimax-m2.7-cloud/  (LOG_LEVEL=INFO                       # DEBUG → ЛОГИРОВАТЬ RAW LLM-ОТВЕТЫ)
+[llm] Active backend: ollama (anthropic=✗, openrouter=✗, ollama=✓, claude-code=✗)
+[MODEL] default=minimax-m2.7:cloud
+Connecting to BitGN status: "ok"
+version: "v2"
+
+EVAL_POLICY_OPEN benchmark: bitgn/ecom1-dev with 20 tasks.
+ECOM1 is an ecommerce OS runtime scaffold. This dev benchmark starts with a minimal storefront setup task that exercises visible commerce records, generated configuration, and deterministic filesystem grading.
+Run started: run-22P2yWCP3Z2Dcx5SsdbuVddhJ (20 trials)
+
+================================================================================
+                              ИТОГОВАЯ СТАТИСТИКА                               
+================================================================================
+Задание     Оценка    Время   Вход(tok) Выход(tok)  Тип         Модель                          Проблемы
+--------------------------------------------------------------------------------
+t09           0.00    61.9s       8,094        550  lookup      minimax-m2.7:cloud              expected outcome OUTCOME_OK, got OUTCOME_NONE_CLARIFICATION
+t01           0.00    65.0s       7,499      1,479  lookup      minimax-m2.7:cloud              answer missing required reference '/proc/catalog/FST-2JPIIG2S.json'
+t05           0.00    68.6s       8,646        938  lookup      minimax-m2.7:cloud              expected outcome OUTCOME_OK, got OUTCOME_NONE_CLARIFICATION
+t02           0.00    72.1s       7,498      1,857  lookup      minimax-m2.7:cloud              answer missing required reference '/proc/catalog/Philips/ELC-32HZWSG4.json'
+t08           0.00    78.2s       8,857        892  lookup      minimax-m2.7:cloud              expected outcome OUTCOME_OK, got OUTCOME_NONE_CLARIFICATION
+t04           0.00    86.4s       8,824        918  lookup      minimax-m2.7:cloud              expected outcome OUTCOME_OK, got OUTCOME_NONE_CLARIFICATION
+t06           0.00    94.5s       8,298      1,000  lookup      minimax-m2.7:cloud              expected outcome OUTCOME_OK, got OUTCOME_NONE_CLARIFICATION
+t07           0.00    97.0s       8,871        861  lookup      minimax-m2.7:cloud              expected outcome OUTCOME_OK, got OUTCOME_NONE_CLARIFICATION
+t03           0.00   100.6s       8,378        986  lookup      minimax-m2.7:cloud              expected outcome OUTCOME_OK, got OUTCOME_NONE_CLARIFICATION
+t10           0.00   110.2s       8,688        722  lookup      minimax-m2.7:cloud              expected outcome OUTCOME_OK, got OUTCOME_NONE_CLARIFICATION
+t11           0.00   103.9s      10,368      1,291  lookup      minimax-m2.7:cloud              Answer should contain '<COUNT:20>'
+t16           0.00    86.3s       9,425      1,381  lookup      minimax-m2.7:cloud              expected outcome OUTCOME_OK, got OUTCOME_NONE_CLARIFICATION
+t12           0.00   108.1s       8,315        592  lookup      minimax-m2.7:cloud              expected outcome OUTCOME_OK, got OUTCOME_NONE_CLARIFICATION
+t13           0.00   106.6s       8,775      1,427  lookup      minimax-m2.7:cloud              answer missing required reference '/proc/catalog/FST-3SJKL8BF.json'
+t15           0.00   104.8s       8,957      1,323  lookup      minimax-m2.7:cloud              answer missing required reference '/proc/catalog/workshop_machines/compressors_extractors/MAC-13HJJVIB.json'
+t18           0.00    86.0s       8,389        990  lookup      minimax-m2.7:cloud              answer missing required reference '/proc/stores/store_graz_lend.json'
+t19           0.00    85.3s       8,454      1,083  lookup      minimax-m2.7:cloud              answer missing required reference '/proc/stores/store_graz_lend.json'
+t20           0.00    76.5s       8,384      1,211  lookup      minimax-m2.7:cloud              answer missing required reference '/proc/stores/store_vienna_meidling.json'
+t17           0.00    92.2s       8,800      1,183  lookup      minimax-m2.7:cloud              answer missing required reference '/proc/stores/store_graz_jakomini.json'
+t14           0.00   115.0s       8,980      1,660  lookup      minimax-m2.7:cloud              answer missing required reference '/proc/catalog/Portwest/SFE-1WT01OHC.json'
+================================================================================
+ИТОГО        0.00%   189.3s     172,500     22,344
+================================================================================
+Run submitted: run-22P2yWCP3Z2Dcx5SsdbuVddhJ
