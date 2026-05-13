@@ -3,7 +3,7 @@ import os
 import yaml
 import pytest
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 import scripts.propose_optimizations as po
 
@@ -159,7 +159,7 @@ def test_dedup_skips_processed(tmp_path):
 
 
 def test_missing_model_evaluator_exits(tmp_path):
-    eval_log, rules_dir, security_dir, prompts_dir, prom_dir, processed = _setup(tmp_path)
+    eval_log, _rules_dir, _security_dir, _prompts_dir, prom_dir, processed = _setup(tmp_path)
     _write_eval_log(eval_log, [_eval_entry(rule_opts=["x"])])
 
     with patch.object(po, "_EVAL_LOG", eval_log), \

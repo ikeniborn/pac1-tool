@@ -1,9 +1,6 @@
 # tests/test_evaluator.py
 import json
-import tempfile
-from pathlib import Path
 from unittest.mock import patch
-import pytest
 from agent.evaluator import EvalInput, run_evaluator
 import agent.evaluator as ev
 import agent.knowledge_loader as kl
@@ -102,7 +99,7 @@ def test_run_evaluator_loads_knowledge_into_system_prompt():
     )
     captured_system = []
 
-    def fake_call_llm_raw(system, user_msg, model, cfg, **kwargs):
+    def fake_call_llm_raw(system, *_args, **_kwargs):
         captured_system.append(system)
         return None  # fail-open → run_evaluator returns None
 
