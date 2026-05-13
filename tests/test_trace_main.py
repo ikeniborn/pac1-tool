@@ -1,7 +1,6 @@
 """Verify main.py creates/closes TraceLogger and calls log_header + log_task_result."""
 import json
 from unittest.mock import MagicMock, patch
-import pytest
 
 
 def test_run_single_task_creates_jsonl_and_removes_log(tmp_path, monkeypatch):
