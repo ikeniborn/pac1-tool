@@ -15,6 +15,8 @@ from dotenv import load_dotenv
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from agent import knowledge_loader
+
 _ROOT = Path(__file__).parent.parent
 _EVAL_LOG = _ROOT / "data" / "eval_log.jsonl"
 _RULES_DIR = _ROOT / "data" / "rules"
@@ -47,41 +49,6 @@ def _save_processed(hashes: set[str]) -> None:
 
 def _entry_hash(task_text: str, channel: str, rec: str) -> str:
     return hashlib.sha256(f"{channel}|{task_text}|{rec}".encode()).hexdigest()[:16]
-
-
-def _existing_rules_text() -> str:
-    parts = []
-    for f in sorted(_RULES_DIR.glob("*.yaml")):
-        try:
-            r = yaml.safe_load(f.read_text(encoding="utf-8"))
-            if isinstance(r, dict) and "content" in r:
-                parts.append(f"- {r['content'].strip()}")
-        except Exception:
-            pass
-    return "\n".join(parts)
-
-
-def _existing_security_text() -> str:
-    parts = []
-    for f in sorted(_SECURITY_DIR.glob("*.yaml")):
-        try:
-            r = yaml.safe_load(f.read_text(encoding="utf-8"))
-            if isinstance(r, dict) and r.get("id") and r.get("message"):
-                parts.append(f"- {r['id']}: {r['message']}")
-        except Exception:
-            pass
-    return "\n".join(parts)
-
-
-def _existing_prompts_text() -> str:
-    parts = []
-    for f in sorted(_PROMPTS_DIR.glob("*.md")):
-        try:
-            content = f.read_text(encoding="utf-8")
-            parts.append(f"=== {f.name} ===\n{content}")
-        except Exception:
-            pass
-    return "\n".join(parts)
 
 
 def _next_num(directory: Path, prefix: str) -> int:
@@ -230,9 +197,9 @@ def main(dry_run: bool = False) -> None:
 
     entries = [json.loads(l) for l in _EVAL_LOG.read_text().splitlines() if l.strip()]
     processed = _load_processed()
-    rules_md = _existing_rules_text()
-    security_md = _existing_security_text()
-    prompts_md = _existing_prompts_text()
+    rules_md = knowledge_loader.existing_rules_text()
+    security_md = knowledge_loader.existing_security_text()
+    prompts_md = knowledge_loader.existing_prompts_text()
     new_processed = set(processed)
     written = 0
 
