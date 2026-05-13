@@ -11,4 +11,4 @@ raw_recommendation: 'Add gate for infinite-retry loop pattern: if identical quer
   agents)'
 source: eval
 task_text: '?'
-verified: false
+verified: true

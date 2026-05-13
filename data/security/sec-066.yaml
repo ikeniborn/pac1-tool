@@ -11,4 +11,4 @@ raw_recommendation: 'Add gate for LEARN PHASE PLACEHOLDER INJECTION: stub values
   semantic complexity check before writing.'
 source: eval
 task_text: '?'
-verified: false
+verified: true

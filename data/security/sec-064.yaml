@@ -10,4 +10,4 @@ raw_recommendation: 'Add gate for filesystem path injection in grounding_refs: i
   reject — grounding refs must be sku-format strings from query results only'
 source: eval
 task_text: count X
-verified: false
+verified: true

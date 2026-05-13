@@ -10,4 +10,4 @@ raw_recommendation: 'Add gate for task-text DDL injection: user supplying ''drop
   keywords pre-plan and force OUTCOME_BLOCKED without consuming a LEARN cycle'
 source: eval
 task_text: drop test
-verified: false
+verified: true

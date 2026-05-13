@@ -26,7 +26,11 @@ from .prompt import load_prompt
 from .resolve import run_resolve
 from .rules_loader import RulesLoader, _RULES_DIR
 from .schema_gate import check_schema_compliance
-from .sql_security import check_sql_queries, load_security_gates
+from .sql_security import (
+    check_sql_queries, check_path_access, load_security_gates,
+    check_where_literals, check_grounding_refs, check_learn_output,
+    check_retry_loop, make_json_hash,
+)
 from .trace import get_trace
 
 _MAX_CYCLES = 3
@@ -332,6 +336,8 @@ def run_pipeline(
     sql_plan_outputs: list[SqlPlanOutput] = []
     success = False
     cycles_used = 0
+    prior_query_sets: list[frozenset] = []
+    prior_learn_hashes: set[str] = set()
 
     # ── RESOLVE ───────────────────────────────────────────────────────────────
     confirmed_values: dict = run_resolve(vm, model, task_text, pre, cfg)
@@ -372,7 +378,8 @@ def run_pipeline(
             last_error = "SQL_PLAN phase LLM call failed"
             _run_learn(static_learn, model, cfg, task_text, [], last_error,
                        sgr_trace, session_rules, highlighted_vault_rules,
-                       pre.agents_md_index, error_type="llm_fail", cycle=cycle + 1)
+                       pre.agents_md_index, error_type="llm_fail", cycle=cycle + 1,
+                       prior_learn_hashes=prior_learn_hashes)
             continue
 
         sql_plan_outputs.append(sql_plan_out)
@@ -391,7 +398,8 @@ def run_pipeline(
                 print(f"{CLI_YELLOW}[pipeline] AGENTS.MD refs check failed: {last_error}{CLI_CLR}")
                 _run_learn(static_learn, model, cfg, task_text, queries, last_error,
                            sgr_trace, session_rules, highlighted_vault_rules,
-                           pre.agents_md_index, error_type="semantic", cycle=cycle + 1)
+                           pre.agents_md_index, error_type="semantic", cycle=cycle + 1,
+                           prior_learn_hashes=prior_learn_hashes)
                 continue
 
         # ── SECURITY CHECK ────────────────────────────────────────────────────
@@ -403,8 +411,26 @@ def run_pipeline(
             last_error = gate_err
             _run_learn(static_learn, model, cfg, task_text, queries, last_error,
                        sgr_trace, session_rules, highlighted_vault_rules,
-                       pre.agents_md_index, error_type="security", cycle=cycle + 1)
+                       pre.agents_md_index, error_type="security", cycle=cycle + 1,
+                       prior_learn_hashes=prior_learn_hashes)
             continue
+
+        literal_err = check_where_literals(queries, task_text, security_gates)
+        if literal_err:
+            print(f"{CLI_YELLOW}[pipeline] SECURITY gate blocked: {literal_err}{CLI_CLR}")
+            last_error = literal_err
+            _run_learn(static_learn, model, cfg, task_text, queries, last_error,
+                       sgr_trace, session_rules, highlighted_vault_rules,
+                       pre.agents_md_index, error_type="security", cycle=cycle + 1,
+                       prior_learn_hashes=prior_learn_hashes)
+            continue
+
+        retry_err = check_retry_loop(queries, prior_query_sets, security_gates)
+        if retry_err:
+            print(f"{CLI_RED}[pipeline] SECURITY hard-stop: {retry_err}{CLI_CLR}")
+            last_error = retry_err
+            break
+        prior_query_sets.append(frozenset(queries))
 
         # ── SCHEMA GATE ───────────────────────────────────────────────────────
         schema_err = check_schema_compliance(queries, pre.schema_digest, confirmed_values, task_text)
@@ -415,7 +441,8 @@ def run_pipeline(
             last_error = schema_err
             _run_learn(static_learn, model, cfg, task_text, queries, last_error,
                        sgr_trace, session_rules, highlighted_vault_rules,
-                       pre.agents_md_index, error_type="security", cycle=cycle + 1)
+                       pre.agents_md_index, error_type="security", cycle=cycle + 1,
+                       prior_learn_hashes=prior_learn_hashes)
             continue
 
         # ── VALIDATE ──────────────────────────────────────────────────────────
@@ -442,16 +469,20 @@ def run_pipeline(
             last_error = validate_error
             _run_learn(static_learn, model, cfg, task_text, queries, last_error,
                        sgr_trace, session_rules, highlighted_vault_rules,
-                       pre.agents_md_index, error_type="syntax", cycle=cycle + 1)
+                       pre.agents_md_index, error_type="syntax", cycle=cycle + 1,
+                       prior_learn_hashes=prior_learn_hashes)
             continue
 
         # ── EXECUTE ───────────────────────────────────────────────────────────
-        execute_error = None
+        _exec_path = "/bin/sql"
+        execute_error = check_path_access(_exec_path, security_gates)
         sql_results = []
         for q in queries:
+            if execute_error:
+                break
             try:
                 _t0 = time.monotonic()
-                result = vm.exec(ExecRequest(path="/bin/sql", args=[q]))
+                result = vm.exec(ExecRequest(path=_exec_path, args=[q]))
                 _dur = int((time.monotonic() - _t0) * 1000)
                 result_txt = _exec_result_text(result)
                 sql_results.append(result_txt)
@@ -471,7 +502,7 @@ def run_pipeline(
                        sgr_trace, session_rules, highlighted_vault_rules,
                        pre.agents_md_index,
                        error_type="empty" if last_empty and not execute_error else "semantic",
-                       cycle=cycle + 1)
+                       cycle=cycle + 1, prior_learn_hashes=prior_learn_hashes)
             continue
 
         # ── CARRYOVER: update confirmed_values from DISTINCT results ──────────
@@ -507,11 +538,16 @@ def run_pipeline(
         if answer_out:
             outcome = answer_out.outcome
             print(f"{CLI_GREEN}[pipeline] ANSWER: {outcome} — {answer_out.message[:100]}{CLI_CLR}")
+            result_skus = {Path(r).stem for r in sku_refs}
+            ref_err = check_grounding_refs(answer_out.grounding_refs, result_skus, security_gates)
+            if ref_err:
+                print(f"{CLI_YELLOW}[pipeline] ANSWER grounding_refs blocked: {ref_err}{CLI_CLR}")
+            clean_refs = [r for r in answer_out.grounding_refs if r in sku_refs or not result_skus]
             try:
                 vm.answer(AnswerRequest(
                     message=answer_out.message,
                     outcome=OUTCOME_BY_NAME[outcome],
-                    refs=answer_out.grounding_refs,
+                    refs=clean_refs,
                 ))
             except Exception as e:
                 print(f"{CLI_RED}[pipeline] vm.answer error: {e}{CLI_CLR}")
@@ -564,6 +600,7 @@ def _run_learn(
     agents_md_index: dict,
     error_type: str = "semantic",
     cycle: int = 0,
+    prior_learn_hashes: "set[str] | None" = None,
 ) -> None:
     learn_user = _build_learn_user_msg(task_text, queries, error, error_type)
     learn_out, sgr_learn, _ = _call_llm_phase(
@@ -573,6 +610,15 @@ def _run_learn(
     sgr_learn["error_type"] = error_type
     sgr_trace.append(sgr_learn)
     if learn_out and error_type != "llm_fail":
+        if prior_learn_hashes is not None:
+            learn_hash = make_json_hash(learn_out.model_dump())
+            learn_gate_err = check_learn_output(
+                learn_out.rule_content, learn_hash, prior_learn_hashes, _get_security_gates()
+            )
+            if learn_gate_err:
+                print(f"{CLI_YELLOW}[pipeline] LEARN blocked: {learn_gate_err}{CLI_CLR}")
+                return
+            prior_learn_hashes.add(learn_hash)
         anchor = learn_out.agents_md_anchor
         if anchor:
             anchor_section = anchor.split(">")[0].strip()

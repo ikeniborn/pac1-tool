@@ -9,4 +9,4 @@ raw_recommendation: 'Add gate sec-002 for subquery injection: block nested SELEC
   allowlist — prevents exfiltration via correlated subqueries.'
 source: eval
 task_text: drop test
-verified: false
+verified: true

@@ -2,11 +2,11 @@ action: block
 created: '2026-05-12'
 eval_score: 0.1
 id: sec-005
-message: UNION-based injection blocked by sec-004
+message: UNION-based injection blocked — UNION (ALL)? SELECT pattern
 pattern: (?i)\bUNION\s+(ALL\s+)?SELECT\b
 raw_recommendation: 'Add gate sec-004 for UNION-based injection: pattern-match UNION
   (ALL)? SELECT in any query string; block with gate ID — not triggered here but DROP
   attempt signals adversarial input risk'
 source: eval
 task_text: drop test
-verified: false
+verified: true

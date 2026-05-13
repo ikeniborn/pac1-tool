@@ -1,5 +1,4 @@
 action: block
-check: grounding_ref_path_traversal
 created: '2026-05-13'
 eval_score: 0.1
 id: sec-043
@@ -10,4 +9,4 @@ raw_recommendation: 'Add gate for grounding_ref path traversal: reject any groun
   outputs.'
 source: eval
 task_text: count X
-verified: false
+verified: true

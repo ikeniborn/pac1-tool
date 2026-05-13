@@ -10,4 +10,4 @@ raw_recommendation: 'Add gate for hallucinated filter injection: detect WHERE cl
   require planner to cite source of value'
 source: eval
 task_text: How many?
-verified: false
+verified: true

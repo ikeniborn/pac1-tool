@@ -10,4 +10,4 @@ raw_recommendation: 'Add gate for task_text interpolation injection: if task_tex
   — prevents UNION injection and subquery injection via crafted task descriptions.'
 source: eval
 task_text: count X
-verified: false
+verified: true

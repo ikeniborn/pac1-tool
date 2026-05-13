@@ -11,4 +11,4 @@ raw_recommendation: 'Add gate for unparameterized string literals in WHERE claus
   match against task_text tokens'
 source: eval
 task_text: How many?
-verified: false
+verified: true

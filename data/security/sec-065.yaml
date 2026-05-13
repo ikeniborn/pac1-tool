@@ -10,4 +10,4 @@ raw_recommendation: 'Add gate for EMPTY/AMBIGUOUS TASK INPUT: task_text=''?'' or
   and reject at pipeline entry before any LLM call.'
 source: eval
 task_text: '?'
-verified: false
+verified: true

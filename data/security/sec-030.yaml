@@ -8,4 +8,4 @@ raw_recommendation: 'Add gate for schema enumeration: block any query referencin
   information_schema, sqlite_master, pg_catalog, or sys tables.'
 source: eval
 task_text: count X
-verified: false
+verified: true

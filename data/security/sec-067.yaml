@@ -10,4 +10,4 @@ raw_recommendation: 'Add gate for DDL pattern (DROP|CREATE|ALTER|TRUNCATE): curr
   inferred from execution error'
 source: eval
 task_text: drop test
-verified: false
+verified: true

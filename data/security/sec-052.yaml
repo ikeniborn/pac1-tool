@@ -10,4 +10,4 @@ raw_recommendation: 'Add gate for TEXT equality bypass: validate that string lit
   sequences) to prevent injection via task_text interpolation into the query string.'
 source: eval
 task_text: How many Lawn Mowers?
-verified: false
+verified: true

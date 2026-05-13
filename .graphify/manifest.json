@@ -31,10 +31,6 @@
     "mtime": 1778649701.4457693,
     "hash": "b94fab21fe19b1da54d13cfd503c61f9"
   },
-  "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/agent/evaluator.py": {
-    "mtime": 1778649701.4457693,
-    "hash": "66f292f23c6570563e4f0dc334404ba2"
-  },
   "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/agent/llm.py": {
     "mtime": 1778649701.4457693,
     "hash": "d3916f79a23978413716d7da5bddce86"
@@ -70,6 +66,14 @@
   "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/agent/pipeline.py": {
     "mtime": 1778657726.040697,
     "hash": "806a05431f74469088943c53b1c8c5fa"
+  },
+  "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/agent/knowledge_loader.py": {
+    "mtime": 1778661754.6281857,
+    "hash": "899fc48f9ff97b5fd21b492c1cab3946"
+  },
+  "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/agent/evaluator.py": {
+    "mtime": 1778662007.1419818,
+    "hash": "1253075f09e6b2e10906e10daa140695"
   },
   "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/bitgn/__init__.py": {
     "mtime": 1778564730.465115,
@@ -123,10 +127,6 @@
     "mtime": 1778584506.0859065,
     "hash": "4c4788ebf06a12a129adec192840356e"
   },
-  "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/tests/test_evaluator.py": {
-    "mtime": 1778584763.7617667,
-    "hash": "6eeab863ff724e8fc0623c02772c0415"
-  },
   "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/tests/test_rules_loader.py": {
     "mtime": 1778584763.7617667,
     "hash": "4f1fa4efdd822aa2f197254ff5e936fa"
@@ -167,10 +167,6 @@
     "mtime": 1778649701.4817703,
     "hash": "695041fc30c1d24665c1c1c070e98b24"
   },
-  "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/tests/test_propose_optimizations.py": {
-    "mtime": 1778649701.4817703,
-    "hash": "1ee7217708ccca89dfc135ace2da4295"
-  },
   "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/tests/test_resolve.py": {
     "mtime": 1778649701.4827702,
     "hash": "47fd19fe90648a21f4bce8c4074471b2"
@@ -203,13 +199,25 @@
     "mtime": 1778657684.5145895,
     "hash": "808a7680f6757dd9fb84aafa59dd4c4d"
   },
+  "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/tests/test_knowledge_loader.py": {
+    "mtime": 1778661782.8829463,
+    "hash": "626e126538c208e24c7917892b377dd5"
+  },
+  "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/tests/test_evaluator.py": {
+    "mtime": 1778662114.5868735,
+    "hash": "9cea52d5f5cb40213be573872cfddd5a"
+  },
+  "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/tests/test_propose_optimizations.py": {
+    "mtime": 1778662778.296728,
+    "hash": "f0af5c2e28c3010627d6836e1ab0ef31"
+  },
   "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/scripts/__init__.py": {
     "mtime": 1778584763.7597666,
     "hash": "d41d8cd98f00b204e9800998ecf8427e"
   },
   "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/scripts/propose_optimizations.py": {
-    "mtime": 1778649701.4807703,
-    "hash": "eb5eb16a39b537421970a4787e06f8ae"
+    "mtime": 1778662829.6551094,
+    "hash": "51f75e73ebd8ad0b23bc7a874c3726a2"
   },
   "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/CLAUDE.md": {
     "mtime": 1778649701.4457693,

@@ -2,3 +2,4 @@ id: "sec-002"
 check: "no_where_clause"
 action: block
 message: "Full table scan prohibited — add WHERE clause"
+verified: true

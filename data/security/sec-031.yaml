@@ -9,4 +9,4 @@ raw_recommendation: 'Add gate for path/injection in grounding_refs: model emitte
   result sku values only, rejecting any ref not found in result set.'
 source: eval
 task_text: drop test
-verified: false
+verified: true

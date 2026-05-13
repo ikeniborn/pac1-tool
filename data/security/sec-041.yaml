@@ -10,4 +10,4 @@ raw_recommendation: 'Add gate for stale-output replay: if LearnOutput JSON hash 
   outputs from masking real errors and short-circuiting the pipeline'
 source: eval
 task_text: How many Lawn Mowers?
-verified: false
+verified: true

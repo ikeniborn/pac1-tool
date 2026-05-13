@@ -11,4 +11,4 @@ raw_recommendation: 'Add gate for /proc/ and absolute filesystem paths in ground
   or indicate path injection in the answer formulation step.'
 source: eval
 task_text: count X
-verified: false
+verified: true

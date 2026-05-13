@@ -11,4 +11,4 @@ raw_recommendation: 'Add gate for phase output injection: if SqlPlanOutput JSON 
   than forwarding to executor.'
 source: eval
 task_text: How many Lawn Mowers?
-verified: false
+verified: true
