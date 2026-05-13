@@ -2,8 +2,6 @@
 import json
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from agent.resolve import run_resolve
 from agent.prephase import PrephaseResult
 from agent.trace import TraceLogger, set_trace
