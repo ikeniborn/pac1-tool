@@ -1,0 +1,14 @@
+content: 'Always write `reasoning` field ≥2 sentences: sentence (a) name columns used
+  + why chosen, sentence (b) cite filter value + its source span in task text. Example:
+  `reasoning: "Use products.model since ''series'' name maps to model column per schema.
+  Filter value ''Rugged 3EY-11K'' taken verbatim from task phrase ''Rugged 3EY-11K
+  series''."`'
+created: '2026-05-12'
+eval_score: 0.3
+id: sql-028
+phase: sql_plan
+raw_recommendation: 'sql-plan.yaml: Add rule: reasoning field must be ≥2 sentences
+  covering (a) which columns are used and why, (b) what filter value is chosen and
+  its source in the task text'
+source: eval
+verified: false

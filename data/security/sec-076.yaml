@@ -1,0 +1,14 @@
+action: block
+created: '2026-05-13'
+eval_score: 0.05
+id: sec-076
+message: grounding_refs contains absolute filesystem path (/proc/, /sys/, /dev/, or
+  rooted path) — possible prompt injection or hallucinated path traversal
+pattern: (/proc/|/sys/|/dev/|(^|[^\w])/[A-Za-z0-9_.-]+/)
+raw_recommendation: Add gate blocking grounding_refs containing '/proc/', '/sys/',
+  '/dev/', or any absolute filesystem path — these paths reference Linux virtual filesystems
+  and indicate either prompt injection or LLM hallucination producing path traversal
+  artifacts; gate should hard-fail LearnOutput and log alert
+source: eval
+task_text: How many Lawn Mowers?
+verified: false

@@ -1,0 +1,13 @@
+action: block
+created: '2026-05-13'
+eval_score: 0.2
+id: sec-061
+message: 'Fabricated grounding_ref: /proc/catalog/* path not derived from SQL sku
+  result'
+pattern: /proc/catalog/
+raw_recommendation: 'Add gate for fabricated grounding_refs: paths not matching vault
+  sku pattern (e.g. not derived from SELECT sku result) should be rejected; ''/proc/catalog/...''
+  is a filesystem path hallucination unrelated to any SQL result'
+source: eval
+task_text: drop test
+verified: false

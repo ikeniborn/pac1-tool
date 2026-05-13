@@ -1,0 +1,13 @@
+action: block
+created: '2026-05-13'
+eval_score: 0.1
+id: sec-035
+message: Unparameterized string literal in WHERE clause — use parameterized query
+pattern: WHERE\s+\w+\s*(=|LIKE|<>|!=)\s*'[^']*'
+raw_recommendation: 'Add gate for unparameterized string literals in WHERE clauses:
+  user-supplied filter values passed as raw string interpolation (type=''<user_input>'')
+  enable SQL injection; gate should require parameterized queries or explicit sanitization
+  evidence before execution.'
+source: eval
+task_text: How many?
+verified: false

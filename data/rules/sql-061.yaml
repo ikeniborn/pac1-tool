@@ -1,0 +1,16 @@
+content: 'Always validate every identifier in generated SQL against schema token list
+  before execution; block query if any table or column name has edit-distance > 0
+  from known schema tokens (catches typos like `prodcuts`, `product_propertis`, `value_txt`).
+  Example gate: tokenize SQL, extract identifiers after `FROM`/`JOIN`/`WHERE`/`SELECT`,
+  compare each to `information_schema.columns` + `information_schema.tables`; reject
+  `SELECT sku FROM product_propertis WHERE ky=''diameter_mm''` because `product_propertis`
+  and `ky` are not exact matches for `product_properties` and `key`.'
+created: '2026-05-13'
+eval_score: 0.2
+id: sql-061
+phase: sql_plan
+raw_recommendation: 'sql-spelling.yaml (new): Add gate that diffs each identifier
+  in generated SQL against schema token list; block execution if edit-distance > 0
+  from any known table/column name.'
+source: eval
+verified: false

@@ -1,0 +1,13 @@
+content: 'Never fabricate `grounding_refs` when SQL phase returns zero rows or no
+  `sku` column. Always set `grounding_refs: []` in sql-answer.yaml output when result
+  set empty or lacks sku column — never invent SKU values to fill array. Example:
+  query `SELECT sku FROM products WHERE brand=''X''` returns 0 rows → emit `grounding_refs:
+  []`, not guessed SKUs from training data.'
+created: '2026-05-12'
+eval_score: 0.55
+id: sql-026
+phase: sql_plan
+raw_recommendation: 'sql-answer.yaml: Add rule — if SQL phase returns zero columns
+  named sku, grounding_refs must be empty array, not fabricated values.'
+source: eval
+verified: false

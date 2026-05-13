@@ -1,0 +1,14 @@
+action: block
+created: '2026-05-13'
+eval_score: 0.0
+id: sec-070
+message: grounding_refs contains filesystem path (absolute '/' or '../' traversal)
+  — blocked to prevent path-traversal probing via LLM output
+pattern: '"grounding_refs"\s*:\s*\[[^\]]*"(?:/|(?:[^"]*\.\./))[^"]*"'
+raw_recommendation: 'Add gate for filesystem path in grounding_refs: grounding_refs
+  values matching ^/ or containing ''../'' should be blocked — ''/proc/catalog/ABC-001.json''
+  bypassed output validation and could mask path-traversal probing of host filesystem
+  via LLM output fields'
+source: eval
+task_text: How many Lawn Mowers?
+verified: false

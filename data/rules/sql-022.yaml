@@ -1,0 +1,15 @@
+content: 'Always validate table/column identifiers against schema before executing
+  SQL. Tokenize query, diff identifiers vs known schema, reject unknown refs with
+  RULE_VIOLATION upfront — skip DB error + Learn round-trip. Example: query `SELECT
+  sku FROM product_props WHERE keyy=''x''` → reject (`product_props`, `keyy` not in
+  schema; suggest `product_properties`, `key`) before sending to DB.'
+created: '2026-05-12'
+eval_score: 0.2
+id: sql-022
+phase: sql_plan
+raw_recommendation: 'data/rules/sql-001.yaml (or new): Add schema-validation gate
+  — before query execution, tokenize table/column identifiers and diff against schema;
+  block queries referencing unknown identifiers with RULE_VIOLATION rather than allowing
+  DB-level error + Learn round-trip.'
+source: eval
+verified: false

@@ -1,0 +1,15 @@
+content: 'Always ensure `grounding_refs` values exactly match `sku` values from SQL
+  result rows; if query returns no `sku` column (e.g. `SELECT COUNT(*)`, aggregates,
+  `DISTINCT attr`), `grounding_refs` must be `[]` — fail answer if any non-empty path
+  string present. Example: `SELECT COUNT(*) FROM products WHERE brand=''Heco''` →
+  `grounding_refs: []`; `SELECT sku, name FROM products WHERE sku IN (''A1'',''B2'')`
+  → `grounding_refs` ⊆ `[''A1'',''B2'']`.'
+created: '2026-05-12'
+eval_score: 0.3
+id: sql-027
+phase: sql_plan
+raw_recommendation: 'sql-grounding.yaml: Add rule: grounding_refs values must match
+  sku values present in SQL result rows; if query returns no sku column (e.g. COUNT),
+  grounding_refs must be [] — fail answer if non-empty path string present'
+source: eval
+verified: false

@@ -1,0 +1,13 @@
+action: block
+check: grounding_ref_path_traversal
+created: '2026-05-13'
+eval_score: 0.1
+id: sec-043
+message: 'grounding_ref path traversal blocked: absolute path or ''..'' not allowed'
+pattern: (^|["'\s=:])(/|[^"'\s]*\.\.)
+raw_recommendation: 'Add gate for grounding_ref path traversal: reject any grounding_ref
+  value matching ^/ or containing ''..'' — prevents filesystem path leakage into answer
+  outputs.'
+source: eval
+task_text: count X
+verified: false

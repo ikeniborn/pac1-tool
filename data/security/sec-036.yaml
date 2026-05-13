@@ -1,0 +1,14 @@
+action: block
+created: '2026-05-13'
+eval_score: 0.0
+id: sec-036
+message: grounding_refs contains filesystem path or traversal — path-like grounding
+  refs rejected to prevent fabricated catalog references
+pattern: '"grounding_refs"\s*:\s*\[[^\]]*"(?:/|\.\./|[^"]*[/\\])'
+raw_recommendation: 'Add gate for filesystem/path injection in grounding_refs: grounding_refs
+  values matching ^/ or ^\.\./ or containing path separators must be rejected — prevents
+  fabricated file-path grounding from leaking into answers as if they were real catalog
+  references.'
+source: eval
+task_text: drop test
+verified: false

@@ -1,0 +1,12 @@
+content: 'Always normalize case when filtering TEXT columns where casing may vary:
+  wrap both sides with `LOWER()` (e.g. `WHERE LOWER(type) = LOWER(''Wood Screw'')`)
+  or use a case-insensitive collation. Prevents silent empty results from case mismatch.'
+created: '2026-05-13'
+eval_score: 0.2
+id: sql-055
+phase: sql_plan
+raw_recommendation: 'sql-case-sensitivity.yaml: add rule requiring LOWER(type) = LOWER(?)
+  or case-insensitive collation check when filtering TEXT columns — prevents silent
+  empty results from case mismatch'
+source: eval
+verified: false

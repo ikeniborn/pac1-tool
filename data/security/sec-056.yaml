@@ -1,0 +1,13 @@
+action: block
+created: '2026-05-13'
+eval_score: 0.0
+id: sec-056
+message: Task input contains SQL injection fragment (UNION/--/;/DROP); sanitize before
+  SqlPlan prompt construction
+pattern: (?i)(\bunion\b|--|;|\bdrop\b)
+raw_recommendation: 'Add gate for task input sanitization: task_text passed into SqlPlan
+  prompt should be scanned for SQL injection fragments (UNION, --, ;, DROP) before
+  prompt construction — empty/malformed task shows input is not validated upstream'
+source: eval
+task_text: '?'
+verified: false

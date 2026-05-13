@@ -1,0 +1,15 @@
+content: 'Always write `reasoning` field in sql-plan.yaml with three parts: (1) restate
+  task intent, (2) name relevant columns, (3) justify each WHERE predicate value.
+  One-liner reasoning fails validation. Example: `reasoning: "Task: find M3 wood screws
+  by Heco. Columns: brand, model, product_properties(diameter_mm, screw_type). Predicates:
+  brand=''Heco'' (vendor named), model=''TopFix GTU-YPJ'' (series specified), diameter_mm=3
+  (M3 = 3mm shank), screw_type=''wood screw'' (material context)."`'
+created: '2026-05-12'
+eval_score: 0.2
+id: sql-032
+phase: sql_plan
+raw_recommendation: 'sql-plan.yaml: Add rule — reasoning field must contain at minimum:
+  (1) restatement of task intent, (2) identification of relevant columns, (3) explicit
+  justification for each WHERE predicate value; one-liner reasoning fails validation.'
+source: eval
+verified: false

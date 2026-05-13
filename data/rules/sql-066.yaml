@@ -1,0 +1,14 @@
+content: 'Always populate `grounding_refs` with SKU strings taken directly from prior
+  SELECT result rows — never file paths, catalog paths, or JSON pointers. Reject any
+  ref starting with `/` or containing `.json`. Example: after `SELECT sku, name FROM
+  products WHERE brand=''Heco'' AND model=''TopFix GTU-YPJ''`, set `grounding_refs:
+  ["HEC-4031128", "HEC-4031129"]`, not `["/catalog/heco/topfix.json"]`.'
+created: '2026-05-13'
+eval_score: 0.1
+id: sql-066
+phase: sql_plan
+raw_recommendation: 'sql-grounding.yaml: Add rule that grounding_refs must be sku
+  strings from SELECT results; pattern-match rejection for paths starting with ''/''
+  or containing ''.json'''
+source: eval
+verified: false

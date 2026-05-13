@@ -1,0 +1,14 @@
+content: 'Never repeat identical query across Learn cycles. If cycle N+1 SQL matches
+  cycle N SQL byte-for-byte, Learn phase failed — abort with OUTCOME_FAIL instead
+  of silent re-run. Hash prior query, compare before dispatch; on match emit failure.
+  Example: `if sha256(sql_n1) == sha256(sql_n): raise LearnFailure("OUTCOME_FAIL:
+  no progress")`.'
+created: '2026-05-12'
+eval_score: 0.1
+id: sql-035
+phase: sql_plan
+raw_recommendation: 'sql-learn.yaml: Add a rule that if cycle N+1 query is identical
+  to cycle N query, the Learn phase has failed — abort with OUTCOME_FAIL rather than
+  silently re-running the same query.'
+source: eval
+verified: false

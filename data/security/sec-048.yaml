@@ -1,0 +1,12 @@
+action: block
+check: no_fabricated_filter
+created: '2026-05-13'
+eval_score: 0.1
+id: sec-048
+message: Filter predicate not in task text — emit COUNT(*) without WHERE or flag ambiguity
+raw_recommendation: 'Add gate for unsupported filter fabrication: if task text contains
+  no explicit filter criteria, planner must emit COUNT(*) with no WHERE or flag ambiguity
+  — prevents hallucinated predicate injection'
+source: eval
+task_text: How many?
+verified: false

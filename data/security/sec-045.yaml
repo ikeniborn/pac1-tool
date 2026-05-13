@@ -1,0 +1,13 @@
+action: block
+created: '2026-05-13'
+eval_score: 0.0
+id: sec-045
+message: task_text contains SQL keyword — possible prompt injection into SqlPlan;
+  sanitize or reject
+pattern: (?i)\b(SELECT|UNION|DROP|INSERT|UPDATE|DELETE|ALTER|CREATE|TRUNCATE|EXEC)\b
+raw_recommendation: 'Add gate for task_text injection: if task_text contains SQL keywords
+  (SELECT/UNION/DROP/INSERT), sanitize or reject before passing to SqlPlan prompt
+  to prevent prompt-injection via task field.'
+source: eval
+task_text: '?'
+verified: false

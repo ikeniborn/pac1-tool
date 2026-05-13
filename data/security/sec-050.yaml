@@ -1,0 +1,14 @@
+action: block
+check: grounding_refs_subset_of_results
+created: '2026-05-13'
+eval_score: 0.0
+id: sec-050
+message: grounding_refs contain values not present in SQL result set — out-of-band
+  reference injection blocked
+raw_recommendation: 'Add gate for out-of-band reference injection: grounding_refs
+  must only contain values provably present in SQL result set — cross-check refs against
+  returned sku values before passing to answer phase; unmatched refs = security/hallucination
+  gate failure'
+source: eval
+task_text: How many Lawn Mowers?
+verified: false

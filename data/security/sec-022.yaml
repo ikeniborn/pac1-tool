@@ -1,0 +1,11 @@
+action: block
+created: '2026-05-12'
+eval_score: 0.1
+id: sec-022
+message: UNION-based injection pattern blocked
+pattern: (?i)\bunion\b\s+(all\s+)?select\b
+raw_recommendation: 'Add gate for UNION-based injection: queries containing UNION
+  not blocked by sec-001'
+source: eval
+task_text: drop test
+verified: false

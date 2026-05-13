@@ -1,0 +1,16 @@
+content: 'Never repeat identical SqlPlan query across consecutive cycles. If cycle
+  N+1 produces same SQL as cycle N after Learn step, abort pipeline and surface error
+  — identical retry means Learn extracted no corrective signal and further cycles
+  waste compute. Implement as `sql-cycle-dedup.yaml` gate hashing normalized query
+  text (whitespace-collapsed, lowercased) and comparing against prior cycle hash;
+  on match, raise `CycleStagnationError` instead of re-executing. Example check: `if
+  sha256(normalize(plan_n1.sql)) == sha256(normalize(plan_n.sql)): abort`.'
+created: '2026-05-13'
+eval_score: 0.3
+id: sql-074
+phase: sql_plan
+raw_recommendation: 'Add sql-cycle-dedup.yaml gate: if SqlPlan cycle N+1 produces
+  identical query to cycle N, abort pipeline and surface error — identical retry after
+  Learn means Learn produced no corrective value and further cycles are wasteful.'
+source: eval
+verified: false

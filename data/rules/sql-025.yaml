@@ -1,0 +1,14 @@
+content: 'Always flag unresolved variables in task text (literal placeholders like
+  `X`, `<value>`, `?`) during SQL planning — surface ambiguity in reasoning and request
+  clarification rather than silently substituting defaults. Example: task "find products
+  where diameter_mm = X" must return clarification request, not `WHERE value_number
+  = 1`.'
+created: '2026-05-12'
+eval_score: 0.1
+id: sql-025
+phase: sql_plan
+raw_recommendation: 'Add rule in sql-plan.yaml: if task text contains an unresolved
+  variable (e.g. literal ''X''), planner must flag ambiguity in reasoning and request
+  clarification rather than substituting a default value silently'
+source: eval
+verified: false

@@ -1,0 +1,14 @@
+content: 'Never emit DDL in planned SQL. Gate SqlPlan output with regex on `\b(DROP|CREATE|ALTER|TRUNCATE|RENAME)\b`
+  before execution layer — block at planner stage, not just DB. Test: input `"drop
+  test"` must block `DROP TABLE products`. Read-only queries only; reject plan if
+  match.'
+created: '2026-05-13'
+eval_score: 0.1
+id: sql-056
+phase: sql_plan
+raw_recommendation: 'sql-sec-001.yaml: Add planner-stage gate — pattern match on DDL
+  keywords (DROP, CREATE, ALTER, TRUNCATE, RENAME) in proposed query strings before
+  execution; gate must fire at SqlPlan output validation, not only at DB execution
+  layer; add test case: input=''drop test'', expected_blocked_query=''DROP TABLE products'''
+source: eval
+verified: false

@@ -1,0 +1,13 @@
+content: 'Always validate `grounding_refs` against SQL result SKUs before answer phase
+  — each ref must match a `sku` value returned by the query; unmatched refs reject
+  the answer and trigger re-plan. Prevents hallucinated SKU citations. Example: if
+  query returns SKUs `{A1, B2}` and answer cites `C3`, reject and re-plan.'
+created: '2026-05-13'
+eval_score: 0.1
+id: sql-068
+phase: sql_plan
+raw_recommendation: 'Add new rule sql-grounding-001.yaml: grounding_refs validation
+  gate — answer phase must assert each ref exists as a sku value in the SQL result
+  set; any ref not matching a returned sku causes answer phase rejection and re-plan'
+source: eval
+verified: false

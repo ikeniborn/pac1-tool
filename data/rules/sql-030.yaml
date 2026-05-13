@@ -1,0 +1,15 @@
+content: 'Always halt SQL planning when task text has unresolved placeholders (lone
+  uppercase letters like `X`, `Y`, `?`, or bracketed tokens like `<value>`); ask user
+  for concrete value before emitting query. Never substitute guesses for missing filter
+  operands. Example: task "find screws diameter X mm" → stop, ask "which diameter?",
+  do not emit `WHERE pp.value_number = 0` or pick arbitrary number.'
+created: '2026-05-12'
+eval_score: 0.2
+id: sql-030
+phase: sql_plan
+raw_recommendation: 'Add rule sql-ambiguous-task.yaml: when task text contains unresolved
+  placeholders (single uppercase letters, ''X'', ''?''), block query execution and
+  require clarification before proceeding — prevents planner from silently assuming
+  filter values'
+source: eval
+verified: false

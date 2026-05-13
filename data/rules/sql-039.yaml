@@ -1,0 +1,17 @@
+content: 'Always block DDL/DML at PLAN phase, not only execution. In SqlPlanOutput,
+  regex-scan query for `DROP|CREATE|ALTER|TRUNCATE|INSERT|UPDATE|DELETE` (case-insensitive,
+  word-boundary) before query exits planner. On match: emit `error_type=security`,
+  skip LearnOutput, loop back to SqlPlanOutput with injected read-only rule. Example
+  guard: `if re.search(r''\b(DROP|CREATE|ALTER|TRUNCATE|INSERT|UPDATE|DELETE)\b'',
+  sql, re.I): raise SecurityError`. Planner stay SELECT-only.'
+created: '2026-05-12'
+eval_score: 0.2
+id: sql-039
+phase: sql_plan
+raw_recommendation: 'sql-sec-001.yaml: add pre-execution gate at PLAN phase, not only
+  execution phase — regex match on query string for DDL keywords (DROP, CREATE, ALTER,
+  TRUNCATE, INSERT, UPDATE, DELETE) before query leaves SqlPlanOutput. Gate should
+  return error_type=security and skip LearnOutput entirely, looping back to SqlPlanOutput
+  with injected rule.'
+source: eval
+verified: false

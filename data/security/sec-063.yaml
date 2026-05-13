@@ -1,0 +1,14 @@
+action: block
+created: '2026-05-13'
+eval_score: 0.0
+id: sec-063
+message: SqlPlanOutput contains LearnOutput schema keys (outcome/grounding_refs/completed_steps)
+  — possible phase output injection; aborting cycle
+pattern: '"(outcome|grounding_refs|completed_steps)"\s*:'
+raw_recommendation: 'Add gate for phase output injection: if SqlPlanOutput JSON contains
+  keys from LearnOutput schema (''outcome'', ''grounding_refs'', ''completed_steps''),
+  treat as possible prompt/context injection and abort cycle with security error rather
+  than forwarding to executor.'
+source: eval
+task_text: How many Lawn Mowers?
+verified: false

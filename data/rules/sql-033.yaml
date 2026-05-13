@@ -1,0 +1,16 @@
+content: 'Never trigger full Learn cycle for trivial identifier typos. Table/column
+  name misspellings detectable from schema must raise hard pre-execution validation
+  error citing nearest schema match. Reserve Learn cycles for semantic or data-shape
+  failures (wrong join key, empty result from bad filter, type mismatch). Example:
+  query `SELECT sku FROM product_propertys WHERE keyy=''diameter_mm''` → fail fast
+  with "unknown table product_propertys (did you mean product_properties?), unknown
+  column keyy (did you mean key?)" before execution, no Learn invoked.'
+created: '2026-05-12'
+eval_score: 0.2
+id: sql-033
+phase: sql_plan
+raw_recommendation: 'sql-learn.yaml: Add rule — trivial identifier typos (table/column
+  name misspelling detectable from schema) should generate a hard pre-execution validation
+  error, not a full Learn cycle; reserve Learn cycles for semantic or data-shape failures.'
+source: eval
+verified: false

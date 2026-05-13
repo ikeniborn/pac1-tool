@@ -1,0 +1,14 @@
+content: 'Always block identical SQL retry across cycles. Add `sql-plan-retry.yaml`
+  gate: when `cycle > 1`, diff `SqlPlanOutput.queries` against prior cycle; reject
+  if normalized set equal (strip whitespace/comments, lowercase keywords) — identical
+  retry wastes cycle without new info. Force planner to mutate filter, attribute key,
+  or candidate column before resubmit. Example check: `assert normalize(queries[cycle])
+  != normalize(queries[cycle-1])` else fail gate with reason `"identical_retry"`.'
+created: '2026-05-13'
+eval_score: 0.3
+id: sql-064
+phase: sql_plan
+raw_recommendation: 'Add sql-plan-retry.yaml gate: on cycle>1, require SqlPlanOutput.queries
+  to differ from previous cycle''s queries — block identical retry as wasted cycle'
+source: eval
+verified: false

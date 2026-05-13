@@ -1,0 +1,15 @@
+content: 'Always gate query plans: reject if any WHERE-clause string literal absent
+  from original task_text (case-insensitive, after trimming quotes). Stops hallucinated
+  filter values. Example: task says "find Heco TopFix screws"; plan `WHERE brand=''Heco''
+  AND model=''TopFix GTU-YPJ'' AND category=''Lawn Mower''` — reject, ''Lawn Mower''
+  and ''TopFix GTU-YPJ'' not in task_text. Allow literals only if exact substring
+  match in task_text, or sourced from prior `SELECT DISTINCT` probe result in session.'
+created: '2026-05-13'
+eval_score: 0.1
+id: sql-050
+phase: sql_plan
+raw_recommendation: 'sql-task-literal-mapping.yaml: Add gate that rejects query plans
+  where a WHERE clause string literal does not appear in the original task_text —
+  prevents hallucinated filter values like ''Lawn Mower'' when task says ''X''.'
+source: eval
+verified: false

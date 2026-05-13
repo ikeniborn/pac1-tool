@@ -1,0 +1,13 @@
+action: block
+created: '2026-05-13'
+eval_score: 0.1
+id: sec-033
+message: grounding_refs /proc path rejected — possible prompt injection or filesystem
+  traversal
+pattern: ^/proc/
+raw_recommendation: 'Add gate for /proc path in grounding_refs: grounding_refs values
+  matching ^/proc/ indicate possible prompt injection or filesystem traversal attempt
+  — reject and flag.'
+source: eval
+task_text: count X
+verified: false

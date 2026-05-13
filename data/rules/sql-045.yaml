@@ -1,0 +1,16 @@
+content: 'Always ground every WHERE clause literal in an explicit value from the task
+  prompt — never invent brand names, model strings, numeric thresholds, or attribute
+  values. If a literal is not stated by the user, either probe first with `SELECT
+  DISTINCT <col> FROM products WHERE <known_condition> LIMIT 50` or ask, then block
+  the query. Example: prompt says "Heco screws 3mm" → `WHERE p.brand=''Heco'' AND
+  pp.key=''diameter_mm'' AND pp.value_number=3` is grounded; adding `AND p.model=''TopFix
+  GTU-YPJ''` is not, drop it.'
+created: '2026-05-13'
+eval_score: 0.2
+id: sql-045
+phase: sql_plan
+raw_recommendation: 'sql-filter-values.yaml: add rule requiring every WHERE clause
+  literal to be traceable to an explicit value in the task prompt; queries with ungrounded
+  literals must be flagged and blocked'
+source: eval
+verified: false

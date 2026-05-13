@@ -1,0 +1,13 @@
+action: block
+created: '2026-05-13'
+eval_score: 0.1
+id: sec-042
+message: Unfiltered COUNT(*) without WHERE/LIMIT — potential full-table scan, explicit
+  approval required
+pattern: (?i)\bCOUNT\s*\(\s*\*\s*\)(?:(?!\bWHERE\b|\bLIMIT\b).)*$
+raw_recommendation: 'Add gate for unfiltered COUNT(*) without WHERE on large tables:
+  bulk aggregate reads without a restricting predicate can cause full-table scans
+  and should require explicit approval or a LIMIT on an inner subquery.'
+source: eval
+task_text: count X
+verified: false

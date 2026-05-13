@@ -1,0 +1,13 @@
+action: block
+created: '2026-05-13'
+eval_score: 0.1
+id: sec-069
+message: Fabricated filesystem path in grounding_refs blocked — only sku-format references
+  allowed
+pattern: (?i)grounding_refs[^\n]*?(/proc/|/etc/|/var/)
+raw_recommendation: 'Add gate for fabricated reference injection in grounding_refs:
+  any value matching filesystem path patterns (/proc/, /etc/, /var/) or non-sku formats
+  must be rejected by answer phase gate to prevent hallucinated provenance'
+source: eval
+task_text: drop test
+verified: false

@@ -1,0 +1,14 @@
+action: block
+created: '2026-05-13'
+eval_score: 0.2
+id: sec-051
+message: Fabricated grounding_refs path blocked — /proc/ or /etc/ references not valid
+  catalogue entries
+pattern: grounding_refs.*(/proc/|/etc/)
+raw_recommendation: 'Add gate for fabricated grounding_refs paths: grounding_refs
+  containing ''/proc/'', ''/etc/'', or any non-sku-derived string should be blocked
+  — prevents hallucinated file references leaking into answers as if they were real
+  catalogue entries'
+source: eval
+task_text: count X
+verified: false

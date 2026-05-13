@@ -1,0 +1,13 @@
+action: block
+created: '2026-05-12'
+eval_score: 0.2
+id: sec-028
+message: UNION/UNION ALL prohibited — blocks data exfiltration via appended reads
+  (sec-004)
+pattern: (?i)\bunion(\s+all)?\b
+raw_recommendation: 'Add gate sec-004 for UNION-based reads: block UNION / UNION ALL
+  in any query — prevents data exfiltration by appending unauthorized table reads
+  to legitimate queries.'
+source: eval
+task_text: drop test
+verified: false

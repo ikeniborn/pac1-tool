@@ -1,0 +1,14 @@
+content: 'Always validate table names against schema tables list at plan phase — reject
+  query if name not exact match, surface as plan error (not execution error). Catches
+  typos/hallucinated tables before SQL runs. Example: planner sees `FROM product_propertys`
+  → fail fast with "unknown table ''product_propertys''; valid: products, product_properties"
+  instead of letting DB throw at execution.'
+created: '2026-05-13'
+eval_score: 0.1
+id: sql-057
+phase: sql_plan
+raw_recommendation: 'data/rules/sql-plan.yaml: Add validation gate — reject queries
+  where table name does not exactly match schema tables list; surface as plan-phase
+  error, not execution error'
+source: eval
+verified: false

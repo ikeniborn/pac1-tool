@@ -1,0 +1,15 @@
+action: block
+check: grounding_refs_match_sku
+created: '2026-05-13'
+eval_score: 0.2
+id: sec-072
+message: 'Hallucinated grounding path: refs must match SKUs in SQL result set; system
+  paths (/proc/, /sys/, etc.) forbidden'
+pattern: /(proc|sys|dev|etc|root|home|var|tmp)/
+raw_recommendation: 'Add gate for hallucinated grounding paths: grounding_refs values
+  must match sku values present in SQL result set; paths containing /proc/, /sys/,
+  or non-catalog prefixes should be flagged as hallucination and block AnswerOutput
+  from completing.'
+source: eval
+task_text: drop test
+verified: false

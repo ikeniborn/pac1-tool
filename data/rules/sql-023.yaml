@@ -1,0 +1,16 @@
+content: 'Always ground WHERE clause literals in tokens from task_text or prior SQL
+  results — never invent values. If user says "wood screws 3mm", literals `''wood
+  screw''` and `3` come from task; if filtering by brand not mentioned, stop and ask
+  or query DISTINCT first. Ungrounded literal = clarification phase, not guess. Example:
+  task "Heco screws diameter 3" → `WHERE p.brand=''Heco'' AND EXISTS(... key=''diameter_mm''
+  AND value_number=3)`; never add `AND p.model=''GTU-YPJ''` unless ''GTU-YPJ'' appears
+  in task or earlier result.'
+created: '2026-05-12'
+eval_score: 0.2
+id: sql-023
+phase: sql_plan
+raw_recommendation: 'data/rules/sql-002.yaml (or new): Add filter-value-grounding
+  rule — WHERE clause literal values must map to tokens present in task_text or prior
+  SQL results; ungrounded literals trigger a clarification phase, not a guess.'
+source: eval
+verified: false

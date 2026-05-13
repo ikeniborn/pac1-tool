@@ -1,0 +1,14 @@
+content: 'Always normalize case when filtering TEXT columns: wrap both sides in `LOWER()`
+  (portable) or use `ILIKE` (Postgres) — never rely on raw `=` or `LIKE` for user-supplied
+  strings unless case-exact match is documented intent. Example: `WHERE LOWER(brand)
+  = LOWER(''Heco'')` or `WHERE brand ILIKE ''heco''`. Prevents silent miss on `''HECO''`
+  vs `''Heco''`.'
+created: '2026-05-13'
+eval_score: 0.3
+id: sql-075
+phase: sql_plan
+raw_recommendation: 'Add rule in sql-filters.yaml: WHERE clause on TEXT column must
+  note case sensitivity — enforce LOWER() or ILIKE where dialect supports it, or document
+  explicit assumption'
+source: eval
+verified: false

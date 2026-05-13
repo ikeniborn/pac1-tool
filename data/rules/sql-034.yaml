@@ -1,0 +1,15 @@
+content: 'Never emit SQL containing DDL/DML keywords (DROP, CREATE, ALTER, TRUNCATE,
+  DELETE, UPDATE, INSERT) — read-only SELECT only. Pattern-match planned query against
+  these keywords before dispatch; if matched, reject and restart planning. Example:
+  reject `DELETE FROM products WHERE sku=''X''`; rewrite as `SELECT sku FROM products
+  WHERE sku=''X''` to inspect instead.'
+created: '2026-05-12'
+eval_score: 0.2
+id: sql-034
+phase: sql_plan
+raw_recommendation: 'sql-sec-001.yaml: Add pre-generation enforcement hook — pattern-match
+  planned SQL against DDL keywords (DROP, CREATE, ALTER, TRUNCATE, DELETE, UPDATE,
+  INSERT) before dispatch; reject with explicit gate citation if matched, forcing
+  immediate learn cycle without executing.'
+source: eval
+verified: false

@@ -1,0 +1,13 @@
+action: block
+created: '2026-05-13'
+eval_score: 0.3
+id: sec-064
+message: Filesystem path injection in grounding_ref blocked — grounding refs must
+  be sku-format strings from query results, not filesystem paths
+pattern: ^(/proc/|/etc/|/sys/|/dev/|/root/|/var/|/boot/|/bin/|/sbin/|/usr/|/home/|[a-zA-Z]:\\)
+raw_recommendation: 'Add gate for filesystem path injection in grounding_refs: if
+  any grounding_ref matches ^/proc/ or ^/etc/ or starts with filesystem root patterns,
+  reject — grounding refs must be sku-format strings from query results only'
+source: eval
+task_text: count X
+verified: false

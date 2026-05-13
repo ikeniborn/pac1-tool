@@ -1,0 +1,13 @@
+action: block
+created: '2026-05-13'
+eval_score: 0.1
+id: sec-067
+message: DDL/DML statement blocked by pre-dispatch regex (DROP/CREATE/ALTER/TRUNCATE/INSERT/UPDATE/DELETE/etc.)
+pattern: (?i)\b(DROP|CREATE|ALTER|TRUNCATE|INSERT|UPDATE|DELETE|REPLACE|RENAME|GRANT|REVOKE)\b
+raw_recommendation: 'Add gate for DDL pattern (DROP|CREATE|ALTER|TRUNCATE): current
+  sec-001 covers DDL/DML conceptually but did not prevent DROP TABLE from executing
+  — gate must be enforced as a pre-dispatch regex check on the raw SQL string, not
+  inferred from execution error'
+source: eval
+task_text: drop test
+verified: false

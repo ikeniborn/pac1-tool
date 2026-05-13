@@ -1,0 +1,15 @@
+content: 'Always validate `grounding_ref` values match sku format (alphanumeric product
+  codes present in actual SQL result set); reject refs containing filesystem paths
+  (`/proc`, `/etc`, `/var`), URLs, or any value absent from returned rows. Example:
+  after `SELECT sku, name FROM products WHERE ...`, build allowed-set from returned
+  `sku` column and check each ref ∈ set via regex `^[A-Za-z0-9._-]+$` before emitting.'
+created: '2026-05-12'
+eval_score: 0.2
+id: sql-040
+phase: sql_plan
+raw_recommendation: 'Add sql-sec-002.yaml: gate on grounding_ref format — refs must
+  match pattern derived from sku column values (alphanumeric product codes), reject
+  any ref containing filesystem paths (/proc, /etc, /var), URLs, or values not present
+  in the SQL result set.'
+source: eval
+verified: false

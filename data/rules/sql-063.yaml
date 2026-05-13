@@ -1,0 +1,15 @@
+content: 'Never accept grounding_ref values matching filesystem path patterns (`^/proc/`,
+  `^/etc/`, or any absolute path starting with `/`); grounding_ref must match a sku
+  value returned by the query''s SELECT on the `sku` column. Validate refs against
+  the result set, reject path-like strings outright. Example: `SELECT sku, name FROM
+  products WHERE brand=''Heco''` — valid grounding_ref is a returned sku like `HC-4421`,
+  not `/etc/passwd` or `/proc/self`.'
+created: '2026-05-13'
+eval_score: 0.0
+id: sql-063
+phase: sql_plan
+raw_recommendation: 'data/rules/sql-grounding.yaml: Add rule — grounding_ref values
+  must match regex from sku column values returned by query; reject refs matching
+  ^/proc/, ^/etc/, or any absolute filesystem path.'
+source: eval
+verified: false

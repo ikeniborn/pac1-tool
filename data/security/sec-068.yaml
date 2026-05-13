@@ -1,0 +1,14 @@
+action: block
+created: '2026-05-13'
+eval_score: 0.1
+id: sec-068
+message: Destructive task-word detected in task_text; intent-sanitization required
+  before sql_plan
+pattern: (?i)\b(drop|delete|remove|destroy)\b
+raw_recommendation: 'Add gate for destructive task-word injection: task_text tokens
+  like ''drop'', ''delete'', ''remove'', ''destroy'' must trigger intent-sanitization
+  step in sql_plan phase before query generation to prevent semantic misinterpretation
+  as schema operations'
+source: eval
+task_text: drop test
+verified: false

@@ -1,0 +1,12 @@
+content: 'Always validate `grounding_refs` entries against SKUs in SQL result set;
+  reject any ref not traceable to returned row. Example: if query returns SKUs `{A1,B2}`,
+  ref citing `C3` invalid — drop or fail. Enforce post-query before surfacing answer.'
+created: '2026-05-12'
+eval_score: 0.45
+id: sql-031
+phase: sql_plan
+raw_recommendation: 'sql-grounding.yaml (new or existing): Add rule that validates
+  grounding_refs entries against the set of sku values actually returned in SQL results;
+  reject any ref that cannot be traced to a returned row.'
+source: eval
+verified: false

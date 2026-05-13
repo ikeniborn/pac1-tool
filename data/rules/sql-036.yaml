@@ -1,0 +1,12 @@
+content: 'Always validate grounding_ref format match `/catalog/{sku}` where sku exist
+  in SQL result set. Reject `/proc/` or arbitrary paths. Example: SQL returns sku
+  `ABC123` → ref `/catalog/ABC123` OK, `/proc/ABC123` or `/docs/foo` reject.'
+created: '2026-05-12'
+eval_score: 0.1
+id: sql-036
+phase: sql_plan
+raw_recommendation: 'sql-answer.yaml: Add grounding_ref format validation — refs must
+  match pattern /catalog/{sku} where sku appears in SQL result set; reject /proc/
+  or arbitrary paths.'
+source: eval
+verified: false

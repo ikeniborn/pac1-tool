@@ -1,0 +1,14 @@
+content: 'Always validate `grounding_refs` values match SKU regex `^[A-Z0-9\-]+$`
+  before answer phase; reject any value containing `/`, `.`, `\`, or `proc` (filesystem/path
+  artifacts leaking into refs). Fail validation early — do not emit answer with malformed
+  refs. Example: `grounding_refs: ["ABC-123", "XYZ-9"]` pass; `["/proc/self", "a.b",
+  "C:\\x"]` fail.'
+created: '2026-05-13'
+eval_score: 0.0
+id: sql-054
+phase: sql_plan
+raw_recommendation: 'data/rules/sql-grounding.yaml: Add rule: grounding_refs values
+  must match regex `^[A-Z0-9\-]+$` (sku pattern); reject any value containing `/`,
+  `.`, `\`, or `proc` — fail validation before answer phase'
+source: eval
+verified: false

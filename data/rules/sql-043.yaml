@@ -1,0 +1,14 @@
+content: 'Always validate every grounding_ref against the SKUs returned by the SQL
+  result set before emitting AnswerOutput; reject any ref whose sku is not present
+  in the result rows. Example: after running `SELECT sku, name FROM products WHERE
+  ...`, build `valid_skus = {row.sku for row in result}` and drop any `grounding_ref.sku
+  not in valid_skus` — never cite a SKU the query did not return.'
+created: '2026-05-13'
+eval_score: 0.1
+id: sql-043
+phase: sql_plan
+raw_recommendation: 'sql-grounding.yaml (new): Add rule requiring every grounding_ref
+  to match a sku value present in the SQL result set; any ref not traceable to a returned
+  sku must be rejected before AnswerOutput is emitted.'
+source: eval
+verified: false
