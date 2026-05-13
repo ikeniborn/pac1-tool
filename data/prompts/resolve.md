@@ -26,6 +26,19 @@ Kind: `SELECT DISTINCT name FROM kinds WHERE name LIKE '%<term>%' LIMIT 10`
 Attr key: `SELECT DISTINCT key FROM product_properties WHERE key LIKE '%<term>%' LIMIT 10`
 Attr value (text): `SELECT DISTINCT value_text FROM product_properties WHERE key = '<known_key>' AND value_text LIKE '%<term>%' LIMIT 10`
 
+## Attribute value coverage (REQUIRED)
+
+For every attribute value mentioned in the task (sizes, color families, protection
+classes, machine types, anchor types, mask types, etc.) generate one `attr_value`
+candidate.
+
+- Key known (present in TOP PROPERTY KEYS): `SELECT DISTINCT value_text FROM product_properties WHERE key = '<key>' AND value_text LIKE '%<val>%' LIMIT 10`
+- Key unknown: `SELECT DISTINCT value_text FROM product_properties WHERE value_text LIKE '%<val>%' LIMIT 10`
+
+Generate candidates for ALL attribute values — including single-letter sizes
+('M', 'L', 'S', 'XL') and short enum values ('basic', 'blue', 'clamp').
+Do not skip values just because they are short or seem obvious.
+
 ## Output format (JSON only)
 
 {"reasoning": "<which terms found and why>", "candidates": [{"term": "<raw term from task>", "field": "<brand|model|kind|attr_key|attr_value>", "discovery_query": "SELECT DISTINCT ..."}]}
