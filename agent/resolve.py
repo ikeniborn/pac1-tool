@@ -16,14 +16,14 @@ from .prompt import load_prompt
 from .trace import get_trace
 
 _DDL_RE = re.compile(r"^\s*(DROP|INSERT|UPDATE|DELETE|ALTER|CREATE|REPLACE)\b", re.IGNORECASE)
-_DISCOVERY_RE = re.compile(r"\b(ILIKE|DISTINCT)\b", re.IGNORECASE)
+_DISCOVERY_RE = re.compile(r"\b(ILIKE|LIKE|DISTINCT)\b", re.IGNORECASE)
 
 
 def _security_check(query: str) -> str | None:
     if _DDL_RE.match(query):
         return f"DDL/DML not allowed in resolve: {query[:60]}"
     if not _DISCOVERY_RE.search(query):
-        return f"resolve query must contain ILIKE or DISTINCT: {query[:60]}"
+        return f"resolve query must contain LIKE or DISTINCT: {query[:60]}"
     return None
 
 

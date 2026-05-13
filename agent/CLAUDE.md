@@ -26,7 +26,7 @@ Entry: `orchestrator.py:run_agent()` → `prephase.py` → `pipeline.py`
 
 **Phase execution order (per cycle, up to 3 cycles):**
 
-1. **RESOLVE** (`resolve.py:run_resolve()`) — LLM generates discovery queries (must contain `ILIKE` or `DISTINCT`); executes them to confirm DB values before SQL planning. Returns `confirmed_values: dict`.
+1. **RESOLVE** (`resolve.py:run_resolve()`) — LLM generates discovery queries (must contain `LIKE` or `DISTINCT`; ILIKE accepted but unsupported by SQLite — use LIKE); executes them to confirm DB values before SQL planning. Returns `confirmed_values: dict`.
 2. **SQL_PLAN** — LLM call → `json_extract.py` → `SqlPlanOutput` (queries + agents_md_refs).
 3. **AGENTS.MD refs check** — if `agents_md_refs` is empty but index terms appear in task, triggers LEARN.
 4. **SECURITY** (`sql_security.py:check_sql_queries()`) — regex/named gates from `data/security/*.yaml`.
@@ -64,6 +64,6 @@ Transient errors (503, rate-limit, timeout) retry with exponential backoff.
 - JSON extraction priority in `json_extract.py` is load-bearing: mutation tools take priority over reads.
 - `schema_gate.py` checks unverified string literals copied from task text — run RESOLVE first to populate `confirmed_values`.
 - `_run_learn` keeps only the last 3 session rules (`session_rules[-3:]`).
-- RESOLVE queries are security-checked: must contain `ILIKE` or `DISTINCT`; DDL/DML blocked.
+- RESOLVE queries are security-checked: must contain `LIKE` or `DISTINCT` (ILIKE accepted but unsupported by SQLite); DDL/DML blocked.
 - System prompt blocks are passed as `list[dict]` (Anthropic multi-block format) for `sql_plan`/`learn`/`answer` phases; `resolve` uses a plain string.
 - `loop.py` and `dispatch.py` no longer exist — replaced by `pipeline.py` and `llm.py`.

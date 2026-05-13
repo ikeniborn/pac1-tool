@@ -93,7 +93,7 @@ Without `p.sku`, the ANSWER phase cannot build `/proc/catalog/{sku}.json` paths.
 
 Before counting rows grouped by kind name, probe actual values via LIKE. Do not assume string literals.
 
-1. Run: `SELECT DISTINCT name FROM kinds WHERE name ILIKE '%<term>%';`
+1. Run: `SELECT DISTINCT name FROM kinds WHERE name LIKE '%<term>%';`
 2. Build `IN (...)` list from probe results only — never from assumed strings.
 
 ## Disambiguate 'X and Y' in Queries
@@ -187,6 +187,6 @@ Before writing any WHERE clause, verify every literal value originates from task
 If previous cycle's query failed (error or empty result), new plan MUST differ structurally from prior attempt. Identical retry forbidden.
 
 - Compare new query against last failed query before emitting.
-- Required change: different columns projected, different filter predicate, different join shape, or different discovery approach (e.g. `ILIKE` probe instead of exact match, EXISTS instead of JOIN, alternate attribute key).
+- Required change: different columns projected, different filter predicate, different join shape, or different discovery approach (e.g. `LIKE '%term%'` probe instead of exact match, EXISTS instead of JOIN, alternate attribute key).
 - Cosmetic changes (whitespace, alias rename, LIMIT bump) do NOT count as divergence.
 - If no structural variation possible, escalate to LEARN cycle instead of re-issuing same SQL.
