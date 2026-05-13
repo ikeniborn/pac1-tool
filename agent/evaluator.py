@@ -10,6 +10,7 @@ from .llm import call_llm_raw
 from .json_extract import _extract_json_from_text
 from .models import PipelineEvalOutput, SqlPlanOutput
 from .prompt import load_prompt
+from . import knowledge_loader
 
 _EVAL_LOG = Path(__file__).parent.parent / "data" / "eval_log.jsonl"
 
@@ -92,7 +93,11 @@ def _run(eval_input: EvalInput, model: str, cfg: dict) -> PipelineEvalOutput | N
         eval_input.sql_plan_outputs,
     )
 
-    system = _build_eval_system(eval_input.agents_md)
+    rules_md = knowledge_loader.existing_rules_text()
+    security_md = knowledge_loader.existing_security_text()
+    prompts_md = knowledge_loader.existing_prompts_text()
+
+    system = _build_eval_system(eval_input.agents_md, rules_md, security_md, prompts_md)
     user_msg = json.dumps({
         "task_text": eval_input.task_text,
         "db_schema": eval_input.db_schema,
@@ -122,10 +127,21 @@ def _run(eval_input: EvalInput, model: str, cfg: dict) -> PipelineEvalOutput | N
     return result
 
 
-def _build_eval_system(agents_md: str) -> str:
+def _build_eval_system(
+    agents_md: str,
+    rules_md: str = "",
+    security_md: str = "",
+    prompts_md: str = "",
+) -> str:
     parts: list[str] = []
     if agents_md:
         parts.append(f"# VAULT RULES\n{agents_md}")
+    if rules_md:
+        parts.append(f"# EXISTING RULES\n{rules_md}")
+    if security_md:
+        parts.append(f"# EXISTING SECURITY GATES\n{security_md}")
+    if prompts_md:
+        parts.append(f"# EXISTING PROMPT CONTENT\n{prompts_md}")
     guide = load_prompt("pipeline_evaluator")
     if guide:
         parts.append(guide)

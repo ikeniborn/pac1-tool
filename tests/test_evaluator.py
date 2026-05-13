@@ -5,6 +5,8 @@ from pathlib import Path
 from unittest.mock import patch
 import pytest
 from agent.evaluator import EvalInput, run_evaluator
+import agent.evaluator as ev
+import agent.knowledge_loader as kl
 
 
 def _make_eval_input():
@@ -71,3 +73,47 @@ def test_run_evaluator_exception_returns_none(tmp_path):
          patch("agent.evaluator._EVAL_LOG", log_path):
         result = run_evaluator(_make_eval_input(), model="test-model", cfg={})
     assert result is None
+
+
+def test_build_eval_system_injects_existing_blocks():
+    system = ev._build_eval_system(
+        agents_md="# VAULT\nDo X.",
+        rules_md="- sql-001: Never SELECT star.",
+        security_md="- sec-001: DDL prohibited.",
+        prompts_md="=== answer.md ===\n# Answer\n",
+    )
+    assert "EXISTING RULES" in system
+    assert "sql-001: Never SELECT star." in system
+    assert "EXISTING SECURITY GATES" in system
+    assert "sec-001: DDL prohibited." in system
+    assert "EXISTING PROMPT CONTENT" in system
+    assert "answer.md" in system
+
+
+def test_run_evaluator_loads_knowledge_into_system_prompt():
+    """run_evaluator must pass existing content from knowledge_loader into the system prompt."""
+    inp = EvalInput(
+        task_text="How many products?",
+        agents_md="# Rules\nDo X.",
+        db_schema="products(id, name)",
+        sgr_trace=[],
+        cycles=1,
+        final_outcome="OUTCOME_SUCCESS",
+    )
+    captured_system = []
+
+    def fake_call_llm_raw(system, user_msg, model, cfg, **kwargs):
+        captured_system.append(system)
+        return None  # fail-open → run_evaluator returns None
+
+    with patch.object(kl, "existing_rules_text", return_value="- sql-001: Never X."), \
+         patch.object(kl, "existing_security_text", return_value="- sec-001: Block DDL."), \
+         patch.object(kl, "existing_prompts_text", return_value="=== answer.md ===\nDo Y.\n"), \
+         patch.object(ev, "call_llm_raw", side_effect=fake_call_llm_raw):
+        result = ev.run_evaluator(inp, "test-model", {})
+
+    assert result is None  # fail-open
+    assert len(captured_system) == 1
+    assert "sql-001: Never X." in captured_system[0]
+    assert "sec-001: Block DDL." in captured_system[0]
+    assert "answer.md" in captured_system[0]

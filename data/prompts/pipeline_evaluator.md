@@ -11,6 +11,7 @@ Evaluate the quality of a SQL pipeline execution trace. Produce actionable optim
 4. Answer grounding: are `grounding_refs` present and derived from actual SQL `sku` values?
 5. What SPECIFIC changes to `data/prompts/*.md` or `data/rules/*.yaml` would prevent observed failures?
 6. Security: Did any query use patterns not covered by existing gates (UNION, subquery injection, bulk reads without filter, schema enumeration via information_schema)? Would a new gate have blocked a problem?
+7. Before generating any suggestion, check EXISTING RULES / EXISTING SECURITY GATES / EXISTING PROMPT CONTENT above. Skip topics already covered.
 
 ## Score
 - 1.0 = perfect first-cycle answer with genuine reasoning and correct grounding
