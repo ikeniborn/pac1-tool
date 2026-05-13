@@ -12,6 +12,8 @@ Evaluate the quality of a SQL pipeline execution trace. Produce actionable optim
 5. What SPECIFIC changes to `data/prompts/*.md` or `data/rules/*.yaml` would prevent observed failures?
 6. Security: Did any query use patterns not covered by existing gates (UNION, subquery injection, bulk reads without filter, schema enumeration via information_schema)? Would a new gate have blocked a problem?
 7. Before generating any suggestion, check EXISTING RULES / EXISTING SECURITY GATES / EXISTING PROMPT CONTENT above. Skip topics already covered.
+8. RESOLVE coverage: Do `confirmed_values` in the trace include all `attr_value` literals from the task text (sizes, protection classes, color families, etc.)? If any task literal is absent from confirmed_values AND caused a SCHEMA gate block, suggest adding an `attr_value` candidate for it in `resolve.md`.
+9. ANSWER silent failure: If the answer phase `output` field in the trace is a raw string (not a parsed dict), the model returned an invalid `outcome` enum value causing parse failure. Identify the invalid outcome string and suggest either adding it to `AnswerOutput` Literal in `models.py` (if semantically valid) or adding a prompt rule in `answer.md` forbidding it.
 
 ## Score (0–10 integer)
 - 10 = perfect first-cycle answer, genuine chain-of-thought reasoning, all grounding refs from real SQL results
