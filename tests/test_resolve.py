@@ -1,6 +1,7 @@
 import pytest
 from unittest.mock import MagicMock, patch
-from agent.resolve import _security_check, _first_value, run_resolve
+import json
+from agent.resolve import _security_check, _all_values, run_resolve
 from agent.prephase import PrephaseResult
 
 
@@ -29,22 +30,12 @@ def test_security_check_blocks_query_without_ilike_or_distinct():
     assert "ILIKE" in err or "DISTINCT" in err
 
 
-def test_first_value_returns_first_data_cell():
-    csv_text = "brand\nHeco\nMaker"
-    assert _first_value(csv_text) == "Heco"
+def test_all_values_first_row_compat():
+    assert _all_values("brand\nHeco\nMaker") == ["Heco", "Maker"]
 
 
-def test_first_value_returns_none_for_header_only():
-    assert _first_value("brand\n") is None
-
-
-def test_first_value_returns_none_for_empty():
-    assert _first_value("") is None
-
-
-def test_first_value_strips_quotes():
-    csv_text = 'brand\n"Heco GmbH"'
-    assert _first_value(csv_text) == "Heco GmbH"
+def test_all_values_strips_quotes_first_row():
+    assert _all_values('brand\n"Heco GmbH"') == ["Heco GmbH"]
 
 
 def _make_pre(agents_md_index=None, schema_digest=None):
@@ -110,3 +101,41 @@ def test_run_resolve_accumulates_multiple_fields():
 
     assert result.get("brand") == ["Heco"]
     assert result.get("kind") == ["wood screw"]
+
+
+def test_all_values_returns_all_rows():
+    csv_text = "value_text\n3XL\nL\nXL\nXXL\n"
+    assert _all_values(csv_text) == ["3XL", "L", "XL", "XXL"]
+
+
+def test_all_values_returns_empty_for_header_only():
+    assert _all_values("brand\n") == []
+
+
+def test_all_values_returns_empty_for_empty_string():
+    assert _all_values("") == []
+
+
+def test_all_values_strips_quotes():
+    csv_text = 'brand\n"Heco GmbH"\n"Maker Inc"'
+    assert _all_values(csv_text) == ["Heco GmbH", "Maker Inc"]
+
+
+def test_run_resolve_stores_all_matching_values():
+    """When discovery returns 3XL, L, XL, XXL — all four must be in confirmed_values."""
+    vm = MagicMock()
+    exec_r = MagicMock()
+    exec_r.stdout = "value_text\n3XL\nL\nXL\nXXL\n"
+    vm.exec.return_value = exec_r
+
+    raw = json.dumps({
+        "reasoning": "size values",
+        "candidates": [{"term": "L", "field": "attr_value",
+                         "discovery_query": "SELECT DISTINCT value_text FROM product_properties WHERE key = 'size' AND value_text LIKE '%L%' LIMIT 10"}]
+    })
+    with patch("agent.resolve.call_llm_raw", return_value=raw):
+        result = run_resolve(vm, "model", "find size L product", _make_pre(), {})
+
+    assert "attr_value" in result
+    assert "L" in result["attr_value"]
+    assert "3XL" in result["attr_value"]

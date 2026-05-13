@@ -39,12 +39,22 @@ def _exec_sql(vm: EcomRuntimeClientSync, query: str) -> str:
     return getattr(result, "stdout", "") or getattr(result, "output", "") or ""
 
 
-def _first_value(csv_text: str) -> str | None:
+def _all_values(csv_text: str) -> list[str]:
     lines = [ln.strip() for ln in csv_text.strip().splitlines() if ln.strip()]
     if len(lines) < 2:
-        return None
-    parts = lines[1].split(",")
-    return parts[0].strip().strip('"') if parts else None
+        return []
+    return [
+        parts[0].strip().strip('"')
+        for line in lines[1:]
+        for parts in [line.split(",")]
+        if parts[0].strip().strip('"')
+    ]
+
+
+def _first_value(csv_text: str) -> str | None:
+    """Deprecated shim — kept for test backward compat. Use _all_values."""
+    vals = _all_values(csv_text)
+    return vals[0] if vals else None
 
 
 def _build_resolve_system(pre: PrephaseResult) -> str:
@@ -119,10 +129,10 @@ def _run(
             continue
 
         result_txt = _exec_sql(vm, candidate.discovery_query)
-        value = _first_value(result_txt)
+        values = _all_values(result_txt)
         if t := get_trace():
-            t.log_resolve_exec(candidate.discovery_query, result_txt, value or "")
-        if value:
+            t.log_resolve_exec(candidate.discovery_query, result_txt, values[0] if values else "")
+        for value in values:
             field = candidate.field
             if field not in confirmed_values:
                 confirmed_values[field] = []
