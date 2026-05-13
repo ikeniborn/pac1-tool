@@ -12,4 +12,4 @@ raw_recommendation: 'sql-sec-001.yaml: Add a pre-execution regex gate on generat
   should block dispatch and trigger LEARN immediately without running the query. Do
   not rely on LLM self-enforcement of DDL prohibition.'
 source: eval
-verified: false
+verified: true

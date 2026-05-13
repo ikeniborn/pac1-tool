@@ -10,4 +10,4 @@ raw_recommendation: 'Add sql-learn-quality.yaml gate: if Learn phase reasoning l
   < 20 chars OR matches placeholder patterns (single char, ''x'', ''y'', ''N/A''),
   reject the Learn output and force re-generation before allowing next SqlPlan cycle.'
 source: eval
-verified: false
+verified: true

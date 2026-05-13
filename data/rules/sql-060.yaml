@@ -11,4 +11,4 @@ raw_recommendation: 'sql-syntax.yaml: Add rule capturing the recurring syntax fa
   pattern on single-quoted string literals with spaces (e.g. ''Lawn Mower'') — validate
   quoting style against target DB dialect before execution'
 source: eval
-verified: false
+verified: true

@@ -11,4 +11,4 @@ raw_recommendation: 'sql-grounding.yaml: Add rule that grounding_refs must be sk
   strings from SELECT results; pattern-match rejection for paths starting with ''/''
   or containing ''.json'''
 source: eval
-verified: false
+verified: true

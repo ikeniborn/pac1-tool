@@ -9,4 +9,4 @@ phase: sql_plan
 raw_recommendation: 'sql-gates.yaml: Add contradiction gate — reject LearnOutput where
   outcome=OUTCOME_OK AND error_type is non-null simultaneously'
 source: eval
-verified: false
+verified: true

@@ -10,4 +10,4 @@ raw_recommendation: 'Add rule sql-reasoning-depth.yaml: require reasoning fields
   columns are used and why, (c) what edge cases were considered — reject one-liner
   reasoning'
 source: eval
-verified: false
+verified: true

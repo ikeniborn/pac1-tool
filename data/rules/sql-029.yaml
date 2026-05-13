@@ -10,4 +10,4 @@ phase: sql_plan
 raw_recommendation: 'Add sql-sec-002.yaml: gate for information_schema / pg_catalog
   / sqlite_master queries — schema enumeration not currently gated'
 source: eval
-verified: false
+verified: true

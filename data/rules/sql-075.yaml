@@ -11,4 +11,4 @@ raw_recommendation: 'Add rule in sql-filters.yaml: WHERE clause on TEXT column m
   note case sensitivity — enforce LOWER() or ILIKE where dialect supports it, or document
   explicit assumption'
 source: eval
-verified: false
+verified: true

@@ -13,4 +13,4 @@ raw_recommendation: 'sql-learn.yaml: Add rule — trivial identifier typos (tabl
   name misspelling detectable from schema) should generate a hard pre-execution validation
   error, not a full Learn cycle; reserve Learn cycles for semantic or data-shape failures.'
 source: eval
-verified: false
+verified: true

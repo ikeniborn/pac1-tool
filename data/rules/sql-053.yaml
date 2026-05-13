@@ -12,4 +12,4 @@ raw_recommendation: 'sql-plan.yaml: add lint rule flagging plans where all queri
   are aggregate-only (COUNT/SUM/AVG with no sku/id in SELECT) when task type is product
   lookup'
 source: eval
-verified: false
+verified: true

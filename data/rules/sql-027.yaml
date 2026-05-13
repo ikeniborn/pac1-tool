@@ -12,4 +12,4 @@ raw_recommendation: 'sql-grounding.yaml: Add rule: grounding_refs values must ma
   sku values present in SQL result rows; if query returns no sku column (e.g. COUNT),
   grounding_refs must be [] — fail answer if non-empty path string present'
 source: eval
-verified: false
+verified: true

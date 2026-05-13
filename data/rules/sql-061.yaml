@@ -13,4 +13,4 @@ raw_recommendation: 'sql-spelling.yaml (new): Add gate that diffs each identifie
   in generated SQL against schema token list; block execution if edit-distance > 0
   from any known table/column name.'
 source: eval
-verified: false
+verified: true

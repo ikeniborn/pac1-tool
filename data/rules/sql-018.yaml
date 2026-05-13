@@ -12,4 +12,4 @@ raw_recommendation: 'Add rule sql-empty-result-retry.yaml: when cycle 1 returns 
   rows, Learn phase MUST produce a new query with at least one changed predicate (case-insensitive
   LIKE, LOWER(), or alternate column); identical retry is a hard failure'
 source: eval
-verified: false
+verified: true

@@ -12,4 +12,4 @@ raw_recommendation: 'Add rule sql-ambiguous-task.yaml: when task text contains u
   require clarification before proceeding — prevents planner from silently assuming
   filter values'
 source: eval
-verified: false
+verified: true

@@ -13,4 +13,4 @@ raw_recommendation: 'Add sql-cycle-dedup.yaml gate: if SqlPlan cycle N+1 produce
   identical query to cycle N, abort pipeline and surface error — identical retry after
   Learn means Learn produced no corrective value and further cycles are wasteful.'
 source: eval
-verified: false
+verified: true

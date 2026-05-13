@@ -14,4 +14,4 @@ raw_recommendation: 'sql-filter-grounding.yaml (new): add rule requiring every W
   clause literal to be traceable to task input text or a prior SQL result — flag queries
   where filter value has no textual basis in task'
 source: eval
-verified: false
+verified: true
