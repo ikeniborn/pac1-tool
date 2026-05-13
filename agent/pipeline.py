@@ -5,6 +5,7 @@ import json
 import os
 import re
 import threading
+import time
 import traceback
 from pathlib import Path
 
@@ -26,6 +27,7 @@ from .resolve import run_resolve
 from .rules_loader import RulesLoader, _RULES_DIR
 from .schema_gate import check_schema_compliance
 from .sql_security import check_sql_queries, load_security_gates
+from .trace import get_trace
 
 _MAX_CYCLES = 3
 _EVAL_ENABLED = os.environ.get("EVAL_ENABLED", "0") == "1"
@@ -79,11 +81,15 @@ def _call_llm_phase(
     cfg: dict,
     output_cls,
     max_tokens: int = 4096,
+    phase: str = "",
+    cycle: int = 0,
 ) -> tuple[object | None, dict, dict]:
     """SGR LLM call: returns (parsed_output_or_None, sgr_trace_entry, tok_info)."""
     tok_info: dict = {}
+    t0 = time.monotonic()
     raw = call_llm_raw(system, user_msg, model, cfg, max_tokens=max_tokens, token_out=tok_info)
-    phase_name = output_cls.__name__
+    duration_ms = int((time.monotonic() - t0) * 1000)
+    phase_name = phase or output_cls.__name__
     _system_preview = system[:300] if isinstance(system, str) else str(system)[:300]
     sgr_entry: dict = {
         "phase": phase_name,
@@ -91,18 +97,44 @@ def _call_llm_phase(
         "reasoning": "",
         "output": raw or "",
     }
-    if not raw:
-        return None, sgr_entry, tok_info
-    parsed = _extract_json_from_text(raw)
-    if not isinstance(parsed, dict):
-        return None, sgr_entry, tok_info
-    try:
-        obj = output_cls.model_validate(parsed)
-        sgr_entry["reasoning"] = obj.reasoning
-        sgr_entry["output"] = parsed
-        return obj, sgr_entry, tok_info
-    except Exception:
-        return None, sgr_entry, tok_info
+    parsed: dict | None = None
+    if raw:
+        extracted = _extract_json_from_text(raw)
+        if isinstance(extracted, dict):
+            parsed = extracted
+    if parsed is not None:
+        try:
+            obj = output_cls.model_validate(parsed)
+            sgr_entry["reasoning"] = obj.reasoning
+            sgr_entry["output"] = parsed
+            if t := get_trace():
+                t.log_llm_call(
+                    phase=phase_name,
+                    cycle=cycle,
+                    system=system,
+                    user_msg=user_msg,
+                    raw_response=raw or "",
+                    parsed_output=parsed,
+                    tokens_in=tok_info.get("input", 0),
+                    tokens_out=tok_info.get("output", 0),
+                    duration_ms=duration_ms,
+                )
+            return obj, sgr_entry, tok_info
+        except Exception:
+            pass
+    if t := get_trace():
+        t.log_llm_call(
+            phase=phase_name,
+            cycle=cycle,
+            system=system,
+            user_msg=user_msg,
+            raw_response=raw or "",
+            parsed_output=None,
+            tokens_in=tok_info.get("input", 0),
+            tokens_out=tok_info.get("output", 0),
+            duration_ms=duration_ms,
+        )
+    return None, sgr_entry, tok_info
 
 
 def _gates_summary(gates: list[dict]) -> str:
@@ -299,7 +331,10 @@ def run_pipeline(
 
         # ── SQL_PLAN ──────────────────────────────────────────────────────────
         user_msg = _build_sql_user_msg(task_text, session_rules, highlighted_vault_rules, last_error)
-        sql_plan_out, sgr_entry, tok = _call_llm_phase(static_sql, user_msg, model, cfg, SqlPlanOutput)
+        sql_plan_out, sgr_entry, tok = _call_llm_phase(
+            static_sql, user_msg, model, cfg, SqlPlanOutput,
+            phase="sql_plan", cycle=cycle + 1,
+        )
         total_in_tok += tok.get("input", 0)
         total_out_tok += tok.get("output", 0)
         sgr_trace.append(sgr_entry)
@@ -309,7 +344,7 @@ def run_pipeline(
             last_error = "SQL_PLAN phase LLM call failed"
             _run_learn(static_learn, model, cfg, task_text, [], last_error,
                        sgr_trace, session_rules, highlighted_vault_rules,
-                       pre.agents_md_index, error_type="llm_fail")
+                       pre.agents_md_index, error_type="llm_fail", cycle=cycle + 1)
             continue
 
         sql_plan_outputs.append(sql_plan_out)
@@ -328,27 +363,31 @@ def run_pipeline(
                 print(f"{CLI_YELLOW}[pipeline] AGENTS.MD refs check failed: {last_error}{CLI_CLR}")
                 _run_learn(static_learn, model, cfg, task_text, queries, last_error,
                            sgr_trace, session_rules, highlighted_vault_rules,
-                           pre.agents_md_index, error_type="semantic")
+                           pre.agents_md_index, error_type="semantic", cycle=cycle + 1)
                 continue
 
         # ── SECURITY CHECK ────────────────────────────────────────────────────
         gate_err = check_sql_queries(queries, security_gates)
+        if t := get_trace():
+            t.log_gate_check(cycle + 1, "security", queries, bool(gate_err), gate_err or None)
         if gate_err:
             print(f"{CLI_YELLOW}[pipeline] SECURITY gate blocked: {gate_err}{CLI_CLR}")
             last_error = gate_err
             _run_learn(static_learn, model, cfg, task_text, queries, last_error,
                        sgr_trace, session_rules, highlighted_vault_rules,
-                       pre.agents_md_index, error_type="security")
+                       pre.agents_md_index, error_type="security", cycle=cycle + 1)
             continue
 
         # ── SCHEMA GATE ───────────────────────────────────────────────────────
         schema_err = check_schema_compliance(queries, pre.schema_digest, confirmed_values, task_text)
+        if t := get_trace():
+            t.log_gate_check(cycle + 1, "schema", queries, bool(schema_err), schema_err or None)
         if schema_err:
             print(f"{CLI_YELLOW}[pipeline] SCHEMA gate blocked: {schema_err}{CLI_CLR}")
             last_error = schema_err
             _run_learn(static_learn, model, cfg, task_text, queries, last_error,
                        sgr_trace, session_rules, highlighted_vault_rules,
-                       pre.agents_md_index, error_type="security")
+                       pre.agents_md_index, error_type="security", cycle=cycle + 1)
             continue
 
         # ── VALIDATE ──────────────────────────────────────────────────────────
@@ -359,9 +398,15 @@ def run_pipeline(
                 result_txt = _exec_result_text(result)
                 if "error" in result_txt.lower():
                     validate_error = f"EXPLAIN error: {result_txt[:200]}"
+                    if t := get_trace():
+                        t.log_sql_validate(cycle + 1, q, result_txt, validate_error)
                     break
+                if t := get_trace():
+                    t.log_sql_validate(cycle + 1, q, result_txt, None)
             except Exception as e:
                 validate_error = f"EXPLAIN exception: {e}"
+                if t := get_trace():
+                    t.log_sql_validate(cycle + 1, q, "", validate_error)
                 break
 
         if validate_error:
@@ -369,7 +414,7 @@ def run_pipeline(
             last_error = validate_error
             _run_learn(static_learn, model, cfg, task_text, queries, last_error,
                        sgr_trace, session_rules, highlighted_vault_rules,
-                       pre.agents_md_index, error_type="syntax")
+                       pre.agents_md_index, error_type="syntax", cycle=cycle + 1)
             continue
 
         # ── EXECUTE ───────────────────────────────────────────────────────────
@@ -377,9 +422,13 @@ def run_pipeline(
         sql_results = []
         for q in queries:
             try:
+                _t0 = time.monotonic()
                 result = vm.exec(ExecRequest(path="/bin/sql", args=[q]))
+                _dur = int((time.monotonic() - _t0) * 1000)
                 result_txt = _exec_result_text(result)
                 sql_results.append(result_txt)
+                if t := get_trace():
+                    t.log_sql_execute(cycle + 1, q, result_txt, _csv_has_data(result_txt), _dur)
                 print(f"{CLI_BLUE}[pipeline] EXECUTE: {q[:60]!r} → {result_txt[:80]}{CLI_CLR}")
             except Exception as e:
                 execute_error = f"Execute exception: {e}"
@@ -393,7 +442,8 @@ def run_pipeline(
             _run_learn(static_learn, model, cfg, task_text, queries, last_error,
                        sgr_trace, session_rules, highlighted_vault_rules,
                        pre.agents_md_index,
-                       error_type="empty" if last_empty and not execute_error else "semantic")
+                       error_type="empty" if last_empty and not execute_error else "semantic",
+                       cycle=cycle + 1)
             continue
 
         # ── CARRYOVER: update confirmed_values from DISTINCT results ──────────
@@ -417,7 +467,10 @@ def run_pipeline(
     else:
         # ── ANSWER ────────────────────────────────────────────────────────────
         answer_user = _build_answer_user_msg(task_text, sql_results)
-        answer_out, sgr_answer, tok = _call_llm_phase(static_answer, answer_user, model, cfg, AnswerOutput)
+        answer_out, sgr_answer, tok = _call_llm_phase(
+            static_answer, answer_user, model, cfg, AnswerOutput,
+            phase="answer", cycle=cycle + 1,
+        )
         total_in_tok += tok.get("input", 0)
         total_out_tok += tok.get("output", 0)
         sgr_trace.append(sgr_answer)
@@ -459,6 +512,7 @@ def run_pipeline(
 
     stats = {
         "outcome": outcome,
+        "cycles_used": cycles_used,
         "step_facts": [f"pipeline cycles={cycles_used}"],
         "done_ops": [],
         "input_tokens": total_in_tok,
@@ -480,9 +534,13 @@ def _run_learn(
     highlighted_vault_rules: list[str],
     agents_md_index: dict,
     error_type: str = "semantic",
+    cycle: int = 0,
 ) -> None:
     learn_user = _build_learn_user_msg(task_text, queries, error, error_type)
-    learn_out, sgr_learn, _ = _call_llm_phase(static_learn, learn_user, model, cfg, LearnOutput, max_tokens=2048)
+    learn_out, sgr_learn, _ = _call_llm_phase(
+        static_learn, learn_user, model, cfg, LearnOutput,
+        max_tokens=2048, phase="learn", cycle=cycle,
+    )
     sgr_learn["error_type"] = error_type
     sgr_trace.append(sgr_learn)
     if learn_out and error_type != "llm_fail":
