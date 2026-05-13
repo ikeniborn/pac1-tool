@@ -17,7 +17,7 @@ def _eval_entry(rule_opts=None, security_opts=None, prompt_opts=None):
         "task_text": "Do you have product X with attr Y=3?",
         "cycles": 2,
         "final_outcome": "OUTCOME_NONE_CLARIFICATION",
-        "score": 0.1,
+        "score": 1,
         "rule_optimization": rule_opts or [],
         "security_optimization": security_opts or [],
         "prompt_optimization": prompt_opts or [],
@@ -71,7 +71,7 @@ def test_writes_rule_yaml(tmp_path):
     assert rule["source"] == "eval"
     assert rule["phase"] == "sql_plan"
     assert "Never prefix model" in rule["content"]
-    assert rule["eval_score"] == pytest.approx(0.1)
+    assert rule["eval_score"] == 1
 
 
 def test_writes_security_yaml(tmp_path):

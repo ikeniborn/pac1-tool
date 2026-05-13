@@ -23,7 +23,7 @@ def _make_eval_input():
 def test_run_evaluator_writes_to_log(tmp_path):
     eval_json = json.dumps({
         "reasoning": "trace is good",
-        "score": 0.9,
+        "score": 9,
         "comment": "solid",
         "prompt_optimization": [],
         "rule_optimization": [],
@@ -35,10 +35,10 @@ def test_run_evaluator_writes_to_log(tmp_path):
         result = run_evaluator(_make_eval_input(), model="test-model", cfg={})
 
     assert result is not None
-    assert result.score == 0.9
+    assert result.score == 9
     assert result.security_optimization == ["Add gate for UNION SELECT injection"]
     line = json.loads(log_path.read_text().strip())
-    assert line["score"] == 0.9
+    assert line["score"] == 9
     assert line["task_text"] == "How many Lawn Mowers?"
     assert line["final_outcome"] == "OUTCOME_OK"
     assert line["security_optimization"] == ["Add gate for UNION SELECT injection"]

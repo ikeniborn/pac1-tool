@@ -60,12 +60,12 @@ def test_answer_output_invalid_outcome():
 def test_pipeline_eval_output_valid():
     obj = PipelineEvalOutput(
         reasoning="trace looks good",
-        score=0.85,
+        score=8.5,
         comment="solid",
         prompt_optimization=["add example SQL to sql_plan.md"],
         rule_optimization=["add rule for brand filtering"],
     )
-    assert 0.0 <= obj.score <= 1.0
+    assert 0.0 <= obj.score <= 10.0
 
 
 def test_sql_plan_output_agents_md_refs_defaults_empty():
@@ -90,7 +90,7 @@ def test_learn_output_agents_md_anchor_set():
 
 def test_pipeline_eval_output_new_metrics_default():
     obj = PipelineEvalOutput(
-        reasoning="r", score=0.8, comment="c",
+        reasoning="r", score=8, comment="c",
         prompt_optimization=[], rule_optimization=[],
     )
     assert obj.agents_md_coverage == 0.0
@@ -99,7 +99,7 @@ def test_pipeline_eval_output_new_metrics_default():
 
 def test_pipeline_eval_output_new_metrics_set():
     obj = PipelineEvalOutput(
-        reasoning="r", score=0.8, comment="c",
+        reasoning="r", score=8, comment="c",
         prompt_optimization=[], rule_optimization=[],
         agents_md_coverage=0.75, schema_grounding=1.0,
     )
