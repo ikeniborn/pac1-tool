@@ -490,3 +490,44 @@ def test_evaluator_thread_starts_on_failure(tmp_path):
             thread.join(timeout=5)
 
     assert thread_started, "Evaluator must start even on pipeline failure"
+
+
+def test_answer_fallback_called_when_parse_fails(tmp_path):
+    """When AnswerOutput.model_validate fails (invalid outcome), vm.answer is still called.
+
+    Uses side_effect so SQL_PLAN succeeds (call 1) but ANSWER returns invalid JSON (call 2).
+    Without the fix: answer_out=None → if answer_out: skipped → vm.answer never called.
+    With the fix: else branch → vm.answer(OUTCOME_NONE_CLARIFICATION) called.
+    """
+    vm = MagicMock()
+    # Both EXPLAIN and EXECUTE return sku+path data so pipeline reaches ANSWER
+    exec_result = _make_exec_result("sku,path\nSKU-001,/proc/catalog/SKU-001.json\n")
+    vm.exec.return_value = exec_result
+
+    pre = _make_pre()
+    rules_dir = tmp_path / "rules"
+    rules_dir.mkdir()
+
+    bad_answer_json = json.dumps({
+        "reasoning": "x", "message": "hi",
+        "outcome": "OUTCOME_NEED_MORE_DATA",   # invalid — not in AnswerOutput Literal
+        "grounding_refs": [], "completed_steps": [],
+    })
+    # Call 1 → SQL_PLAN succeeds; Call 2 → ANSWER parse fails
+    call_seq = [
+        _sql_plan_json(queries=["SELECT p.sku, p.path FROM products p WHERE p.type='X'"]),
+        bad_answer_json,
+    ]
+    call_iter = iter(call_seq)
+
+    with patch("agent.pipeline.call_llm_raw", side_effect=lambda *a, **kw: next(call_iter)), \
+         patch("agent.pipeline._RULES_DIR", rules_dir), \
+         patch("agent.pipeline.load_security_gates", return_value=[]), \
+         patch("agent.pipeline.run_resolve", return_value={}), \
+         patch("agent.pipeline.check_schema_compliance", return_value=None):
+        run_pipeline(vm, "test-model", "test task", pre, {})
+
+    # vm.answer must have been called despite parse failure
+    vm.answer.assert_called_once()
+    req = vm.answer.call_args.args[0]   # AnswerRequest positional arg
+    assert "Could not synthesize" in req.message

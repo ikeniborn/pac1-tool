@@ -577,6 +577,16 @@ def run_pipeline(
                 ))
             except Exception as e:
                 print(f"{CLI_RED}[pipeline] vm.answer error: {e}{CLI_CLR}")
+        else:
+            print(f"{CLI_RED}[pipeline] ANSWER parse failed — sending fallback clarification{CLI_CLR}")
+            try:
+                vm.answer(AnswerRequest(
+                    message="Could not synthesize an answer from available data.",
+                    outcome=OUTCOME_BY_NAME["OUTCOME_NONE_CLARIFICATION"],
+                    refs=[],
+                ))
+            except Exception as e:
+                print(f"{CLI_RED}[pipeline] vm.answer fallback error: {e}{CLI_CLR}")
 
     # ── EVALUATE (always, success or fail) ────────────────────────────────────
     eval_thread: threading.Thread | None = None
