@@ -118,6 +118,32 @@ def _cluster_recs(
     return result
 
 
+def _check_contradiction(
+    new_content: str,
+    existing_md: str,
+    model: str,
+    cfg: dict,
+) -> str | None:
+    """Returns None if no conflict, or 'CONFLICT: <id> — <reason>' string."""
+    if not existing_md:
+        return None
+
+    system = (
+        "Check if the new content contradicts any existing item.\n"
+        "A contradiction means opposite instructions for the same scenario.\n"
+        "If found: respond with exactly: CONFLICT: <id> — <reason>\n"
+        "If not found: respond with exactly: OK"
+    )
+    user_msg = f"Existing:\n{existing_md}\n\nNew content:\n{new_content}"
+    raw = call_llm_raw_cluster(system, user_msg, model, cfg, max_tokens=128, plain_text=True)
+    if not raw:
+        return None
+    raw = raw.strip()
+    if raw.upper().startswith("CONFLICT"):
+        return raw
+    return None
+
+
 def _next_num(directory: Path, prefix: str) -> int:
     existing = []
     for f in directory.glob("*.yaml"):
@@ -303,6 +329,10 @@ def main(dry_run: bool = False) -> None:
             new_processed.update(all_hashes)
             print("  → skip (null/duplicate)")
             continue
+        conflict = _check_contradiction(content, rules_md, model, cfg)
+        if conflict:
+            print(f"  → skip (contradiction: {conflict})")
+            continue
         num = _next_num(_RULES_DIR, "sql-")
         if dry_run:
             print(f"  → [DRY RUN] sql-{num:03d}.yaml: {content[:100]}")
@@ -320,6 +350,10 @@ def main(dry_run: bool = False) -> None:
             new_processed.update(all_hashes)
             print("  → skip (null/not-applicable)")
             continue
+        conflict = _check_contradiction(gate_spec.get("message", ""), security_md, model, cfg)
+        if conflict:
+            print(f"  → skip (contradiction: {conflict})")
+            continue
         num = _next_num(_SECURITY_DIR, "sec-")
         if dry_run:
             print(f"  → [DRY RUN] sec-{num:03d}.yaml: {gate_spec.get('message', '')}")
@@ -336,6 +370,10 @@ def main(dry_run: bool = False) -> None:
         if patch_result is None:
             new_processed.update(all_hashes)
             print("  → skip (null/vague)")
+            continue
+        conflict = _check_contradiction(patch_result.get("content", ""), prompts_md, model, cfg)
+        if conflict:
+            print(f"  → skip (contradiction: {conflict})")
             continue
         if dry_run:
             print(f"  → [DRY RUN] {patch_result['target_file']}: {patch_result['content'][:80]}")

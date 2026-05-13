@@ -413,3 +413,46 @@ def test_security_md_refreshed_between_writes(tmp_path):
         po.main(dry_run=False)
 
     assert refresh_calls[0] >= 2
+
+
+def test_check_contradiction_returns_none_on_ok(tmp_path):
+    """Returns None when LLM says OK."""
+    with patch("scripts.propose_optimizations.call_llm_raw_cluster", return_value="OK"):
+        result = po._check_contradiction("Never SELECT star.", "- sql-001: Always JOIN.", "test-model", {})
+    assert result is None
+
+
+def test_check_contradiction_returns_string_on_conflict(tmp_path):
+    """Returns conflict string when LLM finds contradiction."""
+    with patch("scripts.propose_optimizations.call_llm_raw_cluster",
+               return_value="CONFLICT: sql-001 — opposite instruction"):
+        result = po._check_contradiction("Always SELECT star.", "- sql-001: Never SELECT star.", "test-model", {})
+    assert result is not None
+    assert "sql-001" in result
+
+
+def test_contradiction_blocks_write(tmp_path):
+    """Rule with contradiction is not written and its hashes are not marked processed."""
+    import agent.knowledge_loader as kl
+
+    eval_log, rules_dir, security_dir, prompts_dir, prom_dir, processed = _setup(tmp_path)
+    _write_eval_log(eval_log, [_eval_entry(rule_opts=["conflicting rec"])])
+    h = po._entry_hash("Do you have product X with attr Y=3?", "rule", "conflicting rec")
+
+    def fake_cluster(items, *a, **k):
+        return [(rec, entry, [hsh]) for rec, entry, hsh in items]
+
+    patches = _base_patches(eval_log, rules_dir, security_dir, prompts_dir, prom_dir, processed)
+    with patches[0], patches[1], patches[2], patches[3], patches[4], \
+         patches[5], patches[6], patches[7], patches[8], \
+         patch.object(po, "_cluster_recs", side_effect=fake_cluster), \
+         patch.object(po, "_synthesize_rule", return_value="Always SELECT star."), \
+         patch.object(po, "_synthesize_security_gate", return_value=None), \
+         patch.object(po, "_synthesize_prompt_patch", return_value=None), \
+         patch.object(po, "_check_contradiction", return_value="CONFLICT: sql-001 — opposite"), \
+         patch.object(kl, "existing_rules_text", return_value="- sql-001: Never SELECT star."):
+        po.main(dry_run=False)
+
+    assert list(rules_dir.glob("*.yaml")) == []
+    saved = processed.read_text().splitlines() if processed.exists() else []
+    assert h not in saved
