@@ -16,6 +16,9 @@ from dotenv import load_dotenv
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from agent import knowledge_loader
+from agent.llm import call_llm_raw
+
+call_llm_raw_cluster = call_llm_raw  # alias — allows patch in tests without affecting call_llm_raw
 
 _ROOT = Path(__file__).parent.parent
 _EVAL_LOG = _ROOT / "data" / "eval_log.jsonl"
@@ -49,6 +52,70 @@ def _save_processed(hashes: set[str]) -> None:
 
 def _entry_hash(task_text: str, channel: str, rec: str) -> str:
     return hashlib.sha256(f"{channel}|{task_text}|{rec}".encode()).hexdigest()[:16]
+
+
+def _cluster_recs(
+    items: list[tuple[str, dict, str]],
+    existing_md: str,
+    model: str,
+    cfg: dict,
+) -> list[tuple[str, dict, list[str]]]:
+    """Cluster semantically equivalent recs into representatives via one LLM call.
+
+    Returns list of (representative_rec, first_entry, all_original_hashes).
+    Falls back to singleton tuples on LLM failure.
+    """
+    if not items:
+        return []
+
+    from agent.json_extract import _extract_json_from_text
+
+    recs = [rec for rec, _, _ in items]
+    system = (
+        "You will receive a JSON array of raw optimization recommendations and (optionally) existing content.\n"
+        "Return a JSON array of unique, non-redundant recommendations.\n"
+        "Merge semantically equivalent items into one. Drop items already covered by existing content.\n"
+        "Keep the most specific/actionable wording. Return only the merged array, no other text."
+        + (f"\n\nExisting content:\n{existing_md}" if existing_md else "")
+    )
+    user_msg = json.dumps(recs, ensure_ascii=False)
+    raw = call_llm_raw_cluster(system, user_msg, model, cfg, max_tokens=1024)
+
+    if not raw:
+        return [(rec, entry, [h]) for rec, entry, h in items]
+
+    parsed = None
+    try:
+        parsed = json.loads(raw.strip())
+    except (json.JSONDecodeError, ValueError):
+        parsed = _extract_json_from_text(raw)
+    if not isinstance(parsed, list):
+        return [(rec, entry, [h]) for rec, entry, h in items]
+
+    result = []
+    remaining_items = list(items)
+    for rep_rec in parsed:
+        if not isinstance(rep_rec, str):
+            continue
+        matched_hashes = []
+        matched_entry = None
+        for orig_rec, orig_entry, orig_hash in remaining_items:
+            if orig_rec in rep_rec or rep_rec in orig_rec or orig_rec == rep_rec:
+                matched_hashes.append(orig_hash)
+                if matched_entry is None:
+                    matched_entry = orig_entry
+        if not matched_hashes:
+            # representative is new wording — assign all remaining originals
+            matched_hashes = [h for _, _, h in remaining_items]
+            matched_entry = remaining_items[0][1] if remaining_items else {}
+        result.append((rep_rec, matched_entry or {}, matched_hashes))
+        remaining_items = [it for it in remaining_items if it[2] not in matched_hashes]
+        if not remaining_items:
+            break
+
+    if not result:
+        return [(rec, entry, [h]) for rec, entry, h in items]
+    return result
 
 
 def _next_num(directory: Path, prefix: str) -> int:
@@ -203,76 +270,88 @@ def main(dry_run: bool = False) -> None:
     new_processed = set(processed)
     written = 0
 
-    for entry in entries:
-        for raw_rec in entry.get("rule_optimization", []):
-            h = _entry_hash(entry["task_text"], "rule", raw_rec)
-            if h in processed:
-                continue
-            print(f"[rule] {raw_rec[:80]}...")
-            content = _synthesize_rule(raw_rec, rules_md, model, cfg)
-            if content is None:
-                new_processed.add(h)
-                print("  → skip (null/duplicate)")
-                continue
-            num = _next_num(_RULES_DIR, "sql-")
-            if dry_run:
-                print(f"  → [DRY RUN] sql-{num:03d}.yaml: {content[:100]}")
-            else:
-                dest = _write_rule(num, content, entry, raw_rec)
-                print(f"  → {dest.name}")
-                new_processed.add(h)
-                written += 1
+    # --- Flatten per channel ---
+    rule_items: list[tuple[str, dict, str]] = [
+        (rec, entry, _entry_hash(entry["task_text"], "rule", rec))
+        for entry in entries
+        for rec in entry.get("rule_optimization", [])
+        if _entry_hash(entry["task_text"], "rule", rec) not in processed
+    ]
+    security_items: list[tuple[str, dict, str]] = [
+        (rec, entry, _entry_hash(entry["task_text"], "security", rec))
+        for entry in entries
+        for rec in entry.get("security_optimization", [])
+        if _entry_hash(entry["task_text"], "security", rec) not in processed
+    ]
+    prompt_items: list[tuple[str, dict, str]] = [
+        (rec, entry, _entry_hash(entry["task_text"], "prompt", rec))
+        for entry in entries
+        for rec in entry.get("prompt_optimization", [])
+        if _entry_hash(entry["task_text"], "prompt", rec) not in processed
+    ]
 
-        for raw_rec in entry.get("security_optimization", []):
-            h = _entry_hash(entry["task_text"], "security", raw_rec)
-            if h in processed:
-                continue
-            print(f"[security] {raw_rec[:80]}...")
-            gate_spec = _synthesize_security_gate(raw_rec, security_md, model, cfg)
-            if gate_spec is None:
-                new_processed.add(h)
-                print("  → skip (null/not-applicable)")
-                continue
-            num = _next_num(_SECURITY_DIR, "sec-")
-            if dry_run:
-                print(f"  → [DRY RUN] sec-{num:03d}.yaml: {gate_spec.get('message', '')}")
-            else:
-                dest = _write_security(num, gate_spec, entry, raw_rec)
-                print(f"  → {dest.name}")
-                new_processed.add(h)
-                written += 1
+    # --- Pre-cluster per channel ---
+    rule_clusters = _cluster_recs(rule_items, rules_md, model, cfg) if rule_items else []
+    security_clusters = _cluster_recs(security_items, security_md, model, cfg) if security_items else []
+    prompt_clusters = _cluster_recs(prompt_items, prompts_md, model, cfg) if prompt_items else []
 
-        for raw_rec in entry.get("prompt_optimization", []):
-            h = _entry_hash(entry["task_text"], "prompt", raw_rec)
-            if h in processed:
-                continue
-            print(f"[prompt] {raw_rec[:80]}...")
-            patch_result = _synthesize_prompt_patch(raw_rec, prompts_md, model, cfg)
-            if patch_result is None:
-                new_processed.add(h)
-                print("  → skip (null/vague)")
-                continue
-            if dry_run:
-                print(f"  → [DRY RUN] {patch_result['target_file']}: {patch_result['content'][:80]}")
-            else:
-                dest = _write_prompt(patch_result, entry, raw_rec)
-                print(f"  → {dest.name}")
-                new_processed.add(h)
-                written += 1
+    # --- Process representatives ---
+    for raw_rec, entry, all_hashes in rule_clusters:
+        print(f"[rule] {raw_rec[:80]}...")
+        content = _synthesize_rule(raw_rec, rules_md, model, cfg)
+        if content is None:
+            new_processed.update(all_hashes)
+            print("  → skip (null/duplicate)")
+            continue
+        num = _next_num(_RULES_DIR, "sql-")
+        if dry_run:
+            print(f"  → [DRY RUN] sql-{num:03d}.yaml: {content[:100]}")
+        else:
+            dest = _write_rule(num, content, entry, raw_rec)
+            print(f"  → {dest.name}")
+            new_processed.update(all_hashes)
+            written += 1
+            rules_md = knowledge_loader.existing_rules_text()
+
+    for raw_rec, entry, all_hashes in security_clusters:
+        print(f"[security] {raw_rec[:80]}...")
+        gate_spec = _synthesize_security_gate(raw_rec, security_md, model, cfg)
+        if gate_spec is None:
+            new_processed.update(all_hashes)
+            print("  → skip (null/not-applicable)")
+            continue
+        num = _next_num(_SECURITY_DIR, "sec-")
+        if dry_run:
+            print(f"  → [DRY RUN] sec-{num:03d}.yaml: {gate_spec.get('message', '')}")
+        else:
+            dest = _write_security(num, gate_spec, entry, raw_rec)
+            print(f"  → {dest.name}")
+            new_processed.update(all_hashes)
+            written += 1
+            security_md = knowledge_loader.existing_security_text()
+
+    for raw_rec, entry, all_hashes in prompt_clusters:
+        print(f"[prompt] {raw_rec[:80]}...")
+        patch_result = _synthesize_prompt_patch(raw_rec, prompts_md, model, cfg)
+        if patch_result is None:
+            new_processed.update(all_hashes)
+            print("  → skip (null/vague)")
+            continue
+        if dry_run:
+            print(f"  → [DRY RUN] {patch_result['target_file']}: {patch_result['content'][:80]}")
+        else:
+            dest = _write_prompt(patch_result, entry, raw_rec)
+            print(f"  → {dest.name}")
+            new_processed.update(all_hashes)
+            written += 1
+            prompts_md = knowledge_loader.existing_prompts_text()
 
     if not dry_run:
         _save_processed(new_processed)
         print(f"\nDone. {written} candidate(s) written.")
     else:
-        total = sum(
-            1 for e in entries
-            for ch, key in [("rule", "rule_optimization"),
-                            ("security", "security_optimization"),
-                            ("prompt", "prompt_optimization")]
-            for r in e.get(key, [])
-            if _entry_hash(e["task_text"], ch, r) not in processed
-        )
-        print(f"\n[DRY RUN] {total} entry(ies) would be processed.")
+        total = len(rule_items) + len(security_items) + len(prompt_items)
+        print(f"\n[DRY RUN] {total} entry(ies) would be processed (before clustering).")
 
 
 if __name__ == "__main__":

@@ -282,3 +282,134 @@ def test_main_uses_knowledge_loader_for_rules(tmp_path):
     # synthesize_rule must be called with the string returned by knowledge_loader
     args = mock_synth.call_args
     assert args[0][1] == "- sql-001: existing rule"
+
+
+def test_cluster_recs_merges_duplicates():
+    """_cluster_recs returns fewer items when LLM merges duplicates."""
+    items = [
+        ("Never SELECT star from product.", {}, "hash1"),
+        ("Avoid SELECT * from any table.", {}, "hash2"),
+        ("Use column-level projections instead of SELECT *.", {}, "hash3"),
+    ]
+    merged_rec = "Never use SELECT *; specify column projections."
+    with patch("scripts.propose_optimizations.call_llm_raw_cluster",
+               return_value=json.dumps([merged_rec])):
+        result = po._cluster_recs(items, "", "test-model", {})
+
+    assert len(result) == 1
+    rep_rec, rep_entry, all_hashes = result[0]
+    assert rep_rec == merged_rec
+    assert set(all_hashes) == {"hash1", "hash2", "hash3"}
+
+
+def test_cluster_recs_fallback_on_llm_failure():
+    """_cluster_recs returns items as-is when LLM call fails."""
+    items = [
+        ("rec-A", {"task_text": "t"}, "hA"),
+        ("rec-B", {"task_text": "t"}, "hB"),
+    ]
+    with patch("scripts.propose_optimizations.call_llm_raw_cluster", return_value=None):
+        result = po._cluster_recs(items, "", "test-model", {})
+
+    assert len(result) == 2
+    assert result[0][2] == ["hA"]
+    assert result[1][2] == ["hB"]
+
+
+def test_cluster_recs_all_hashes_marked_on_write(tmp_path):
+    """All hashes in a cluster group are marked processed after writing the representative."""
+    import agent.knowledge_loader as kl
+
+    eval_log, rules_dir, security_dir, prompts_dir, prom_dir, processed = _setup(tmp_path)
+    entry = _eval_entry(rule_opts=["rec-A", "rec-B"])
+    _write_eval_log(eval_log, [entry])
+
+    merged_rec = "merged rule"
+    h_a = po._entry_hash(entry["task_text"], "rule", "rec-A")
+    h_b = po._entry_hash(entry["task_text"], "rule", "rec-B")
+
+    def fake_cluster(items, *a, **k):
+        all_hashes = [h for _, _, h in items]
+        return [(merged_rec, items[0][1], all_hashes)]
+
+    patches = _base_patches(eval_log, rules_dir, security_dir, prompts_dir, prom_dir, processed)
+    with patches[0], patches[1], patches[2], patches[3], patches[4], \
+         patches[5], patches[6], patches[7], patches[8], \
+         patch.object(po, "_cluster_recs", side_effect=fake_cluster), \
+         patch.object(po, "_synthesize_rule", return_value="Never do X."), \
+         patch.object(po, "_synthesize_security_gate", return_value=None), \
+         patch.object(po, "_synthesize_prompt_patch", return_value=None), \
+         patch.object(kl, "existing_rules_text", return_value=""):
+        po.main(dry_run=False)
+
+    saved = set(processed.read_text().splitlines())
+    assert h_a in saved
+    assert h_b in saved
+
+
+def test_rules_md_refreshed_between_writes(tmp_path):
+    """Second rule synthesis receives updated rules_md after first write."""
+    import agent.knowledge_loader as kl
+
+    eval_log, rules_dir, security_dir, prompts_dir, prom_dir, processed = _setup(tmp_path)
+    _write_eval_log(eval_log, [_eval_entry(rule_opts=["rec-A", "rec-B"])])
+
+    captured_existing = []
+
+    def fake_synthesize_rule(raw_rec, existing_md, model, cfg):
+        captured_existing.append(existing_md)
+        return f"Rule for {raw_rec}"
+
+    refresh_calls = [0]
+
+    def counting_existing_rules():
+        refresh_calls[0] += 1
+        return f"refreshed-after-{refresh_calls[0]}"
+
+    # _cluster_recs must return singletons so both recs are processed independently
+    def passthrough_cluster(items, *a, **k):
+        return [(rec, entry, [h]) for rec, entry, h in items]
+
+    patches = _base_patches(eval_log, rules_dir, security_dir, prompts_dir, prom_dir, processed)
+    with patches[0], patches[1], patches[2], patches[3], patches[4], \
+         patches[5], patches[6], patches[7], patches[8], \
+         patch.object(po, "_cluster_recs", side_effect=passthrough_cluster), \
+         patch.object(po, "_synthesize_rule", side_effect=fake_synthesize_rule), \
+         patch.object(po, "_synthesize_security_gate", return_value=None), \
+         patch.object(po, "_synthesize_prompt_patch", return_value=None), \
+         patch.object(kl, "existing_rules_text", side_effect=counting_existing_rules):
+        po.main(dry_run=False)
+
+    # initial load + one refresh after first write = at least 2 calls
+    assert refresh_calls[0] >= 2
+    # second synthesis sees different rules_md than first
+    assert captured_existing[0] != captured_existing[1]
+
+
+def test_security_md_refreshed_between_writes(tmp_path):
+    import agent.knowledge_loader as kl
+
+    eval_log, rules_dir, security_dir, prompts_dir, prom_dir, processed = _setup(tmp_path)
+    _write_eval_log(eval_log, [_eval_entry(security_opts=["rec-A", "rec-B"])])
+
+    gate_spec = {"pattern": "DROP", "check": None, "message": "no drop"}
+    refresh_calls = [0]
+
+    def counting_existing_security():
+        refresh_calls[0] += 1
+        return f"refreshed-{refresh_calls[0]}"
+
+    def passthrough_cluster(items, *a, **k):
+        return [(rec, entry, [h]) for rec, entry, h in items]
+
+    patches = _base_patches(eval_log, rules_dir, security_dir, prompts_dir, prom_dir, processed)
+    with patches[0], patches[1], patches[2], patches[3], patches[4], \
+         patches[5], patches[6], patches[7], patches[8], \
+         patch.object(po, "_cluster_recs", side_effect=passthrough_cluster), \
+         patch.object(po, "_synthesize_rule", return_value=None), \
+         patch.object(po, "_synthesize_security_gate", return_value=gate_spec), \
+         patch.object(po, "_synthesize_prompt_patch", return_value=None), \
+         patch.object(kl, "existing_security_text", side_effect=counting_existing_security):
+        po.main(dry_run=False)
+
+    assert refresh_calls[0] >= 2
