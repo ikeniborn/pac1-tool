@@ -35,3 +35,35 @@ When discovery query (kind lookup) returns 0 rows, MUST issue fallback `LIKE` pr
 - Never skip to count on silent empty discovery.
 - Sequence: `discovery (exact kind) → if 0 rows → LIKE probe → count`.
 - Proceed to count only after LIKE probe confirms absence or yields candidates.
+
+## Reasoning Field Discipline
+
+`reasoning` MUST have all four components:
+
+1. **Verbatim error quote** — copy exact error message or empty-result indicator. No paraphrase.
+2. **Root cause category** — label one of: `syntax`, `empty-result`, `wrong-filter`, `wrong-column`, `wrong-value-type`, `wrong-key`, `join-cardinality`.
+3. **Failing fragment citation** — quote the specific SQL fragment (WHERE predicate, JOIN clause, column reference) that triggered failure.
+4. **Derived rule linkage** — `rule_content` MUST reference the cited fragment, not abstract advice.
+
+Minimum structure:
+```
+Error: "<verbatim>". Category: <label>. Failing fragment: `<sql snippet>`. Cause: <why fragment failed>.
+```
+
+One-liner stubs are rejected. All three fields (`reasoning`, `conclusion`, `rule_content`) MUST be ≥20 characters AND reference schema identifiers (table name, column name, key, literal value) — not generic phrases like `"query failed"` or `"empty result"`.
+
+## Conclusion Specificity
+
+`conclusion` MUST name the precise mechanism of failure — not the symptom. If an existing rule or gate covers this pattern, cite it by ID (e.g. `sec-003`, `sql-014`). For novel failures with no existing rule, describe the exact mechanism instead.
+
+- **Bad:** `"only SELECT allowed"`, `"query returned empty"`.
+- **Good:** `"sec-003 blocked UNION injection"`, `"sql-007 missing EXISTS per attribute key"`, `"no existing rule — planner used path column instead of sku column for grounding_refs"`.
+- `rule_content` MUST cite at least one concrete identifier from the failed SQL (table, column, key, or literal value) — no placeholder stubs.
+
+## Loop Prevention
+
+If the new corrected query would be identical to the failed query (whitespace/case-insensitive), set `rule_content` to explicitly state: "No structural fix available — escalate to clarification." Set `conclusion` to name the blocking constraint. Do NOT produce a trivially different cosmetic variant.
+
+If `reasoning` is empty or identical to a previous LEARN cycle reasoning, name this in `conclusion` and set `rule_content` to request additional task information from the user.
+
+Grounding-aware rule: if LEARN diagnoses missing `grounding_refs`, corrective `rule_content` MUST mandate `sku` projection in next plan cycle — pair `COUNT(*)` with `SELECT sku ... LIMIT 5` using identical WHERE.

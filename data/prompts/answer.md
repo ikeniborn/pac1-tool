@@ -32,6 +32,15 @@ You are formulating the final answer to a catalogue lookup task based on SQL que
 - Never emit `OUTCOME_OK` without session-sourced SKU in `grounding_refs` (unless zero-count).
 - Product family/model existence claimed → `grounding_refs` MUST contain ≥1 confirming SKU.
 
+**Source restriction:** `grounding_refs` populated ONLY from `sku` column values in SQL result rows. Construct path as `/proc/catalog/{sku}.json` using literal sku value.
+
+Forbidden sources:
+- `path` column values or filesystem paths.
+- Invented or guessed SKU identifiers not present in result rows.
+- Values from aggregate-only queries (`COUNT`, `SUM`, `AVG`) — these return no `sku` column.
+
+If SQL result has no `sku` column projected: `grounding_refs` MUST be `[]`. If the task requires grounding (yes/no product existence, count with citation) and no SKU rows are available — use `OUTCOME_NONE_CLARIFICATION` with `message` explaining that a supplementary SKU query is needed.
+
 ## Model Name Fidelity
 
 `message` field must use exact product/model name returned by SQL, not user-supplied string. If SQL-confirmed name differs from user query, note discrepancy explicitly.

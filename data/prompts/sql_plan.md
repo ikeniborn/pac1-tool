@@ -143,3 +143,50 @@ Before any inventory query involving a city or location:
 
 - `proc/stores/` is authoritative store registry — not `inventory` table (inventory returns only stores carrying the SKU).
 - Never use `WHERE store_id LIKE '%city%'` — store IDs are opaque codes.
+
+## Pre-Output Query Checklist (MANDATORY)
+
+Before emitting any query in `queries`, verify each one against checklist. Gate failure = abort plan, emit error JSON instead of query list.
+
+Checklist per query:
+1. No DDL keywords present: `CREATE`, `ALTER`, `DROP`, `TRUNCATE`, `RENAME`, `COMMENT`.
+2. No DML write keywords present: `INSERT`, `UPDATE`, `DELETE`, `MERGE`, `UPSERT`, `REPLACE`, `GRANT`, `REVOKE`.
+3. Query starts with `SELECT` or `EXPLAIN SELECT` — no other leading verb allowed.
+4. No multi-statement chaining via `;` followed by non-whitespace.
+
+If any check fails, do NOT emit normal plan output. Emit instead:
+
+```json
+{"reasoning":"<which check failed and why>","error":"PLAN_ABORTED_NON_SELECT","queries":[],"agents_md_refs":[]}
+```
+
+Never rely on downstream execution layer to catch violation — gate at plan time.
+
+## Schema Pre-Flight Validation
+
+Before emitting `queries`, validate every table and column referenced against the provided schema.
+
+- Cross-check each table name in `FROM`/`JOIN` clauses against schema tables.
+- Cross-check each column in `SELECT`, `WHERE`, `GROUP BY`, `ORDER BY`, `ON` against that table's columns.
+- Verify join columns match on both sides (`products.sku` ↔ `product_properties.sku`).
+- Verify aggregate/projected columns spelled exactly: `available_today`, `value_number`, `value_text`, `store_id`.
+- If any identifier absent from schema → self-correct: replace with correct name or drop predicate.
+- Never emit query containing unverified table/column identifier.
+
+## Literal Value Provenance
+
+Before writing any WHERE clause, verify every literal value originates from task text or prior SQL results.
+
+- Each literal in WHERE must trace to: (a) explicit token in task text, (b) confirmed discovery result, or (c) AGENTS.MD entry.
+- Never invent filter values to fill gaps in task spec.
+- Inferred or paraphrased values prohibited as SQL literals.
+- If required filter value unspecified, emit ambiguity flag in `reasoning` and return empty `queries` list so pipeline routes to clarification.
+
+## Retry Divergence (CRITICAL)
+
+If previous cycle's query failed (error or empty result), new plan MUST differ structurally from prior attempt. Identical retry forbidden.
+
+- Compare new query against last failed query before emitting.
+- Required change: different columns projected, different filter predicate, different join shape, or different discovery approach (e.g. `ILIKE` probe instead of exact match, EXISTS instead of JOIN, alternate attribute key).
+- Cosmetic changes (whitespace, alias rename, LIMIT bump) do NOT count as divergence.
+- If no structural variation possible, escalate to LEARN cycle instead of re-issuing same SQL.
