@@ -1,14 +1,11 @@
 """Verify pipeline instruments TraceLogger at all required points."""
 import json
-import threading
-import time
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 import pytest
 
 from agent.pipeline import run_pipeline
 from agent.prephase import PrephaseResult
-from agent.trace import TraceLogger, set_trace, get_trace
+from agent.trace import TraceLogger, set_trace
 
 
 def _make_pre(db_schema="CREATE TABLE products(id INT, brand TEXT, type TEXT, sku TEXT)"):
