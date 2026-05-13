@@ -2,7 +2,7 @@ __pycache__
 *.egg-info
 **/.claude/plans
 **/.env
-# **/logs
+**/logs
 .cache/
 data/wiki/archive
 data/wiki/fragments
