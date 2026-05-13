@@ -1,7 +1,98 @@
 """Schema-aware SQL validator: unknown columns, unverified literals, double-key JOINs."""
 from __future__ import annotations
 
-import re
+import sqlglot
+import sqlglot.expressions as exp
+
+
+def _build_alias_map(parsed: exp.Expression) -> dict[str, str]:
+    """Return {alias_lower: table_name_lower} from FROM and JOIN clauses."""
+    alias_map: dict[str, str] = {}
+    for node in parsed.walk():
+        if isinstance(node, exp.Table):
+            table_name = node.name.lower() if node.name else ""
+            alias = node.alias.lower() if node.alias else ""
+            if table_name:
+                alias_map[table_name] = table_name  # table refs itself
+                if alias:
+                    alias_map[alias] = table_name
+    return alias_map
+
+
+def _known_cols_by_table(schema_digest: dict) -> dict[str, set[str]]:
+    """Return {table_name_lower: {col_name_lower, ...}}."""
+    result: dict[str, set[str]] = {}
+    for table, info in schema_digest.get("tables", {}).items():
+        cols = {c["name"].lower() for c in info.get("columns", [])}
+        result[table.lower()] = cols
+    return result
+
+
+def _check_query(
+    q: str,
+    schema_digest: dict,
+    all_confirmed: set[str],
+    task_text: str,
+) -> str | None:
+    try:
+        parsed = sqlglot.parse_one(q, dialect="sqlite")
+    except Exception:
+        return None  # parse failure → let DB catch syntax errors
+
+    alias_map = _build_alias_map(parsed)
+    cols_by_table = _known_cols_by_table(schema_digest)
+
+    # Check 1: unknown qualified column references
+    if cols_by_table:
+        for node in parsed.walk():
+            if isinstance(node, exp.Column):
+                table_ref = node.table.lower() if node.table else ""
+                col_name = node.name.lower() if node.name else ""
+                if not table_ref:
+                    continue  # unqualified column — skip
+                real_table = alias_map.get(table_ref, "")
+                if not real_table:
+                    continue  # unknown alias — skip (DB will catch)
+                known = cols_by_table.get(real_table, set())
+                if known and col_name not in known:
+                    return f"unknown column: {table_ref}.{col_name} (not in schema)"
+
+    # Check 2: unverified literal — context-aware LIKE exemption
+    for node in parsed.walk():
+        if isinstance(node, exp.Literal) and node.is_string:
+            val = node.this
+            if val not in task_text:
+                continue
+            if val in all_confirmed:
+                continue
+            # Skip if parent is LIKE/ILike — discovery query
+            parent = node.parent
+            if isinstance(parent, (exp.Like, exp.ILike)):
+                continue
+            return f"unverified literal: '{val}' — use LIKE '%{val}%' for discovery first"
+
+    # Check 3: double-key JOIN on product_properties
+    for node in parsed.walk():
+        if not isinstance(node, exp.Join):
+            continue
+        join_table_node = node.find(exp.Table)
+        if not join_table_node:
+            continue
+        join_alias = join_table_node.alias.lower() if join_table_node.alias else ""
+        join_table = alias_map.get(join_alias, alias_map.get(join_table_node.name.lower() if join_table_node.name else "", ""))
+        if join_table != "product_properties":
+            continue
+        # Count key= conditions in WHERE scope
+        key_eqs = [
+            n for n in parsed.walk()
+            if isinstance(n, exp.EQ)
+            and isinstance(n.left, exp.Column)
+            and n.left.name.lower() == "key"
+        ]
+        if len(key_eqs) > 1:
+            return "double-key JOIN on product_properties — use separate EXISTS subqueries"
+
+    return None
 
 
 def check_schema_compliance(
@@ -11,11 +102,6 @@ def check_schema_compliance(
     task_text: str,
 ) -> str | None:
     """Check queries against schema. Returns first error string or None if all pass."""
-    known_cols: set[str] = set()
-    for table_info in schema_digest.get("tables", {}).values():
-        for col in table_info.get("columns", []):
-            known_cols.add(col["name"])
-
     all_confirmed: set[str] = set()
     for vals in confirmed_values.values():
         if isinstance(vals, list):
@@ -24,24 +110,7 @@ def check_schema_compliance(
             all_confirmed.add(str(vals))
 
     for q in queries:
-        # Check 1: Unknown table.col references
-        if known_cols:
-            for match in re.finditer(r'\b\w+\.(\w+)\b', q):
-                col = match.group(1)
-                if col not in known_cols:
-                    return f"unknown column: {col} (not in schema)"
-
-        # Check 2: Unverified string literal copied from task_text
-        for match in re.finditer(r"'([^']+)'", q):
-            val = match.group(1)
-            if val in task_text and val not in all_confirmed:
-                return f"unverified literal: '{val}' — run discovery first"
-
-        # Check 3: Double-key JOIN on product_properties
-        if re.search(
-            r'JOIN\s+product_properties\s+\w+.*?WHERE.*?\w+\.key\s*=.*?AND.*?\w+\.key\s*=',
-            q, re.IGNORECASE | re.DOTALL,
-        ):
-            return "double-key JOIN on product_properties — use separate EXISTS subqueries"
-
+        err = _check_query(q, schema_digest, all_confirmed, task_text)
+        if err:
+            return err
     return None

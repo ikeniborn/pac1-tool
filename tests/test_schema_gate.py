@@ -111,3 +111,44 @@ def test_multiple_queries_first_error_returned():
     err = check_schema_compliance([q_ok, q_bad], _DIGEST, {"brand": ["Heco"]}, "Heco")
     assert err is not None
     assert "color" in err
+
+
+def test_aliased_query_passes():
+    """p.sku uses alias p → products, must not be blocked."""
+    q = "SELECT p.sku, p.brand FROM products p WHERE p.brand = 'Heco'"
+    assert check_schema_compliance([q], _DIGEST, {"brand": ["Heco"]}, "Heco") is None
+
+
+def test_aliased_unknown_column_detected():
+    """p.color uses alias p → products, color not in schema → blocked."""
+    q = "SELECT p.sku, p.color FROM products p WHERE p.brand = 'Heco'"
+    err = check_schema_compliance([q], _DIGEST, {"brand": ["Heco"]}, "Heco")
+    assert err is not None
+    assert "unknown column" in err
+    assert "color" in err
+
+
+def test_like_literal_not_blocked():
+    """'Festool' in LIKE context → discovery query → not blocked."""
+    q = "SELECT DISTINCT brand FROM products WHERE brand LIKE '%Festool%'"
+    err = check_schema_compliance([q], _DIGEST, {}, "find Festool products")
+    assert err is None
+
+
+def test_like_message_on_exact_literal():
+    """Exact literal from task_text → error message mentions LIKE."""
+    q = "SELECT p.sku FROM products p WHERE p.brand = 'Festool'"
+    err = check_schema_compliance([q], _DIGEST, {}, "find Festool products")
+    assert err is not None
+    assert "LIKE" in err
+    assert "Festool" in err
+
+
+def test_exists_subquery_aliases_pass():
+    """pp.sku, pp.key, pp2.sku, pp2.key use aliases for product_properties → valid."""
+    q = (
+        "SELECT p.sku FROM products p "
+        "WHERE EXISTS (SELECT 1 FROM product_properties pp WHERE pp.sku = p.sku AND pp.key = 'color') "
+        "AND EXISTS (SELECT 1 FROM product_properties pp2 WHERE pp2.sku = p.sku AND pp2.key = 'weight')"
+    )
+    assert check_schema_compliance([q], _DIGEST, {"color": ["red"], "weight": ["1kg"]}, "find red 1kg") is None
