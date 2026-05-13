@@ -53,23 +53,16 @@ def _setup_log_tee() -> None:
     class _Tee:
         def write(self, data: str) -> None:
             prefix = getattr(_task_local, "task_id", None)
-            task_fh = getattr(_task_local, "log_fh", None)
             clean = _ansi.sub("", data)
             if prefix and data and data != "\n":
                 _orig.write(f"[{prefix}] {data}")
             else:
                 _orig.write(data)
-            if task_fh is not None:
-                task_fh.write(clean)
-            else:
-                _fh.write(clean)
+            _fh.write(clean)
 
         def flush(self) -> None:
             _orig.flush()
             _fh.flush()
-            task_fh = getattr(_task_local, "log_fh", None)
-            if task_fh is not None:
-                task_fh.flush()
 
         def isatty(self) -> bool:
             return _orig.isatty()
@@ -93,6 +86,7 @@ from bitgn.harness_pb2 import (
 from connectrpc.errors import ConnectError
 
 from agent import run_agent
+from agent.trace import TraceLogger, get_trace, set_trace
 
 BITGN_URL = os.getenv("BENCHMARK_HOST") or "https://api.bitgn.com"
 BENCHMARK_ID = os.getenv("BENCHMARK_ID") or "bitgn/pac1-dev"
@@ -136,11 +130,13 @@ def _run_single_task(trial_id: str, task_filter: list) -> tuple:
 
     _task_local.task_id = task_id
     assert _run_dir is not None
-    _task_local.log_fh = open(_run_dir / f"{task_id}.log", "w", buffering=1, encoding="utf-8")
+    _trace = TraceLogger(_run_dir / f"{task_id}.jsonl", task_id)
+    set_trace(_trace)
     try:
         task_start = time.time()
         print(f"\n{'=' * 30} Starting task: {task_id} {'=' * 30}")
         print(f"{CLI_BLUE}{trial.instruction}{CLI_CLR}\n{'-' * 80}")
+        _trace.log_header(trial.instruction, model=os.getenv("MODEL", "unknown"))
         token_stats: dict = {"input_tokens": 0, "output_tokens": 0}
         try:
             token_stats = run_agent({}, trial.harness_url, trial.instruction, task_id=task_id)
@@ -150,6 +146,16 @@ def _run_single_task(trial_id: str, task_filter: list) -> tuple:
         result = client.end_trial(EndTrialRequest(trial_id=trial.trial_id))
         score = result.score
         detail = list(result.score_detail)
+        if t := get_trace():
+            t.log_task_result(
+                outcome=token_stats.get("outcome", ""),
+                score=float(score),
+                cycles=token_stats.get("cycles_used", 0),
+                total_in=token_stats.get("input_tokens", 0),
+                total_out=token_stats.get("output_tokens", 0),
+                elapsed_ms=int(task_elapsed * 1000),
+                score_detail=detail,
+            )
         _score_f = float(score)
         in_t = token_stats.get("input_tokens", 0)
         out_t = token_stats.get("output_tokens", 0)
@@ -166,11 +172,9 @@ def _run_single_task(trial_id: str, task_filter: list) -> tuple:
         )
         return (task_id, _score_f, detail, task_elapsed, token_stats)
     finally:
-        fh = _task_local.log_fh
-        _task_local.log_fh = None
-        if fh:
-            fh.flush()
-            fh.close()
+        if t := get_trace():
+            t.close()
+        set_trace(None)
 
 
 def _print_table_header() -> None:
