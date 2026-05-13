@@ -2,8 +2,6 @@ import json
 import threading
 from pathlib import Path
 
-import pytest
-
 from agent.trace import TraceLogger, get_trace, set_trace
 
 

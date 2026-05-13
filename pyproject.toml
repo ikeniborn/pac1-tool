@@ -40,3 +40,4 @@ viz = [
 reportUnusedVariable = "none"
 reportUnusedFunction = "none"
 ignore = ["agent/loop.py"]
+extraPaths = ["."]
