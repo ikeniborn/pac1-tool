@@ -197,6 +197,7 @@ def _build_static_system(
     security_gates: list[dict],
     confirmed_values: dict | None = None,
     task_text: str = "",
+    injected_prompt_addendum: str = "",
 ) -> list[dict]:
     blocks: list[dict] = []
 
@@ -232,9 +233,12 @@ def _build_static_system(
         blocks.append({"type": "text", "text": f"# CONFIRMED VALUES\n{_format_confirmed_values(confirmed_values)}"})
 
     guide = load_prompt(phase)
+    guide_text = guide or f"# PHASE: {phase}"
+    if injected_prompt_addendum:
+        guide_text += f"\n\n# INJECTED OPTIMIZATION\n{injected_prompt_addendum}"
     blocks.append({
         "type": "text",
-        "text": guide or f"# PHASE: {phase}",
+        "text": guide_text,
         "cache_control": {"type": "ephemeral"},
     })
     return blocks

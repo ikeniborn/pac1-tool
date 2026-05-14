@@ -631,3 +631,40 @@ def test_session_rules_accumulate_beyond_three(tmp_path):
     if captured_session_rules:
         final_rules = captured_session_rules[-1]
         assert len(final_rules) == 4, f"Expected 4 rules (no truncation), got {len(final_rules)}: {final_rules}"
+
+
+def test_injected_prompt_addendum_appended(tmp_path):
+    """When injected_prompt_addendum is non-empty, appends to guide block."""
+    from agent.pipeline import _build_static_system
+    from agent.rules_loader import RulesLoader
+    from unittest.mock import MagicMock
+
+    rules_dir = tmp_path / "rules"
+    rules_dir.mkdir()
+    rl = RulesLoader(rules_dir)
+
+    blocks = _build_static_system(
+        "sql_plan", "", {}, "", {}, rl, [],
+        injected_prompt_addendum="USE indexed columns",
+    )
+    guide_block = blocks[-1]["text"]
+    assert "# INJECTED OPTIMIZATION" in guide_block
+    assert "USE indexed columns" in guide_block
+
+
+def test_no_addendum_no_injection(tmp_path):
+    """When injected_prompt_addendum is empty, no injection section."""
+    from agent.pipeline import _build_static_system
+    from agent.rules_loader import RulesLoader
+    from unittest.mock import MagicMock
+
+    rules_dir = tmp_path / "rules"
+    rules_dir.mkdir()
+    rl = RulesLoader(rules_dir)
+
+    blocks = _build_static_system(
+        "sql_plan", "", {}, "", {}, rl, [],
+        injected_prompt_addendum="",
+    )
+    guide_block = blocks[-1]["text"]
+    assert "# INJECTED OPTIMIZATION" not in guide_block
