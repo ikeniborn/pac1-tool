@@ -13,6 +13,7 @@ from pathlib import Path
 import yaml
 from dotenv import load_dotenv
 
+os.environ["EVAL_ENABLED"] = "0"   # must be before agent imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from agent import knowledge_loader
@@ -28,9 +29,38 @@ _PROMPTS_DIR = _ROOT / "data" / "prompts"
 _PROMPTS_OPTIMIZED_DIR = _PROMPTS_DIR / "optimized"
 _PROCESSED_FILE = _ROOT / "data" / ".eval_optimizations_processed"
 _MODELS_JSON = _ROOT / "models.json"
+_BITGN_URL = os.getenv("BENCHMARK_HOST") or "https://api.bitgn.com"
+_BENCHMARK_ID = os.getenv("BENCHMARK_ID") or "bitgn/pac1-dev"
+_BITGN_API_KEY = os.getenv("BITGN_API_KEY") or ""
+_LOGS_DIR = _ROOT / "logs"
 
 for _d in (_RULES_DIR, _SECURITY_DIR, _PROMPTS_OPTIMIZED_DIR):
     _d.mkdir(parents=True, exist_ok=True)
+
+
+def read_original_score(task_id: str, logs_dir: Path | None = None) -> float | None:
+    """Return task_result.score from latest non-validate run for task_id, or None."""
+    if logs_dir is None:
+        logs_dir = _LOGS_DIR
+    if not logs_dir.exists():
+        return None
+    dirs = [d for d in logs_dir.iterdir() if d.is_dir() and not d.name.startswith("validate-")]
+    if not dirs:
+        return None
+    latest = max(dirs, key=lambda d: d.stat().st_mtime)
+    task_file = latest / f"{task_id}.jsonl"
+    if not task_file.exists():
+        return None
+    for line in task_file.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            ev = json.loads(line)
+            if ev.get("type") == "task_result":
+                return float(ev["score"])
+        except Exception:
+            continue
+    return None
 
 
 def _load_model_cfg(model: str) -> dict:

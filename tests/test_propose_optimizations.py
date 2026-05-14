@@ -456,3 +456,45 @@ def test_contradiction_blocks_write(tmp_path):
     assert list(rules_dir.glob("*.yaml")) == []
     saved = processed.read_text().splitlines() if processed.exists() else []
     assert h not in saved
+
+
+import time
+
+def test_read_original_score_found(tmp_path):
+    logs_dir = tmp_path / "logs"
+    run_dir = logs_dir / "20240101_120000_model"
+    run_dir.mkdir(parents=True)
+    task_file = run_dir / "t01.jsonl"
+    task_file.write_text(
+        json.dumps({"type": "llm_call", "phase": "sql_plan"}) + "\n" +
+        json.dumps({"type": "task_result", "score": 0.75, "outcome": "OUTCOME_OK"}) + "\n"
+    )
+    score = po.read_original_score("t01", logs_dir=logs_dir)
+    assert score == pytest.approx(0.75)
+
+def test_read_original_score_excludes_validate_dirs(tmp_path):
+    logs_dir = tmp_path / "logs"
+    validate_dir = logs_dir / "validate-20240101"
+    validate_dir.mkdir(parents=True)
+    (validate_dir / "t01.jsonl").write_text(
+        json.dumps({"type": "task_result", "score": 1.0}) + "\n"
+    )
+    time.sleep(0.01)
+    real_dir = logs_dir / "20240101_120000_model"
+    real_dir.mkdir()
+    (real_dir / "t01.jsonl").write_text(
+        json.dumps({"type": "task_result", "score": 0.5}) + "\n"
+    )
+    score = po.read_original_score("t01", logs_dir=logs_dir)
+    assert score == pytest.approx(0.5)
+
+def test_read_original_score_not_found_returns_none(tmp_path):
+    logs_dir = tmp_path / "logs"
+    run_dir = logs_dir / "20240101_120000_model"
+    run_dir.mkdir(parents=True)
+    score = po.read_original_score("t99", logs_dir=logs_dir)
+    assert score is None
+
+def test_read_original_score_no_logs_dir(tmp_path):
+    score = po.read_original_score("t01", logs_dir=tmp_path / "nonexistent")
+    assert score is None
