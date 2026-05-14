@@ -56,15 +56,13 @@ clean_refs = [r for r in answer_out.grounding_refs if r in sku_refs or not resul
 
 With:
 ```python
-result_skus = {Path(r).stem for r in sku_refs}   # keep — passed to check_grounding_refs
-result_stems = result_skus                         # alias for clean_refs logic
 clean_refs = (
-    [_to_short_ref(r) for r in answer_out.grounding_refs if Path(r).stem in result_stems]
-    if result_stems else list(answer_out.grounding_refs)
+    [_to_short_ref(r) for r in answer_out.grounding_refs if Path(r).stem in result_skus]
+    if result_skus else list(answer_out.grounding_refs)
 )
 ```
 
-`result_skus` preserved unchanged — `check_grounding_refs(answer_out.grounding_refs, result_skus, ...)` still receives it on the next line. `result_stems` is an alias introduced for clarity; implementer may use `result_skus` directly and skip the alias.
+`result_skus` is already computed on the line above (`result_skus = {Path(r).stem for r in sku_refs}`) and passed to `check_grounding_refs` — do not recompute it. Only the `clean_refs` line is replaced.
 
 Stem-based match tolerates any path format from the model. Output is always short-form → VM accepts.
 
@@ -101,11 +99,12 @@ def test_build_answer_user_msg_normalizes_hierarchical_ref():
 
 def test_clean_refs_stem_match_normalizes():
     """clean_refs accepts model output in any format, outputs short-form."""
+    from pathlib import Path
     from agent.pipeline import _to_short_ref
     sku_refs = ["/proc/catalog/hand_tools/subcat/HND-6D7TN1CT.json"]
-    result_stems = {Path(r).stem for r in sku_refs}
+    result_skus = {Path(r).stem for r in sku_refs}
     grounding_refs = ["/proc/catalog/HND-6D7TN1CT.json"]  # model used short form
-    clean = [_to_short_ref(r) for r in grounding_refs if Path(r).stem in result_stems]
+    clean = [_to_short_ref(r) for r in grounding_refs if Path(r).stem in result_skus]
     assert clean == ["/proc/catalog/HND-6D7TN1CT.json"]
 ```
 
