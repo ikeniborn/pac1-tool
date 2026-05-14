@@ -15,3 +15,33 @@
 
 ---
 
+## 2026-05-14T00:01:00
+
+**Операция:** ingest (batch)
+**Источники:** data/prompts/resolve.md, data/prompts/sql_plan.md, docs/superpowers/specs/2026-05-14-active-eval-validation-design.md, docs/superpowers/specs/2026-05-14-api-update-carts-design.md, data/prompts/answer.md (update)
+**Домен:** документация
+
+**Затронуто страниц:** 6
+
+- СОЗДАНА: `.wiki/документация/pipeline-phases/resolve-phase.md` (developing)
+- СОЗДАНА: `.wiki/документация/pipeline-phases/sql-plan-phase.md` (developing)
+- СОЗДАНА: `.wiki/документация/specs/active-eval-validation.md` (developing)
+- СОЗДАНА: `.wiki/документация/specs/api-update-carts.md` (developing)
+- ОБНОВЛЕНА: `.wiki/документация/pipeline-phases/answer-phase.md` — добавлен раздел Cart Answers, статус stub→developing
+- ОБНОВЛЕНА: `.wiki/документация/design-decisions/grounding-refs.md` — добавлен раздел cart grounding_refs, статус stub→developing
+
+---
+
+## 2026-05-14T00:02:00
+
+**Операция:** ingest
+**Источник:** scripts/CLAUDE.md
+**Домен:** документация (определён по содержимому — файл вне `docs/`, но описывает agent-модуль)
+
+**Затронуто страниц:** 2
+
+- СОЗДАНА: `.wiki/документация/agent-modules/propose-optimizations.md` (developing) — entity_type: agent-module
+- СОЗДАНА: `.wiki/документация/design-decisions/eval-optimization-dedup.md` (developing) — entity_type: design-decision
+
+---
+

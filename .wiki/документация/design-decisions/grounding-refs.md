@@ -1,10 +1,12 @@
 ---
 wiki_sources:
   - "[[data/prompts/answer.md]]"
+  - "[[docs/superpowers/specs/2026-05-14-api-update-carts-design.md]]"
 wiki_updated: 2026-05-14
-wiki_status: stub
+wiki_status: developing
 wiki_outgoing_links:
   - "[[pipeline-phases/answer-phase]]"
+  - "[[specs/api-update-carts]]"
 wiki_external_links: []
 tags:
   - ecom1-agent
@@ -51,6 +53,18 @@ aliases:
 
 Discovery hit ≠ SKU hit. Перед утверждением о соответствии SKU — обязательно выполнить filter-запрос.
 
+## grounding_refs для запросов корзины
+
+При ответе на задачи, связанные с корзиной покупателя:
+- Пути формируются как `/proc/catalog/{sku}.json` для каждого SKU из `cart_items`
+- `cart_id` и путь к самой корзине **не включаются** в `grounding_refs`
+- Если задача — это exec checkout (не SQL): `grounding_refs` = `[]` или пути подтверждённых товаров
+
+## История изменений
+
+- **2026-05-14** (из [[specs/api-update-carts]]): добавлен раздел о grounding_refs для корзин.
+
 ## Связанные концепции
 
 - [[pipeline-phases/answer-phase]] — фаза, в которой формируется `grounding_refs`
+- [[specs/api-update-carts]] — дизайн добавления поддержки корзин

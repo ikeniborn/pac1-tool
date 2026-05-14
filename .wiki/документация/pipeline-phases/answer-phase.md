@@ -2,9 +2,10 @@
 wiki_sources:
   - "[[data/prompts/answer.md]]"
 wiki_updated: 2026-05-14
-wiki_status: stub
+wiki_status: developing
 wiki_outgoing_links:
   - "[[design-decisions/grounding-refs]]"
+  - "[[design-decisions/api-update-carts]]"
 wiki_external_links: []
 tags:
   - ecom1-agent
@@ -54,6 +55,15 @@ aliases:
 
 `OUTCOME_NONE_CLARIFICATION` допустим **только** если текст задачи объективно неоднозначен и SQL не может его разрешить. Наличие SQL-результатов (в том числе discovery-only: список моделей, список ключей) → обязательно `OUTCOME_OK`. Пустой `grounding_refs` при `OUTCOME_NONE_CLARIFICATION` — баг, не допустимое состояние.
 
+## Ответы на запросы о корзине (Cart Answers)
+
+При ответе на задачи, связанные с корзиной покупателя:
+
+- `grounding_refs` заполняется путями к товарам из `cart_items` по шаблону `/proc/catalog/{sku}.json`
+- В `grounding_refs` НЕ включать `cart_id` или путь к самой корзине — только пути SKU товаров
+- Если задача была выполнением checkout (не SQL): `grounding_refs` = `[]` или пути подтверждённых товаров; результат checkout отражается в `message`, а не в `grounding_refs`
+
 ## Связанные концепции
 
 - [[design-decisions/grounding-refs]] — детальные правила формирования ссылок на позиции каталога
+- [[design-decisions/api-update-carts]] — архитектурное решение по поддержке корзин <!-- TODO: создать страницу -->

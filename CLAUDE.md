@@ -19,12 +19,26 @@ uv run python scripts/propose_optimizations.py            # write to data/
 make proto                                       # rebuild protobuf stubs (requires buf)
 ```
 
-Key env vars (copy from `.env.example` + `.secrets.example`):
-- `MODEL` — primary LLM (e.g. `anthropic/claude-sonnet-4-6`)
-- `EVAL_ENABLED=1` — run evaluator after each task, populate `data/eval_log.jsonl`
-- `MODEL_EVALUATOR` — separate LLM for evaluation
-- `LOG_LEVEL=DEBUG` — full LLM response logging
-- `MAX_STEPS=5` — pipeline cycle limit per task
+## Environment Variables
+
+Copy from `.env.example` + `.secrets.example`. Core vars:
+
+| Var | Purpose |
+|-----|---------|
+| `MODEL` | Primary LLM (`anthropic/claude-sonnet-4-6`, `openrouter/…`, `ollama/…`, or bare Ollama name) |
+| `MODEL_FALLBACK` | Fallback model tried after primary exhausts all tiers (FIX-417) |
+| `MODEL_EVALUATOR` | LLM for evaluation scoring (defaults to `MODEL` if unset) |
+| `MODEL_TEST_GEN` | LLM for TDD test generation (defaults to `MODEL` if unset) |
+| `EVAL_ENABLED=1` | Run evaluator after each task, populate `data/eval_log.jsonl` |
+| `TDD_ENABLED=1` | Enable TDD mode: generate and run tests before ANSWER phase |
+| `MAX_STEPS` | Pipeline cycle limit per task (default 3) |
+| `LOG_LEVEL=DEBUG` | Full LLM response logging |
+| `OLLAMA_BASE_URL` | Ollama endpoint (default `http://localhost:11434/v1`) |
+| `OLLAMA_API_KEY` | API key for OpenAI-compatible proxy; falls back to `"ollama"` when absent/empty |
+| `CC_ENABLED=1` | Enable Claude Code CLI tier (iclaude subprocess, OAuth) |
+| `LLM_HTTP_READ_TIMEOUT_S` | HTTP read timeout in seconds (default 180) |
+
+Credentials (`ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`, `OLLAMA_API_KEY`) belong in `.secrets`, not `.env`.
 
 ## Architecture
 
@@ -32,17 +46,20 @@ Entry point: `main.py` → BitGN harness → `agent/orchestrator.py:run_agent()`
 
 **Execution flow per task:**
 1. `prephase.py:run_prephase()` — fetches `/AGENTS.MD` (vault rules), reads `.schema`, loads prompt blocks
-2. `prompt.py:build_system_prompt()` — assembles modular system prompt from `data/prompts/*.md` blocks, security gates, in-session learned rules
-3. `pipeline.py:run_pipeline()` — main loop (max 3 cycles):
+2. `resolve.py:run_resolve()` — **RESOLVE phase**: confirms task identifiers (SKUs, categories) against DB via LIKE/DISTINCT queries before any SQL planning; populates `confirmed_values`
+3. `prompt.py:build_system_prompt()` — assembles modular system prompt from `data/prompts/*.md` blocks, security gates, in-session learned rules
+4. `pipeline.py:run_pipeline()` — main loop (max `MAX_STEPS` cycles):
    - **SQL_PLAN** → LLM call → `json_extract.py` (7-priority extraction) → `SqlPlanOutput` (Pydantic)
    - **SECURITY CHECK** → `sql_security.py` validates against `data/security/*.yaml` gates
+   - **SCHEMA CHECK** → `schema_gate.py` validates column/table names against `.schema`
    - **VALIDATE** → EXPLAIN check for SQL syntax
    - **EXECUTE** → runs SQL on ECOM VM via Connect-RPC
    - On failure: **LEARN** phase extracts a rule, retry with updated context
    - On success: **ANSWER** phase synthesizes response
-4. Optional **EVALUATE** (`evaluator.py`) — LLM scores pipeline trace, appends suggestions to `data/eval_log.jsonl`
+5. Optional **TDD** (`test_runner.py`) — generates and runs SQL tests before ANSWER when `TDD_ENABLED=1`
+6. Optional **EVALUATE** (`evaluator.py`) — LLM scores pipeline trace, appends suggestions to `data/eval_log.jsonl`
 
-**LLM routing** (`llm.py`): provider prefix determines tier — `anthropic/` → Anthropic SDK; `openrouter/` → OpenRouter; `ollama/` or bare name → local Ollama. Transient errors retry with backoff.
+**LLM routing** (`llm.py`): provider prefix determines tier — `anthropic/` → Anthropic SDK; `openrouter/` → OpenRouter; `ollama/` or bare name → local Ollama; `claude-code` provider → CC CLI subprocess. All tiers tried in order per `models.json` config before falling through to `MODEL_FALLBACK`. Transient errors retry with backoff.
 
 **Optimization loop** (`scripts/propose_optimizations.py`):
 - Reads `data/eval_log.jsonl`, synthesizes suggestions via LLM
@@ -63,7 +80,7 @@ Entry point: `main.py` → BitGN harness → `agent/orchestrator.py:run_agent()`
 | `data/prompts/*.md` | Modular system prompt blocks (`core`, `lookup`, `catalogue`, `sql_plan`, `answer`) |
 | `data/prompts/optimized/` | Generated prompt patches awaiting manual review |
 | `data/eval_log.jsonl` | Per-task evaluation results and optimization suggestions |
-| `models.json` | Per-model provider hints and Ollama options |
+| `models.json` | Per-model provider hints and Ollama options (e.g. `ollama_model` override, `num_ctx`) |
 
 ## Notable Constraints
 
@@ -72,3 +89,4 @@ Entry point: `main.py` → BitGN harness → `agent/orchestrator.py:run_agent()`
 - Security gates run **before** SQL execution; a blocked query is never executed
 - `propose_optimizations.py` synthesizers receive existing rules/prompts to prevent duplicate generation — preserve the `_existing_*` helpers if refactoring
 - `agent/CLAUDE.md` is outdated (references `loop.py`/`dispatch.py` from old architecture); this file is authoritative
+- `_rules_loader_cache` and `_security_gates_cache` in `pipeline.py` are module-level — call `tests/conftest.py:reset_pipeline_caches()` fixture to clear between tests
