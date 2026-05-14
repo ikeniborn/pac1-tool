@@ -1,3 +1,6 @@
+import os
+
+
 def test_dispatch_module_deleted():
     import importlib
     import pytest
@@ -37,3 +40,15 @@ def test_system_as_str_passthrough_str():
     """_system_as_str returns str unchanged."""
     from agent.llm import _system_as_str
     assert _system_as_str("plain text") == "plain text"
+
+
+def test_ollama_key_constant_exists_and_fallback():
+    """_OLLAMA_KEY attribute must exist on module and use or-fallback logic."""
+    import agent.llm as llm_mod
+
+    # Attribute must exist — fails before Task 2 implementation
+    assert hasattr(llm_mod, "_OLLAMA_KEY"), "_OLLAMA_KEY not defined in agent.llm"
+
+    # Value must match or-fallback of current env
+    expected = os.environ.get("OLLAMA_API_KEY") or "ollama"
+    assert llm_mod._OLLAMA_KEY == expected
