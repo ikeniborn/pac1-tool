@@ -132,12 +132,21 @@ Only calls `.get()` on `fn` when `fn` is confirmed to be a dict.
 
 **Level 2: defensive wrapper in `run_pipeline`:**
 
-Wrap the main `for cycle in range(_MAX_CYCLES):` loop in try/except:
+Wrap the `for` loop **and** the post-loop answer block together in one try/except,
+so the except handler is the single fallback path — no double `vm.answer` call:
 
 ```python
 try:
     for cycle in range(_MAX_CYCLES):
         ...
+    if not success:
+        vm.answer(AnswerRequest(
+            message="Could not retrieve data after multiple attempts.",
+            outcome=OUTCOME_BY_NAME["OUTCOME_NONE_CLARIFICATION"],
+            refs=[],
+        ))
+    elif not _TDD_ENABLED:
+        ...  # answer LLM call + vm.answer (existing non-TDD block)
 except Exception:
     print(f"{CLI_RED}[pipeline] UNHANDLED: {traceback.format_exc()}{CLI_CLR}")
     try:
@@ -149,6 +158,9 @@ except Exception:
     except Exception as e:
         print(f"{CLI_RED}[pipeline] vm.answer error: {e}{CLI_CLR}")
 ```
+
+The evaluator section (`if _EVAL_ENABLED ...`) and `stats` construction remain
+**outside** the try/except — they run regardless of success or exception.
 
 `traceback` is already imported at `pipeline.py:9`.
 
@@ -167,4 +179,4 @@ except Exception:
 |------|--------|
 | `agent/pipeline.py` | Delete `_to_short_ref`; fix `_build_answer_user_msg`; fix `clean_refs` (×2); add `store_id` branch in `_extract_sku_refs`; wrap for-loop in try/except |
 | `agent/json_extract.py` | Fix `_obj_mutation_tool` to guard `isinstance(fn, dict)` |
-| `tests/test_ref_bugs.py` | New test file covering all 4 unit tests above |
+| `tests/test_ref_bugs.py` | New test file covering all 5 unit tests above |
