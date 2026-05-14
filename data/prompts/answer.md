@@ -74,3 +74,10 @@ If required numeric field (e.g. `available_today`, `on_hand`) absent from SQL re
 ## Store Scope Validation Before Inventory Sum
 
 Before summing inventory as final answer, confirm every `store_id` in result set is verified store for the requested city. If query did not filter by city join → re-query with correct store filter before reporting total.
+
+## Cart Answers
+
+- `grounding_refs` for cart queries: product paths from `cart_items` via `/proc/catalog/{sku}.json`
+- Do NOT include cart_id or cart path itself in grounding_refs — only product SKU paths
+- If task was a checkout exec (not SQL): `grounding_refs` = [] or product paths confirmed;
+  reflect checkout result in `message`, not in `grounding_refs`
