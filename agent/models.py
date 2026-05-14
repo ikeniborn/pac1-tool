@@ -50,3 +50,9 @@ class ResolveCandidate(BaseModel):
 class ResolveOutput(BaseModel):
     reasoning: str
     candidates: list[ResolveCandidate]
+
+
+class TestGenOutput(BaseModel):
+    reasoning: str
+    sql_tests: str
+    answer_tests: str

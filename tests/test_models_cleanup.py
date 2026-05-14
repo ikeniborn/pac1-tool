@@ -26,8 +26,8 @@ def test_vault_models_removed():
         assert not hasattr(m, name), f"Vault model still present: {name}"
 
 
-def test_models_has_exactly_six_classes():
-    """Test that models.py contains exactly 6 BaseModel classes (4 pipeline + 2 resolve)"""
+def test_models_has_exactly_seven_classes():
+    """Test that models.py contains exactly 7 BaseModel classes (4 pipeline + 2 resolve + 1 test_gen)"""
     m = importlib.import_module("agent.models")
     from pydantic import BaseModel
     classes = [
@@ -35,6 +35,18 @@ def test_models_has_exactly_six_classes():
         if issubclass(obj, BaseModel) and obj is not BaseModel
         and obj.__module__ == "agent.models"
     ]
-    assert len(classes) == 6, f"Expected 6 pipeline classes, got {len(classes)}: {classes}"
+    assert len(classes) == 7, f"Expected 7 pipeline classes, got {len(classes)}: {classes}"
     assert "ResolveCandidate" in classes
     assert "ResolveOutput" in classes
+
+
+def test_test_gen_output_fields():
+    from agent.models import TestGenOutput
+    out = TestGenOutput(
+        reasoning="task expects items",
+        sql_tests="def test_sql(results): assert results",
+        answer_tests="def test_answer(sql_results, answer): assert answer['outcome'] == 'OUTCOME_OK'",
+    )
+    assert out.reasoning == "task expects items"
+    assert "test_sql" in out.sql_tests
+    assert "test_answer" in out.answer_tests
