@@ -366,11 +366,15 @@ def run_pipeline(
     task_text: str,
     pre: PrephaseResult,
     cfg: dict,
+    task_id: str = "",
+    injected_session_rules: list[str] | None = None,
+    injected_prompt_addendum: str = "",
+    injected_security_gates: list[dict] | None = None,
 ) -> tuple[dict, threading.Thread | None]:
     """Phase-based SQL pipeline. Returns (stats dict, eval Thread or None)."""
     rules_loader = _get_rules_loader()
-    security_gates = _get_security_gates()
-    session_rules: list[str] = []
+    security_gates = _get_security_gates() + (injected_security_gates or [])
+    session_rules: list[str] = list(injected_session_rules or [])
     highlighted_vault_rules: list[str] = []
     sgr_trace: list[dict] = []
     total_in_tok = 0
@@ -419,15 +423,18 @@ def run_pipeline(
         "sql_plan", pre.agents_md_content, pre.agents_md_index, pre.db_schema,
         pre.schema_digest, rules_loader, security_gates,
         confirmed_values=confirmed_values, task_text=task_text,
+        injected_prompt_addendum=injected_prompt_addendum,
     )
     static_learn = _build_static_system(
         "learn", pre.agents_md_content, pre.agents_md_index, pre.db_schema,
         pre.schema_digest, rules_loader, security_gates,
         confirmed_values=confirmed_values, task_text=task_text,
+        injected_prompt_addendum=injected_prompt_addendum,
     )
     static_answer = _build_static_system(
         "answer", pre.agents_md_content, pre.agents_md_index, pre.db_schema,
         pre.schema_digest, rules_loader, security_gates,
+        injected_prompt_addendum=injected_prompt_addendum,
     )
 
     _skip_sql = False
@@ -602,6 +609,7 @@ def run_pipeline(
                         "sql_plan", pre.agents_md_content, pre.agents_md_index, pre.db_schema,
                         pre.schema_digest, rules_loader, security_gates,
                         confirmed_values=confirmed_values, task_text=task_text,
+                        injected_prompt_addendum=injected_prompt_addendum,
                     )
                     last_error = "Discovery cycle complete. All confirmed values updated. Now emit the final SKU filter query using confirmed values — do NOT run more discovery."
                     print(f"{CLI_BLUE}[pipeline] DISCOVERY-ONLY cycle — continuing for final filter{CLI_CLR}")
@@ -765,6 +773,7 @@ def run_pipeline(
         eval_thread = threading.Thread(
             target=_run_evaluator_safe,
             kwargs={
+                "task_id": task_id,
                 "task_text": task_text,
                 "agents_md": pre.agents_md_content,
                 "agents_md_index": pre.agents_md_index,
@@ -839,32 +848,34 @@ def _run_learn(
 
 
 def _run_evaluator_safe(
-    task_text: str,
-    agents_md: str,
-    agents_md_index: dict,
-    db_schema: str,
-    schema_digest: dict,
-    sgr_trace: list[dict],
-    cycles: int,
-    final_outcome: str,
-    sql_plan_outputs: list,
-    executed_queries: list[str],
-    model: str,
-    cfg: dict,
+    task_id: str = "",
+    task_text: str = "",
+    agents_md: str = "",
+    agents_md_index: dict | None = None,
+    db_schema: str = "",
+    schema_digest: dict | None = None,
+    sgr_trace: list[dict] | None = None,
+    cycles: int = 0,
+    final_outcome: str = "",
+    sql_plan_outputs: list | None = None,
+    executed_queries: list[str] | None = None,
+    model: str = "",
+    cfg: dict | None = None,
 ) -> None:
     try:
         from .evaluator import run_evaluator, EvalInput
         run_evaluator(
             EvalInput(
+                task_id=task_id,
                 task_text=task_text,
                 agents_md=agents_md,
                 db_schema=db_schema,
-                sgr_trace=sgr_trace,
+                sgr_trace=sgr_trace or [],
                 cycles=cycles,
                 final_outcome=final_outcome,
             ),
             model=model,
-            cfg=cfg,
+            cfg=cfg or {},
         )
     except Exception as e:
         print(f"{CLI_YELLOW}[pipeline] evaluator error (non-fatal): {e}{CLI_CLR}")
