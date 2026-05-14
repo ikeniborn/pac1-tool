@@ -55,3 +55,16 @@ def test_extract_sku_refs_sku_and_store_id():
     refs = _extract_sku_refs([], results)
     assert "/proc/catalog/PLB-2GJZ9R7K.json" in refs
     assert "/proc/stores/store_vienna_praterstern.json" in refs
+
+
+# ── Bug 1 / Part 1: _build_answer_user_msg ───────────────────────────────────
+
+def test_build_answer_user_msg_preserves_full_path():
+    """Bug t03: AUTO_REFS must show full hierarchical paths, not stem-only."""
+    msg = _build_answer_user_msg(
+        "find pipe fittings",
+        ["path\n/proc/catalog/plumbing/pipe_fittings/PLB-2GJZ9R7K.json\n"],
+        ["/proc/catalog/plumbing/pipe_fittings/PLB-2GJZ9R7K.json"],
+    )
+    assert "/proc/catalog/plumbing/pipe_fittings/PLB-2GJZ9R7K.json" in msg
+    assert msg.count("/proc/catalog/PLB-2GJZ9R7K.json") == 0

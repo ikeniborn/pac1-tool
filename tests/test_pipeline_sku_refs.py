@@ -53,15 +53,14 @@ def test_extract_sku_refs_hierarchical_path_preserved():
     assert refs == ["/proc/catalog/hand_tools/subcat/HND-6D7TN1CT.json"]
 
 
-def test_build_answer_user_msg_normalizes_hierarchical_ref():
-    """AUTO_REFS block shows short-form refs regardless of raw path depth."""
+def test_build_answer_user_msg_preserves_hierarchical_ref():
+    """AUTO_REFS block must show full paths — LLM copies them verbatim to grounding_refs."""
     msg = _build_answer_user_msg(
         "find hand tool",
         ["sku\nHND-6D7TN1CT\n"],
         ["/proc/catalog/hand_tools/subcat/HND-6D7TN1CT.json"],
     )
-    assert "/proc/catalog/HND-6D7TN1CT.json" in msg
-    assert "hand_tools/subcat" not in msg
+    assert "/proc/catalog/hand_tools/subcat/HND-6D7TN1CT.json" in msg
 
 
 def test_clean_refs_stem_match_normalizes():
