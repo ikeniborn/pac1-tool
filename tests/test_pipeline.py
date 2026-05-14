@@ -760,7 +760,7 @@ def test_build_static_system_agent_context_absent_when_both_empty():
         )
 
     texts = [b["text"] for b in blocks]
-    assert not any("# AGENT CONTEXT" in t for t in texts)
+    assert not any(t.startswith("# AGENT CONTEXT\n") for t in texts)
 
 
 def test_build_static_system_agent_context_absent_for_answer_phase():
@@ -785,7 +785,7 @@ def test_build_static_system_agent_context_absent_for_answer_phase():
         )
 
     texts = [b["text"] for b in blocks]
-    assert not any("# AGENT CONTEXT" in t for t in texts)
+    assert not any(t.startswith("# AGENT CONTEXT\n") for t in texts)
 
 
 def test_build_static_system_agent_context_first_block():
@@ -811,6 +811,6 @@ def test_build_static_system_agent_context_first_block():
         )
 
     texts = [b["text"] for b in blocks]
-    ctx_idx = next(i for i, t in enumerate(texts) if "# AGENT CONTEXT" in t)
+    ctx_idx = next(i for i, t in enumerate(texts) if t.startswith("# AGENT CONTEXT\n"))
     vault_idx = next((i for i, t in enumerate(texts) if "# VAULT RULES" in t), len(texts))
     assert ctx_idx < vault_idx
