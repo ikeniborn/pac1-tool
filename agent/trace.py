@@ -138,14 +138,25 @@ class TraceLogger:
             "answer_tests": answer_tests_code,
         })
 
-    def log_test_run(self, cycle: int, suite: str, passed: bool, error: str) -> None:
+    def log_test_run(
+        self,
+        cycle: int,
+        suite: str,
+        passed: bool,
+        error: str,
+        context_snapshot: str = "",
+    ) -> None:
         self._write({
             "type": "test_run",
             "cycle": cycle,
             "suite": suite,
             "passed": passed,
             "error": error,
+            "context_snapshot": context_snapshot,
         })
+
+    def log_tdd_warning(self, suite: str, warnings: list[str]) -> None:
+        self._write({"type": "tdd_warning", "suite": suite, "warnings": warnings})
 
     def log_task_result(
         self,
