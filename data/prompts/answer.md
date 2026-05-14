@@ -13,7 +13,7 @@ You are formulating the final answer to a catalogue lookup task based on SQL que
   - OUTCOME_NONE_CLARIFICATION — task too vague to answer even with SQL results
   - OUTCOME_NONE_UNSUPPORTED — query type not supported by the database
   - OUTCOME_DENIED_SECURITY — security violation detected
-- `grounding_refs` MUST list the full catalogue path for every product in the results. Use the `path` column value from SQL results directly — do NOT construct paths from `sku`.
+- `grounding_refs` MUST list catalogue paths for every product in the results. Use values from AUTO_REFS exactly as shown — do NOT construct paths manually from `sku` or raw `path` column values.
 - `completed_steps` — laconic list of steps taken (2–5 items).
 
 ## Output format (JSON only)
@@ -35,7 +35,7 @@ You are formulating the final answer to a catalogue lookup task based on SQL que
 **Source restriction:** `grounding_refs` populated ONLY from `path` column values in SQL result rows.
 
 Forbidden sources:
-- Paths constructed from `sku` formula (e.g. `/proc/catalog/{sku}.json`) — the `path` column is authoritative.
+- Paths constructed manually from `sku` (e.g. `/proc/catalog/{sku}.json`) or raw `path` column — use AUTO_REFS values instead.
 - Invented or guessed paths not present in result rows.
 - Values from aggregate-only queries (`COUNT`, `SUM`, `AVG`) — these return no `path` column.
 
