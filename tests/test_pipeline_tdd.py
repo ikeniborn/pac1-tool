@@ -106,7 +106,7 @@ def test_tdd_happy_path(tmp_path):
          patch("agent.pipeline.run_resolve", return_value={}), \
          patch("agent.pipeline.check_schema_compliance", return_value=None), \
          patch("agent.pipeline._TDD_ENABLED", True), \
-         patch("agent.pipeline.run_tests", return_value=(True, "")):
+         patch("agent.pipeline.run_tests", return_value=(True, "", "")):
         stats, _ = run_pipeline(vm, "anthropic/claude-sonnet-4-6", "Find laptops", pre, {})
 
     assert stats["outcome"] == "OUTCOME_OK"
@@ -132,9 +132,9 @@ def test_tdd_sql_test_failure_triggers_learn_and_retry(tmp_path):
 
     # run_tests calls: cycle1 sql_test → fail; cycle2 sql_test → pass; cycle2 answer_test → pass
     run_tests_results = iter([
-        (False, "AssertionError: results empty"),
-        (True, ""),
-        (True, ""),
+        (False, "AssertionError: results empty", ""),
+        (True, "", ""),
+        (True, "", ""),
     ])
 
     with patch("agent.pipeline.call_llm_raw", side_effect=lambda *a, **kw: next(call_iter)), \
@@ -169,9 +169,9 @@ def test_tdd_answer_test_failure_skips_sql_retry(tmp_path):
 
     # cycle1: sql_test → pass; cycle1: answer_test → fail; cycle2: answer_test → pass
     run_tests_results = iter([
-        (True, ""),
-        (False, "AssertionError: message empty"),
-        (True, ""),
+        (True, "", ""),
+        (False, "AssertionError: message empty", ""),
+        (True, "", ""),
     ])
 
     with patch("agent.pipeline.call_llm_raw", side_effect=lambda *a, **kw: next(call_iter)), \

@@ -631,11 +631,19 @@ def run_pipeline(
 
                 # ── RUN SQL TESTS (TDD only) ──────────────────────────────────────
                 if _TDD_ENABLED and test_gen_out:
-                    sql_passed, sql_err = run_tests(
-                        test_gen_out.sql_tests, "test_sql", {"results": sql_results}
+                    sql_passed, sql_err, sql_warns = run_tests(
+                        test_gen_out.sql_tests, "test_sql", {"results": sql_results},
+                        task_text=task_text,
                     )
                     if t := get_trace():
-                        t.log_test_run(cycle + 1, "sql", sql_passed, sql_err)
+                        t.log_test_run(
+                            cycle + 1, "sql", sql_passed, sql_err,
+                            context_snapshot=json.dumps({"results": sql_results})[:3000],
+                        )
+                        if sql_warns:
+                            t.log_tdd_warning("sql", sql_warns)
+                    if sql_warns:
+                        print(f"{CLI_YELLOW}[TDD WARNING] sql: {sql_warns}{CLI_CLR}")
                     if not sql_passed:
                         print(f"{CLI_YELLOW}[pipeline] SQL TEST failed: {sql_err[:80]}{CLI_CLR}")
                         last_error = sql_err[:500]
@@ -673,12 +681,21 @@ def run_pipeline(
                         print(f"{CLI_RED}[pipeline] vm.answer error: {e}{CLI_CLR}")
                     break
 
-                ans_passed, ans_err = run_tests(
+                ans_passed, ans_err, ans_warns = run_tests(
                     test_gen_out.answer_tests, "test_answer",
                     {"sql_results": sql_results, "answer": answer_out.model_dump()},
+                    task_text=task_text,
                 )
                 if t := get_trace():
-                    t.log_test_run(cycle + 1, "answer", ans_passed, ans_err)
+                    snapshot = json.dumps({
+                        "sql_results": sql_results,
+                        "answer": answer_out.model_dump(),
+                    })[:3000]
+                    t.log_test_run(cycle + 1, "answer", ans_passed, ans_err, context_snapshot=snapshot)
+                    if ans_warns:
+                        t.log_tdd_warning("answer", ans_warns)
+                if ans_warns:
+                    print(f"{CLI_YELLOW}[TDD WARNING] answer: {ans_warns}{CLI_CLR}")
                 if not ans_passed:
                     print(f"{CLI_YELLOW}[pipeline] ANSWER TEST failed: {ans_err[:80]}{CLI_CLR}")
                     last_error = ans_err[:500]
