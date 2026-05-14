@@ -13,11 +13,11 @@ Goal: `propose_optimizations.py` validates each recommendation by re-running the
 
 ### Eval (unchanged)
 
-`evaluator.py` remains passive. One addition: `EvalInput` gets a `task_id: str` field, written to `eval_log.jsonl` as `"task_id"`. Original score is read from `logs/{task_id}.jsonl` (trace file, `task_result.score` event) — not stored in eval_log.
+`evaluator.py` remains passive. One addition: `EvalInput` gets a `task_id: str` field, written to `eval_log.jsonl` as `"task_id"`. Original score is read from trace files (see `read_original_score` below) — not stored in eval_log.
 
 ### Injection Parameters
 
-Three new optional params added to `run_agent` and `run_pipeline`:
+Three new optional params added to `run_agent`, `run_pipeline`, and `_build_static_system`:
 
 ```python
 injected_session_rules: list[str] = []       # → prepopulates session_rules
@@ -33,18 +33,31 @@ if injected_prompt_addendum:
     guide_text += f"\n\n# INJECTED OPTIMIZATION\n{injected_prompt_addendum}"
 ```
 
+`injected_security_gates` format: each dict must match the structure used by `load_security_gates()`:
+`{"id": str, "pattern": str, "message": str, "verified": true}` (or `"check_name"` instead of `"pattern"` for named checks).
+
 `injected_security_gates` merged in `run_pipeline` before `_get_security_gates()` result is used:
 
 ```python
 security_gates = _get_security_gates() + (injected_security_gates or [])
 ```
 
+### prompt_optimization list→str conversion
+
+`PipelineEvalOutput.prompt_optimization` is `list[str]`. Each element is validated separately — one `validate_recommendation()` call per element. When injecting into `_build_static_system`, a single element is passed as `injected_prompt_addendum`. Multiple elements are never concatenated into one run; each gets its own validation run and its own output file if accepted.
+
 ### Re-run Mechanism (Embedded)
 
-`propose_optimizations.py` validates each recommendation via a new `validate_recommendation()` function:
+`propose_optimizations.py` validates each recommendation via a new `validate_recommendation()` function.
+
+**Disabling eval during validation:** `validate_recommendation()` sets `EVAL_ENABLED=0` in the subprocess environment before calling `run_agent()`. Since `_EVAL_ENABLED` is read at module import time in `pipeline.py`, validation calls `run_agent()` in a fresh subprocess (or patches the env before import). Implementation: set `os.environ["EVAL_ENABLED"] = "0"` at the top of `validate_recommendation()`, restore after. This prevents recursive eval threads during validation runs.
+
+**read_original_score:** scans `logs/*/` dirs, excludes dirs whose name starts with `"validate-"`, picks the latest by mtime, reads `{task_id}.jsonl`, extracts `task_result.score` event. Returns `None` if not found (validation skipped, file written unconditionally with warning).
+
+**Deduplication of eval_log entries:** for a given `task_id`, group all eval_log entries by `task_id`. Per recommendation type (`rule_optimization`, `prompt_optimization`, `security_optimization`), deduplicate by content hash before validation — identical recommendations from multiple runs are validated only once. The existing `.eval_optimizations_processed` hash store continues to track processed entries.
 
 ```
-original_score = read_original_score(task_id)  # scans logs/*/{task_id}.jsonl, picks latest by mtime, reads task_result.score event
+original_score = read_original_score(task_id)
 
 client = HarnessServiceClientSync(BITGN_URL)
 run = client.start_run(
@@ -53,35 +66,43 @@ run = client.start_run(
     api_key=BITGN_API_KEY,
 )
 
-for trial_id in run.trial_ids:
-    trial = client.start_trial(trial_id)
-    if trial.task_id != task_id:
-        client.end_trial(trial.trial_id)   # no answer, score=0, irrelevant
-        continue
-    run_agent(
-        model_configs={},
-        harness_url=trial.harness_url,
-        task_text=trial.instruction,
-        task_id=trial.task_id,
-        injected_session_rules=rules,
-        injected_prompt_addendum=prompt_addon,
-        injected_security_gates=gates,
-    )
-    result = client.end_trial(trial.trial_id)
-    validation_score = result.score
-    break
+os.environ["EVAL_ENABLED"] = "0"
+try:
+    for trial_id in run.trial_ids:
+        trial = client.start_trial(trial_id)
+        if trial.task_id != task_id:
+            client.end_trial(trial.trial_id)   # no answer, score=0, irrelevant
+            continue
+        run_agent(
+            model_configs={},
+            harness_url=trial.harness_url,
+            task_text=trial.instruction,
+            task_id=trial.task_id,
+            injected_session_rules=rules,
+            injected_prompt_addendum=prompt_addon,
+            injected_security_gates=gates,
+        )
+        result = client.end_trial(trial.trial_id)
+        validation_score = result.score
+        break
+finally:
+    os.environ["EVAL_ENABLED"] = original_eval_enabled  # restore
 
 client.submit_run(run_id=run.run_id, force=True)
 ```
 
-Validation runs use `BITGN_RUN_NAME = f"validate-{timestamp}"` — separate from main leaderboard runs.
+Validation runs use `name=f"validate-{timestamp}"` — excluded from `read_original_score` lookups and separate from main leaderboard runs.
 
 ### Scoring Decision
 
 ```
-if validation_score >= original_score:
-    write rule/security/prompt file (verified: false, human review still required)
+if original_score is None:
+    write file (verified: false), log WARNING: no baseline score found
+
+elif validation_score >= original_score:
+    write file (verified: false)
     log ACCEPTED: score {original} → {validation}
+
 else:
     log REJECTED: score {original} → {validation}
     do not write file
@@ -89,26 +110,30 @@ else:
 
 Threshold: `>=` (no regression). Files still written as `verified: false` — human must set `verified: true` to activate.
 
+### Default behavior
+
+Validation is **on by default**. `--dry-run` skips validation and writes files unconditionally (current behavior). No separate `--validate` flag needed.
+
 ### --dry-run flag
 
-Preserved. With `--dry-run`: skip validation, write files as before (current behavior).
+Preserved. With `--dry-run`: skip validation, write files as before.
 
 ### Recommendation Types → Injection Mapping
 
-| eval field | injection param | file written |
-|---|---|---|
-| `rule_optimization` | `injected_session_rules` | `data/rules/sql-NNN.yaml` |
-| `prompt_optimization` | `injected_prompt_addendum` | `data/prompts/optimized/YYYY-MM-DD-NN-<block>.md` |
-| `security_optimization` | `injected_security_gates` | `data/security/sec-NNN.yaml` |
+| eval field | injection param | file written | notes |
+|---|---|---|---|
+| `rule_optimization` | `injected_session_rules` | `data/rules/sql-NNN.yaml` | list joined as multiple rules, each validated separately |
+| `prompt_optimization` | `injected_prompt_addendum` | `data/prompts/optimized/YYYY-MM-DD-NN-<block>.md` | each list element validated separately, one file per accepted element |
+| `security_optimization` | `injected_security_gates` | `data/security/sec-NNN.yaml` | each element validated separately |
 
 ### Files Changed
 
 | File | Change |
 |---|---|
-| `agent/evaluator.py` | Add `task_id: str` to `EvalInput`; write to eval_log |
-| `agent/pipeline.py` | `run_pipeline` gets 3 injection params; `_build_static_system` gets `injected_prompt_addendum`; security gates merge; `task_id` added to `_run_evaluator_safe` kwargs |
-| `agent/orchestrator.py` | `run_agent` gets 3 injection params, passes to `run_pipeline` |
-| `scripts/propose_optimizations.py` | Add `validate_recommendation()`, `read_original_score()`; gate file writes on validation result; preserve `--dry-run` |
+| `agent/evaluator.py` | Add `task_id: str` to `EvalInput`; write `task_id` to eval_log entry |
+| `agent/pipeline.py` | `run_pipeline` signature gets `task_id: str = ""` + 3 injection params; `_build_static_system` gets `injected_prompt_addendum: str = ""`; security gates merge; `task_id` forwarded to `_run_evaluator_safe` kwargs |
+| `agent/orchestrator.py` | `run_agent` gets `task_id` (already exists) + 3 injection params, passes all to `run_pipeline` |
+| `scripts/propose_optimizations.py` | Add `validate_recommendation()`, `read_original_score()`; deduplicate by content hash; gate file writes on validation result; set/restore `EVAL_ENABLED=0` during validation; preserve `--dry-run` |
 
 ### Out of Scope
 
