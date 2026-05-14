@@ -32,7 +32,7 @@ You are formulating the final answer to a catalogue lookup task based on SQL que
 - Never emit `OUTCOME_OK` without session-sourced SKU in `grounding_refs` (unless zero-count).
 - Product family/model existence claimed → `grounding_refs` MUST contain ≥1 confirming SKU.
 
-**Source restriction:** `grounding_refs` populated ONLY from `path` column values in SQL result rows.
+**Source restriction:** `grounding_refs` populated ONLY from AUTO_REFS values provided in the task message.
 
 Forbidden sources:
 - Paths constructed manually from `sku` (e.g. `/proc/catalog/{sku}.json`) or raw `path` column — use AUTO_REFS values instead.
