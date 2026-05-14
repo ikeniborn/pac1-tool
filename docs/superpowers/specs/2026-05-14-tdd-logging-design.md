@@ -12,7 +12,9 @@ When `test_run` events fail (sql or answer suite), the JSONL trace contains the 
 
 **Concrete example (t10, cycle 3–7):** `test_answer` asserts `'Cordless Drill Driver' in answer['message']` and fails 5 consecutive cycles. The log shows the assertion error but not what `answer['message']` actually contained — the pipeline burns 5 cycles retrying SQL when the real problem is a brittle hardcoded string in the generated test.
 
-**Secondary problem:** `test_gen.md` prompt does not explicitly prohibit exact-string matching of task literals, so LLMs generate fragile tests by default.
+**Secondary problem:** `test_gen.md` prompt does not explicitly prohibit exact-string matching of task literals, so LLMs generate fragile tests by default. Two anti-patterns found in t10:
+- `assert 'Cordless Drill Driver' in answer['message']` — exact product name from task
+- `assert 'count' in header` — hardcoded column alias; SQL used `total` instead
 
 ---
 
@@ -45,34 +47,38 @@ Resulting log entry gains `context_snapshot` field — truncated JSON of `result
 
 ### 2. `test_runner.py` — full error + task_text warning scan
 
-**Error truncation:** `run_tests` currently returns `error[:500]`. The 500-char limit applies to `last_error` passed back to LLM — this is correct. But the full error should be available separately for the trace. Change signature to return `(passed, short_error, full_error)` — or keep current tuple but return full error and let pipeline truncate for `last_error` only.
+**Error truncation:** Increase the `error[:500]` limit in `run_tests` to `error[:2000]`. The 500-char truncation in `last_error` (passed to LLM) stays in `pipeline.py` — pipeline truncates to 500 before feeding to LLM. No signature change needed.
 
-Simpler alternative (no signature change): increase limit to 2000 in `run_tests`, keep truncation in pipeline for `last_error`. This is sufficient since tracebacks are rarely >2000 chars.
-
-**Warning scan:** Accept optional `task_text: str = ""`. After writing temp file but before subprocess call, scan `test_code` for hardcoded task literals in answer assertions:
+**Warning scan:** Add `_check_tdd_antipatterns(test_code: str, task_text: str) -> list[str]` as a module-level helper. Call it inside `run_tests` before the subprocess, return warnings as a third tuple element: `(passed, error, warnings)`.
 
 ```python
 import re
 
 def _check_tdd_antipatterns(test_code: str, task_text: str) -> list[str]:
     warnings = []
-    # Detect literal strings from task embedded in assert ... in answer['message']
-    literals = re.findall(r"assert ['\"]([^'\"]+)['\"] in answer\[", test_code)
-    for lit in literals:
+    # Hardcoded task literal in answer['message'] assert
+    for lit in re.findall(r"assert\s+['\"]([^'\"]+)['\"]\s+in\s+answer\[", test_code):
         if lit in task_text:
             warnings.append(f"hardcoded task literal in answer assert: '{lit}'")
+    # Hardcoded column name in SQL header assert (e.g. assert 'count' in header)
+    for col in re.findall(r"assert\s+['\"]([^'\"]+)['\"]\s+in\s+header", test_code):
+        warnings.append(f"hardcoded column alias in sql header assert: '{col}' — use numeric type check instead")
     return warnings
-```
 
-Return warnings alongside the pass/fail result. Pipeline logs them as `tdd_warning` trace events and prints to terminal.
+
+def run_tests(test_code: str, fn_name: str, context: dict, task_text: str = "") -> tuple[bool, str, list[str]]:
+    warnings = _check_tdd_antipatterns(test_code, task_text) if task_text else []
+    # ... existing subprocess logic, error[:2000] ...
+    return passed, error, warnings
+```
 
 ### 3. `pipeline.py` — wire context_snapshot and warnings
 
-At each `run_tests` call site:
+All call sites unpack 3-tuple `(passed, err, warnings)`. Truncate `err` to 500 when feeding `last_error` to LLM.
 
 **SQL suite:**
 ```python
-sql_passed, sql_err = run_tests(
+sql_passed, sql_err, sql_warns = run_tests(
     test_gen_out.sql_tests, "test_sql", {"results": sql_results},
     task_text=task_text,
 )
@@ -81,11 +87,18 @@ if t := get_trace():
         cycle + 1, "sql", sql_passed, sql_err,
         context_snapshot=json.dumps({"results": sql_results})[:3000],
     )
+    if sql_warns:
+        t._write({"type": "tdd_warning", "suite": "sql", "warnings": sql_warns})
+if sql_warns:
+    print(f"{CLI_YELLOW}[TDD WARNING] sql: {sql_warns}{CLI_CLR}")
+if not sql_passed:
+    last_error = sql_err[:500]
+    ...
 ```
 
 **Answer suite:**
 ```python
-ans_passed, ans_err = run_tests(
+ans_passed, ans_err, ans_warns = run_tests(
     test_gen_out.answer_tests, "test_answer",
     {"sql_results": sql_results, "answer": answer_out.model_dump()},
     task_text=task_text,
@@ -96,13 +109,11 @@ if t := get_trace():
         "sql_results": sql_results,
     })[:3000]
     t.log_test_run(cycle + 1, "answer", ans_passed, ans_err, context_snapshot=snapshot)
+    if ans_warns:
+        t._write({"type": "tdd_warning", "suite": "answer", "warnings": ans_warns})
+if ans_warns:
+    print(f"{CLI_YELLOW}[TDD WARNING] answer: {ans_warns}{CLI_CLR}")
 ```
-
-For anti-pattern warnings returned from `run_tests`, log each as:
-```python
-t._write({"type": "tdd_warning", "suite": suite, "warnings": warnings})
-```
-Also print to terminal with `CLI_YELLOW`.
 
 ### 4. `data/prompts/test_gen.md` — anti-patterns section
 
@@ -127,6 +138,7 @@ Rules:
 - Use `.lower()` + individual keyword checks for product presence.
 - For COUNT tasks: check `<COUNT:` format, not the numeric value.
 - Include the actual value in the assertion message for easier debugging.
+- Never hardcode a specific column alias (e.g. `'count'`, `'total'`) in SQL header checks. Instead verify the result has at least one numeric-looking column: `assert any(c.strip().isdigit() or results[1:] for ...)` or simply check `results` is non-empty with plausible row count.
 ```
 
 ---
@@ -136,7 +148,7 @@ Rules:
 | File | Change |
 |------|--------|
 | `agent/trace.py` | `log_test_run` gains `context_snapshot: str = ""` |
-| `agent/test_runner.py` | `run_tests` gains `task_text: str = ""`; increase error limit to 2000; add `_check_tdd_antipatterns` |
+| `agent/test_runner.py` | `run_tests` signature: `task_text: str = ""`, returns `(bool, str, list[str])`; error limit 2000; add `_check_tdd_antipatterns` |
 | `agent/pipeline.py` | Pass `context_snapshot` and `task_text` at both `run_tests` call sites; log `tdd_warning` events |
 | `data/prompts/test_gen.md` | Add anti-patterns section |
 
@@ -146,5 +158,6 @@ Rules:
 
 - After a `test_run` failure, `context_snapshot` in the JSONL event shows the actual `answer['message']` value
 - Pipeline prints `[TDD WARNING]` to terminal when anti-pattern detected in generated test
-- `test_gen.md` prompt prevents LLM from generating exact-string asserts for product names
+- Unit test: `_check_tdd_antipatterns` returns warning for code with hardcoded product literal and for hardcoded column alias
+- `test_gen.md` anti-patterns section present with both bad/good examples (product name + column alias)
 - No regressions in existing tests (`uv run pytest tests/ -v`)
