@@ -304,7 +304,8 @@ def _extract_discovery_results(
 
 def _extract_sku_refs(queries: list[str], results: list[str]) -> list[str]:
     """Extract catalogue paths from SQL results. Uses 'path' column when present,
-    falls back to constructing /proc/catalog/{sku}.json from 'sku' column."""
+    falls back to constructing /proc/catalog/{sku}.json from 'sku' column.
+    Independently adds /proc/stores/{store_id}.json when 'store_id' column present."""
     refs: list[str] = []
     for result_txt in results:
         lines = [ln.strip() for ln in result_txt.strip().splitlines() if ln.strip()]
@@ -327,6 +328,14 @@ def _extract_sku_refs(queries: list[str], results: list[str]) -> list[str]:
                     sku = cols[sku_idx].strip().strip('"')
                     if sku:
                         refs.append(f"/proc/catalog/{sku}.json")
+        if "store_id" in headers:
+            store_idx = headers.index("store_id")
+            for row in lines[1:]:
+                cols = row.split(",")
+                if store_idx < len(cols):
+                    store_id = cols[store_idx].strip().strip('"')
+                    if store_id:
+                        refs.append(f"/proc/stores/{store_id}.json")
     return refs
 
 
