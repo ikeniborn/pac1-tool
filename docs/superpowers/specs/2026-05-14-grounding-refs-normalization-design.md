@@ -91,7 +91,7 @@ def test_build_answer_user_msg_normalizes_hierarchical_ref():
     """AUTO_REFS block shows short-form refs regardless of raw path depth."""
     msg = _build_answer_user_msg(
         "find hand tool",
-        ["path,sku\n/proc/catalog/hand_tools/subcat/HND-6D7TN1CT.json,HND-6D7TN1CT\n"],
+        ["sku\nHND-6D7TN1CT\n"],
         ["/proc/catalog/hand_tools/subcat/HND-6D7TN1CT.json"],
     )
     assert "/proc/catalog/HND-6D7TN1CT.json" in msg
