@@ -23,6 +23,7 @@ class EvalInput:
     sgr_trace: list[dict]
     cycles: int
     final_outcome: str
+    task_id: str = ""
     agents_md_index: dict = field(default_factory=dict)
     schema_digest: dict = field(default_factory=dict)
     sql_plan_outputs: list = field(default_factory=list)
@@ -150,6 +151,7 @@ def _build_eval_system(
 
 def _append_log(eval_input: EvalInput, result: PipelineEvalOutput, metrics: dict) -> None:
     entry = {
+        "task_id": eval_input.task_id,
         "task_text": eval_input.task_text,
         "cycles": eval_input.cycles,
         "final_outcome": eval_input.final_outcome,

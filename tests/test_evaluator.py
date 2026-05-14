@@ -114,3 +114,25 @@ def test_run_evaluator_loads_knowledge_into_system_prompt():
     assert "sql-001: Never X." in captured_system[0]
     assert "sec-001: Block DDL." in captured_system[0]
     assert "answer.md" in captured_system[0]
+
+
+def test_task_id_written_to_log(tmp_path):
+    eval_json = json.dumps({
+        "reasoning": "ok", "score": 8, "comment": "fine",
+        "prompt_optimization": [], "rule_optimization": [], "security_optimization": [],
+    })
+    log_path = tmp_path / "eval_log.jsonl"
+    inp = EvalInput(
+        task_id="t07",
+        task_text="How many products?",
+        agents_md="rules",
+        db_schema="CREATE TABLE products(id INT)",
+        sgr_trace=[],
+        cycles=1,
+        final_outcome="OUTCOME_OK",
+    )
+    with patch("agent.evaluator.call_llm_raw", return_value=eval_json), \
+         patch("agent.evaluator._EVAL_LOG", log_path):
+        run_evaluator(inp, model="test-model", cfg={})
+    line = json.loads(log_path.read_text().strip())
+    assert line["task_id"] == "t07"
