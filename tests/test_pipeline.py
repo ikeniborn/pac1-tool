@@ -119,7 +119,8 @@ def test_max_cycles_exhausted_returns_clarification(tmp_path):
          patch("agent.pipeline._RULES_DIR", rules_dir), \
          patch("agent.pipeline.load_security_gates", return_value=[]), \
          patch("agent.pipeline.run_resolve", return_value={}), \
-         patch("agent.pipeline.check_schema_compliance", return_value=None):
+         patch("agent.pipeline.check_schema_compliance", return_value=None), \
+         patch("agent.pipeline._MAX_CYCLES", 3):
         stats, _thread = run_pipeline(vm, "anthropic/claude-sonnet-4-6", "?", pre, {})
 
     assert stats["outcome"] == "OUTCOME_NONE_CLARIFICATION"
@@ -312,8 +313,8 @@ def test_sgr_learn_entry_has_error_type(tmp_path):
     assert sgr_trace[0].get("error_type") == "syntax", f"sgr_trace entry: {sgr_trace[0]}"
 
 
-def test_session_rules_fifo_cap(tmp_path):
-    """session_rules never exceeds 3 entries (FIFO) across multiple LEARN calls."""
+def test_session_rules_accumulate_all_learn(tmp_path):
+    """session_rules accumulates all LEARN rules — no truncation cap."""
     from agent.pipeline import _run_learn
 
     session_rules: list[str] = []
@@ -333,7 +334,7 @@ def test_session_rules_fifo_cap(tmp_path):
                        sgr_trace, session_rules, [], {},
                        error_type="syntax")
 
-    assert len(session_rules) <= 3, f"session_rules has {len(session_rules)} entries: {session_rules}"
+    assert len(session_rules) == 5, f"session_rules has {len(session_rules)} entries: {session_rules}"
     assert session_rules[-1] == "rule-5", f"last rule wrong: {session_rules}"
 
 
@@ -582,3 +583,51 @@ def test_discovery_only_detection_fires_without_all_distinct(tmp_path):
 
     # New code: cycle 2 ran → sku refs found → vm.answer called
     vm.answer.assert_called_once()
+
+
+def test_session_rules_accumulate_beyond_three(tmp_path):
+    """All LEARN rules are kept — no 3-rule truncation cap."""
+    from unittest.mock import patch, MagicMock
+    import json
+
+    vm = MagicMock()
+    vm.exec.return_value = _make_exec_result("Error: syntax error")
+
+    pre = _make_pre()
+    rules_dir = tmp_path / "rules"
+    rules_dir.mkdir()
+
+    # 4 cycles: each produces sql_plan + learn
+    learn_jsons = [
+        json.dumps({"reasoning": f"r{i}", "conclusion": f"c{i}", "rule_content": f"unique_rule_{i}"})
+        for i in range(4)
+    ]
+    sql_jsons = [_sql_plan_json() for _ in range(4)]
+    call_seq = []
+    for s, l in zip(sql_jsons, learn_jsons):
+        call_seq.extend([s, l])
+    call_iter = iter(call_seq)
+
+    captured_session_rules: list[list[str]] = []
+
+    import agent.pipeline as pipeline_mod
+    original_run_learn = pipeline_mod._run_learn
+
+    def tracking_run_learn(*args, **kwargs):
+        session_rules = args[7] if len(args) > 7 else kwargs.get("session_rules", [])
+        original_run_learn(*args, **kwargs)
+        captured_session_rules.append(list(session_rules))
+
+    with patch("agent.pipeline.call_llm_raw", side_effect=lambda *a, **kw: next(call_iter)), \
+         patch("agent.pipeline._RULES_DIR", rules_dir), \
+         patch("agent.pipeline.load_security_gates", return_value=[]), \
+         patch("agent.pipeline.run_resolve", return_value={}), \
+         patch("agent.pipeline.check_schema_compliance", return_value=None), \
+         patch("agent.pipeline._MAX_CYCLES", 4), \
+         patch("agent.pipeline._run_learn", side_effect=tracking_run_learn):
+        stats, _ = run_pipeline(vm, "anthropic/claude-sonnet-4-6", "test?", pre, {})
+
+    # After 4th LEARN, all 4 rules must survive (no truncation to 3)
+    if captured_session_rules:
+        final_rules = captured_session_rules[-1]
+        assert len(final_rules) == 4, f"Expected 4 rules (no truncation), got {len(final_rules)}: {final_rules}"

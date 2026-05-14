@@ -676,7 +676,6 @@ def _run_learn(
                 print(f"{CLI_BLUE}[pipeline] LEARN: anchor={anchor!r}, elevating vault rule{CLI_CLR}")
                 return
         session_rules.append(learn_out.rule_content)
-        session_rules[:] = session_rules[-3:]
         print(f"{CLI_BLUE}[pipeline] LEARN: rule added to session, retrying{CLI_CLR}")
 
 
