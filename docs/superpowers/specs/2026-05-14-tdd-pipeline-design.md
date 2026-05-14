@@ -59,7 +59,8 @@ RESOLVE
 
 **LEARN message for `error_type="test_fail"`:**  
 `error` = subprocess stderr text (AssertionError message or exception traceback, truncated to 500 chars).  
-Passed to `_build_learn_user_msg(task_text, queries, error, error_type="test_fail")` — same call signature as existing failures.
+Passed to `_build_learn_user_msg(task_text, queries, error, error_type="test_fail")` — same call signature as existing failures.  
+When `_skip_sql=True` (answer_test failure), `queries` = queries from the last executed EXECUTE (Python loop variable persists across iterations; value is never reset when skipping SQL_PLAN).
 
 **When `TDD_ENABLED=0`:** ANSWER stays outside the cycle loop (current behavior). No regression.
 
@@ -137,7 +138,7 @@ Instructs the model to:
 
 | File | Change |
 |---|---|
-| `agent/pipeline.py` | Add `_run_test_gen()`. Add `_skip_sql` flag. Move ANSWER inside cycle when TDD_ENABLED. Add RUN_SQL_TESTS and RUN_ANSWER_TESTS call sites. Remove `session_rules[-3:]` truncation. |
+| `agent/pipeline.py` | Add `_run_test_gen() -> TestGenOutput \| None` (None = parse failure → hard stop). Add `_skip_sql` flag. Move ANSWER inside cycle when TDD_ENABLED. Add RUN_SQL_TESTS and RUN_ANSWER_TESTS call sites. Remove `session_rules[-3:]` truncation. |
 | `agent/models.py` | Add `TestGenOutput`. |
 | `agent/test_runner.py` | New file. |
 | `data/prompts/test_gen.md` | New file. |
