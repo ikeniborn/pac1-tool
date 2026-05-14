@@ -708,3 +708,109 @@ def test_injected_session_rules_prepopulate_session():
         run_pipeline(vm, "m", "task text", pre, {},
                      injected_session_rules=["Always use LIMIT 100"])
     assert any("Always use LIMIT 100" in m for m in captured_user_msgs)
+
+
+def test_build_static_system_agent_context_injected():
+    """_build_static_system injects AGENT CONTEXT block for sql_plan phase when agent_id or current_date set."""
+    import tempfile
+    from pathlib import Path
+    from agent.pipeline import _build_static_system
+    from agent.rules_loader import RulesLoader
+
+    with tempfile.TemporaryDirectory() as tmp:
+        rules_loader = RulesLoader(Path(tmp))
+        blocks = _build_static_system(
+            "sql_plan",
+            agents_md="",
+            agents_md_index={},
+            db_schema="",
+            schema_digest={},
+            rules_loader=rules_loader,
+            security_gates=[],
+            agent_id="cust-99",
+            current_date="2026-05-14",
+        )
+
+    texts = [b["text"] for b in blocks]
+    ctx_block = next((t for t in texts if "# AGENT CONTEXT" in t), None)
+    assert ctx_block is not None
+    assert "customer_id: cust-99" in ctx_block
+    assert "date: 2026-05-14" in ctx_block
+
+
+def test_build_static_system_agent_context_absent_when_both_empty():
+    """No AGENT CONTEXT block when both agent_id and current_date are empty."""
+    import tempfile
+    from pathlib import Path
+    from agent.pipeline import _build_static_system
+    from agent.rules_loader import RulesLoader
+
+    with tempfile.TemporaryDirectory() as tmp:
+        rules_loader = RulesLoader(Path(tmp))
+        blocks = _build_static_system(
+            "sql_plan",
+            agents_md="",
+            agents_md_index={},
+            db_schema="",
+            schema_digest={},
+            rules_loader=rules_loader,
+            security_gates=[],
+            agent_id="",
+            current_date="",
+        )
+
+    texts = [b["text"] for b in blocks]
+    assert not any("# AGENT CONTEXT" in t for t in texts)
+
+
+def test_build_static_system_agent_context_absent_for_answer_phase():
+    """AGENT CONTEXT block NOT injected for answer phase even if fields set."""
+    import tempfile
+    from pathlib import Path
+    from agent.pipeline import _build_static_system
+    from agent.rules_loader import RulesLoader
+
+    with tempfile.TemporaryDirectory() as tmp:
+        rules_loader = RulesLoader(Path(tmp))
+        blocks = _build_static_system(
+            "answer",
+            agents_md="",
+            agents_md_index={},
+            db_schema="",
+            schema_digest={},
+            rules_loader=rules_loader,
+            security_gates=[],
+            agent_id="cust-99",
+            current_date="2026-05-14",
+        )
+
+    texts = [b["text"] for b in blocks]
+    assert not any("# AGENT CONTEXT" in t for t in texts)
+
+
+def test_build_static_system_agent_context_first_block():
+    """AGENT CONTEXT block is placed before VAULT RULES (first in blocks list)."""
+    import tempfile
+    from pathlib import Path
+    from agent.pipeline import _build_static_system
+    from agent.rules_loader import RulesLoader
+
+    with tempfile.TemporaryDirectory() as tmp:
+        rules_loader = RulesLoader(Path(tmp))
+        blocks = _build_static_system(
+            "sql_plan",
+            agents_md="## Brand Aliases\nheco = Heco",
+            agents_md_index={"brand_aliases": ["heco = Heco"]},
+            db_schema="",
+            schema_digest={},
+            rules_loader=rules_loader,
+            security_gates=[],
+            agent_id="cust-1",
+            current_date="2026-05-14",
+            task_text="find heco products",
+        )
+
+    texts = [b["text"] for b in blocks]
+    ctx_idx = next(i for i, t in enumerate(texts) if "# AGENT CONTEXT" in t)
+    vault_idx = next((i for i, t in enumerate(texts) if "# VAULT RULES" in t), len(texts))
+    assert ctx_idx < vault_idx

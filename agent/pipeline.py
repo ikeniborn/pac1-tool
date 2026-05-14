@@ -198,8 +198,18 @@ def _build_static_system(
     confirmed_values: dict | None = None,
     task_text: str = "",
     injected_prompt_addendum: str = "",
+    agent_id: str = "",
+    current_date: str = "",
 ) -> list[dict]:
     blocks: list[dict] = []
+
+    if (agent_id or current_date) and phase in ("sql_plan", "learn"):
+        ctx_lines = []
+        if current_date:
+            ctx_lines.append(f"date: {current_date}")
+        if agent_id:
+            ctx_lines.append(f"customer_id: {agent_id}")
+        blocks.append({"type": "text", "text": "# AGENT CONTEXT\n" + "\n".join(ctx_lines)})
 
     if phase in ("sql_plan", "learn", "answer"):
         if agents_md_index and task_text and phase in ("sql_plan", "learn"):
@@ -424,17 +434,20 @@ def run_pipeline(
         pre.schema_digest, rules_loader, security_gates,
         confirmed_values=confirmed_values, task_text=task_text,
         injected_prompt_addendum=injected_prompt_addendum,
+        agent_id=pre.agent_id, current_date=pre.current_date,
     )
     static_learn = _build_static_system(
         "learn", pre.agents_md_content, pre.agents_md_index, pre.db_schema,
         pre.schema_digest, rules_loader, security_gates,
         confirmed_values=confirmed_values, task_text=task_text,
         injected_prompt_addendum=injected_prompt_addendum,
+        agent_id=pre.agent_id, current_date=pre.current_date,
     )
     static_answer = _build_static_system(
         "answer", pre.agents_md_content, pre.agents_md_index, pre.db_schema,
         pre.schema_digest, rules_loader, security_gates,
         injected_prompt_addendum=injected_prompt_addendum,
+        agent_id=pre.agent_id, current_date=pre.current_date,
     )
 
     _skip_sql = False
@@ -610,6 +623,7 @@ def run_pipeline(
                         pre.schema_digest, rules_loader, security_gates,
                         confirmed_values=confirmed_values, task_text=task_text,
                         injected_prompt_addendum=injected_prompt_addendum,
+                        agent_id=pre.agent_id, current_date=pre.current_date,
                     )
                     last_error = "Discovery cycle complete. All confirmed values updated. Now emit the final SKU filter query using confirmed values — do NOT run more discovery."
                     print(f"{CLI_BLUE}[pipeline] DISCOVERY-ONLY cycle — continuing for final filter{CLI_CLR}")
