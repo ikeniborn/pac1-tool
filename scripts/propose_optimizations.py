@@ -362,6 +362,23 @@ def _write_prompt(patch_result: dict, entry: dict, raw_rec: str) -> Path:
     return dest
 
 
+def _dedup_by_content_per_task(
+    items: list[tuple[str, dict, str]],
+) -> tuple[list[tuple[str, dict, str]], list[str]]:
+    """Remove exact-duplicate recs within the same task_id. Returns (deduped, skipped_hashes)."""
+    seen: set[tuple[str, str]] = set()
+    result = []
+    skipped: list[str] = []
+    for rec, entry, h in items:
+        key = (entry.get("task_id", ""), rec)
+        if key in seen:
+            skipped.append(h)
+        else:
+            seen.add(key)
+            result.append((rec, entry, h))
+    return result, skipped
+
+
 def main(dry_run: bool = False) -> None:
     load_dotenv()
     model = os.environ.get("MODEL_EVALUATOR", "")
@@ -402,6 +419,14 @@ def main(dry_run: bool = False) -> None:
         if _entry_hash(entry["task_text"], "prompt", rec) not in processed
     ]
 
+    # Content-hash dedup: within same task_id, identical recs validated once
+    rule_items, rule_dup_hashes = _dedup_by_content_per_task(rule_items)
+    new_processed.update(rule_dup_hashes)
+    security_items, sec_dup_hashes = _dedup_by_content_per_task(security_items)
+    new_processed.update(sec_dup_hashes)
+    prompt_items, prompt_dup_hashes = _dedup_by_content_per_task(prompt_items)
+    new_processed.update(prompt_dup_hashes)
+
     # --- Pre-cluster per channel ---
     rule_clusters = _cluster_recs(rule_items, rules_md, model, cfg) if rule_items else []
     security_clusters = _cluster_recs(security_items, security_md, model, cfg) if security_items else []
@@ -409,6 +434,7 @@ def main(dry_run: bool = False) -> None:
 
     # --- Process representatives ---
     for raw_rec, entry, all_hashes in rule_clusters:
+        task_id = entry.get("task_id", "")
         print(f"[rule] {raw_rec[:80]}...")
         content = _synthesize_rule(raw_rec, rules_md, model, cfg)
         if content is None:
@@ -423,13 +449,33 @@ def main(dry_run: bool = False) -> None:
         if dry_run:
             print(f"  → [DRY RUN] sql-{num:03d}.yaml: {content[:100]}")
         else:
-            dest = _write_rule(num, content, entry, raw_rec)
-            print(f"  → {dest.name}")
-            new_processed.update(all_hashes)
-            written += 1
-            rules_md = knowledge_loader.existing_rules_text()
+            original, validation = validate_recommendation(
+                task_id,
+                injected_session_rules=[raw_rec],
+                injected_prompt_addendum="",
+                injected_security_gates=[],
+            )
+            if original is None:
+                print(f"  → WARNING: no baseline score for {task_id!r} — writing anyway")
+                dest = _write_rule(num, content, entry, raw_rec)
+                print(f"  → {dest.name} (unvalidated)")
+                new_processed.update(all_hashes)
+                written += 1
+                rules_md = knowledge_loader.existing_rules_text()
+            elif validation is None:
+                print(f"  → skip (task not in trials)")
+            elif validation >= original:
+                print(f"  → ACCEPTED: score {original:.2f} → {validation:.2f}")
+                dest = _write_rule(num, content, entry, raw_rec)
+                print(f"  → {dest.name}")
+                new_processed.update(all_hashes)
+                written += 1
+                rules_md = knowledge_loader.existing_rules_text()
+            else:
+                print(f"  → REJECTED: score {original:.2f} → {validation:.2f}")
 
     for raw_rec, entry, all_hashes in security_clusters:
+        task_id = entry.get("task_id", "")
         print(f"[security] {raw_rec[:80]}...")
         gate_spec = _synthesize_security_gate(raw_rec, security_md, model, cfg)
         if gate_spec is None:
@@ -444,13 +490,38 @@ def main(dry_run: bool = False) -> None:
         if dry_run:
             print(f"  → [DRY RUN] sec-{num:03d}.yaml: {gate_spec.get('message', '')}")
         else:
-            dest = _write_security(num, gate_spec, entry, raw_rec)
-            print(f"  → {dest.name}")
-            new_processed.update(all_hashes)
-            written += 1
-            security_md = knowledge_loader.existing_security_text()
+            injected_gate = {
+                "id": f"val-{num:03d}", "pattern": gate_spec.get("pattern", ""),
+                "check_name": gate_spec.get("check", ""),
+                "message": gate_spec["message"], "verified": True,
+            }
+            original, validation = validate_recommendation(
+                task_id,
+                injected_session_rules=[],
+                injected_prompt_addendum="",
+                injected_security_gates=[injected_gate],
+            )
+            if original is None:
+                print(f"  → WARNING: no baseline score for {task_id!r} — writing anyway")
+                dest = _write_security(num, gate_spec, entry, raw_rec)
+                print(f"  → {dest.name} (unvalidated)")
+                new_processed.update(all_hashes)
+                written += 1
+                security_md = knowledge_loader.existing_security_text()
+            elif validation is None:
+                print(f"  → skip (task not in trials)")
+            elif validation >= original:
+                print(f"  → ACCEPTED: score {original:.2f} → {validation:.2f}")
+                dest = _write_security(num, gate_spec, entry, raw_rec)
+                print(f"  → {dest.name}")
+                new_processed.update(all_hashes)
+                written += 1
+                security_md = knowledge_loader.existing_security_text()
+            else:
+                print(f"  → REJECTED: score {original:.2f} → {validation:.2f}")
 
     for raw_rec, entry, all_hashes in prompt_clusters:
+        task_id = entry.get("task_id", "")
         print(f"[prompt] {raw_rec[:80]}...")
         patch_result = _synthesize_prompt_patch(raw_rec, prompts_md, model, cfg)
         if patch_result is None:
@@ -464,11 +535,30 @@ def main(dry_run: bool = False) -> None:
         if dry_run:
             print(f"  → [DRY RUN] {patch_result['target_file']}: {patch_result['content'][:80]}")
         else:
-            dest = _write_prompt(patch_result, entry, raw_rec)
-            print(f"  → {dest.name}")
-            new_processed.update(all_hashes)
-            written += 1
-            prompts_md = knowledge_loader.existing_prompts_text()
+            original, validation = validate_recommendation(
+                task_id,
+                injected_session_rules=[],
+                injected_prompt_addendum=raw_rec,
+                injected_security_gates=[],
+            )
+            if original is None:
+                print(f"  → WARNING: no baseline score for {task_id!r} — writing anyway")
+                dest = _write_prompt(patch_result, entry, raw_rec)
+                print(f"  → {dest.name} (unvalidated)")
+                new_processed.update(all_hashes)
+                written += 1
+                prompts_md = knowledge_loader.existing_prompts_text()
+            elif validation is None:
+                print(f"  → skip (task not in trials)")
+            elif validation >= original:
+                print(f"  → ACCEPTED: score {original:.2f} → {validation:.2f}")
+                dest = _write_prompt(patch_result, entry, raw_rec)
+                print(f"  → {dest.name}")
+                new_processed.update(all_hashes)
+                written += 1
+                prompts_md = knowledge_loader.existing_prompts_text()
+            else:
+                print(f"  → REJECTED: score {original:.2f} → {validation:.2f}")
 
     if not dry_run:
         _save_processed(new_processed)

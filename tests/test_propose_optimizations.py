@@ -61,7 +61,9 @@ def test_writes_rule_yaml(tmp_path):
          patches[5], patches[6], patches[7], patches[8], \
          patch.object(po, "_synthesize_rule", return_value="Never prefix model with brand."), \
          patch.object(po, "_synthesize_security_gate", return_value=None), \
-         patch.object(po, "_synthesize_prompt_patch", return_value=None):
+         patch.object(po, "_synthesize_prompt_patch", return_value=None), \
+         patch.object(po, "_check_contradiction", return_value=None), \
+         patch.object(po, "validate_recommendation", return_value=(0.8, 0.9)):
         po.main(dry_run=False)
 
     files = list(rules_dir.glob("*.yaml"))
@@ -84,7 +86,9 @@ def test_writes_security_yaml(tmp_path):
          patches[5], patches[6], patches[7], patches[8], \
          patch.object(po, "_synthesize_rule", return_value=None), \
          patch.object(po, "_synthesize_security_gate", return_value=gate_spec), \
-         patch.object(po, "_synthesize_prompt_patch", return_value=None):
+         patch.object(po, "_synthesize_prompt_patch", return_value=None), \
+         patch.object(po, "_check_contradiction", return_value=None), \
+         patch.object(po, "validate_recommendation", return_value=(0.8, 0.9)):
         po.main(dry_run=False)
 
     files = list(security_dir.glob("*.yaml"))
@@ -107,7 +111,9 @@ def test_writes_prompt_md(tmp_path):
          patches[5], patches[6], patches[7], patches[8], \
          patch.object(po, "_synthesize_rule", return_value=None), \
          patch.object(po, "_synthesize_security_gate", return_value=None), \
-         patch.object(po, "_synthesize_prompt_patch", return_value=patch_result):
+         patch.object(po, "_synthesize_prompt_patch", return_value=patch_result), \
+         patch.object(po, "_check_contradiction", return_value=None), \
+         patch.object(po, "validate_recommendation", return_value=(0.8, 0.9)):
         po.main(dry_run=False)
 
     files = list(prom_dir.glob("*.md"))
@@ -152,7 +158,9 @@ def test_dedup_skips_processed(tmp_path):
          patches[5], patches[6], patches[7], patches[8], \
          patch.object(po, "_synthesize_rule", return_value="Never X.") as mock_synth, \
          patch.object(po, "_synthesize_security_gate", return_value=None), \
-         patch.object(po, "_synthesize_prompt_patch", return_value=None):
+         patch.object(po, "_synthesize_prompt_patch", return_value=None), \
+         patch.object(po, "_check_contradiction", return_value=None), \
+         patch.object(po, "validate_recommendation", return_value=(0.8, 0.9)):
         po.main(dry_run=False)
 
     mock_synth.assert_not_called()
@@ -238,7 +246,9 @@ def test_synthesize_security_gate_receives_existing_context(tmp_path):
          patch.object(po, "_synthesize_rule", return_value=None), \
          patch.object(po, "_synthesize_security_gate", return_value=gate_spec) as mock_sec, \
          patch.object(po, "_synthesize_prompt_patch", return_value=None), \
-         patch.object(kl, "existing_security_text", return_value="- sec-001: DDL prohibited"):
+         patch.object(kl, "existing_security_text", return_value="- sec-001: DDL prohibited"), \
+         patch.object(po, "_check_contradiction", return_value=None), \
+         patch.object(po, "validate_recommendation", return_value=(0.8, 0.9)):
         po.main(dry_run=False)
 
     args = mock_sec.call_args
@@ -257,7 +267,9 @@ def test_synthesize_prompt_patch_receives_existing_context(tmp_path):
          patch.object(po, "_synthesize_rule", return_value=None), \
          patch.object(po, "_synthesize_security_gate", return_value=None), \
          patch.object(po, "_synthesize_prompt_patch", return_value=patch_result) as mock_prompt, \
-         patch.object(kl, "existing_prompts_text", return_value="=== answer.md ===\n# Answer\n"):
+         patch.object(kl, "existing_prompts_text", return_value="=== answer.md ===\n# Answer\n"), \
+         patch.object(po, "_check_contradiction", return_value=None), \
+         patch.object(po, "validate_recommendation", return_value=(0.8, 0.9)):
         po.main(dry_run=False)
 
     args = mock_prompt.call_args
@@ -276,7 +288,9 @@ def test_main_uses_knowledge_loader_for_rules(tmp_path):
          patch.object(kl, "existing_rules_text", return_value="- sql-001: existing rule") as mock_kl, \
          patch.object(po, "_synthesize_rule", return_value="Never X.") as mock_synth, \
          patch.object(po, "_synthesize_security_gate", return_value=None), \
-         patch.object(po, "_synthesize_prompt_patch", return_value=None):
+         patch.object(po, "_synthesize_prompt_patch", return_value=None), \
+         patch.object(po, "_check_contradiction", return_value=None), \
+         patch.object(po, "validate_recommendation", return_value=(0.8, 0.9)):
         po.main(dry_run=False)
 
     # synthesize_rule must be called with the string returned by knowledge_loader
@@ -339,7 +353,9 @@ def test_cluster_recs_all_hashes_marked_on_write(tmp_path):
          patch.object(po, "_synthesize_rule", return_value="Never do X."), \
          patch.object(po, "_synthesize_security_gate", return_value=None), \
          patch.object(po, "_synthesize_prompt_patch", return_value=None), \
-         patch.object(kl, "existing_rules_text", return_value=""):
+         patch.object(kl, "existing_rules_text", return_value=""), \
+         patch.object(po, "_check_contradiction", return_value=None), \
+         patch.object(po, "validate_recommendation", return_value=(0.8, 0.9)):
         po.main(dry_run=False)
 
     saved = set(processed.read_text().splitlines())
@@ -377,7 +393,9 @@ def test_rules_md_refreshed_between_writes(tmp_path):
          patch.object(po, "_synthesize_rule", side_effect=fake_synthesize_rule), \
          patch.object(po, "_synthesize_security_gate", return_value=None), \
          patch.object(po, "_synthesize_prompt_patch", return_value=None), \
-         patch.object(kl, "existing_rules_text", side_effect=counting_existing_rules):
+         patch.object(kl, "existing_rules_text", side_effect=counting_existing_rules), \
+         patch.object(po, "_check_contradiction", return_value=None), \
+         patch.object(po, "validate_recommendation", return_value=(0.8, 0.9)):
         po.main(dry_run=False)
 
     # initial load + one refresh after first write = at least 2 calls
@@ -409,7 +427,9 @@ def test_security_md_refreshed_between_writes(tmp_path):
          patch.object(po, "_synthesize_rule", return_value=None), \
          patch.object(po, "_synthesize_security_gate", return_value=gate_spec), \
          patch.object(po, "_synthesize_prompt_patch", return_value=None), \
-         patch.object(kl, "existing_security_text", side_effect=counting_existing_security):
+         patch.object(kl, "existing_security_text", side_effect=counting_existing_security), \
+         patch.object(po, "_check_contradiction", return_value=None), \
+         patch.object(po, "validate_recommendation", return_value=(0.8, 0.9)):
         po.main(dry_run=False)
 
     assert refresh_calls[0] >= 2
@@ -450,7 +470,8 @@ def test_contradiction_blocks_write(tmp_path):
          patch.object(po, "_synthesize_security_gate", return_value=None), \
          patch.object(po, "_synthesize_prompt_patch", return_value=None), \
          patch.object(po, "_check_contradiction", return_value="CONFLICT: sql-001 — opposite"), \
-         patch.object(kl, "existing_rules_text", return_value="- sql-001: Never SELECT star."):
+         patch.object(kl, "existing_rules_text", return_value="- sql-001: Never SELECT star."), \
+         patch.object(po, "validate_recommendation", return_value=(0.8, 0.9)):
         po.main(dry_run=False)
 
     assert list(rules_dir.glob("*.yaml")) == []
@@ -590,3 +611,127 @@ def test_validate_recommendation_no_baseline(tmp_path):
         original, validation = po.validate_recommendation("t99")
     assert original is None
     assert validation == pytest.approx(0.9)
+
+
+def test_validation_gates_file_write_accepted(tmp_path):
+    """Accepted (score doesn't regress) → file written."""
+    eval_log, rules_dir, security_dir, prompts_dir, prom_dir, processed = _setup(tmp_path)
+    entry = _eval_entry(rule_opts=["Never use SELECT *"])
+    entry["task_id"] = "t01"
+    _write_eval_log(eval_log, [entry])
+
+    def passthrough_cluster(items, *a, **k):
+        return [(rec, ent, [h]) for rec, ent, h in items]
+
+    patches = _base_patches(eval_log, rules_dir, security_dir, prompts_dir, prom_dir, processed)
+    with patches[0], patches[1], patches[2], patches[3], patches[4], \
+         patches[5], patches[6], patches[7], patches[8], \
+         patch.object(po, "_cluster_recs", side_effect=passthrough_cluster), \
+         patch.object(po, "_synthesize_rule", return_value="Never use SELECT *"), \
+         patch.object(po, "_synthesize_security_gate", return_value=None), \
+         patch.object(po, "_synthesize_prompt_patch", return_value=None), \
+         patch.object(po, "_check_contradiction", return_value=None), \
+         patch.object(po, "validate_recommendation", return_value=(0.7, 0.9)) as mock_val:
+        po.main(dry_run=False)
+
+    mock_val.assert_called_once_with(
+        "t01",
+        injected_session_rules=["Never use SELECT *"],
+        injected_prompt_addendum="",
+        injected_security_gates=[],
+    )
+    assert len(list(rules_dir.glob("*.yaml"))) == 1
+
+
+def test_validation_gates_file_write_rejected(tmp_path):
+    """Rejected (score regresses) → no file written."""
+    eval_log, rules_dir, security_dir, prompts_dir, prom_dir, processed = _setup(tmp_path)
+    entry = _eval_entry(rule_opts=["Never use SELECT *"])
+    entry["task_id"] = "t01"
+    _write_eval_log(eval_log, [entry])
+
+    def passthrough_cluster(items, *a, **k):
+        return [(rec, ent, [h]) for rec, ent, h in items]
+
+    patches = _base_patches(eval_log, rules_dir, security_dir, prompts_dir, prom_dir, processed)
+    with patches[0], patches[1], patches[2], patches[3], patches[4], \
+         patches[5], patches[6], patches[7], patches[8], \
+         patch.object(po, "_cluster_recs", side_effect=passthrough_cluster), \
+         patch.object(po, "_synthesize_rule", return_value="Never use SELECT *"), \
+         patch.object(po, "_synthesize_security_gate", return_value=None), \
+         patch.object(po, "_synthesize_prompt_patch", return_value=None), \
+         patch.object(po, "_check_contradiction", return_value=None), \
+         patch.object(po, "validate_recommendation", return_value=(1.0, 0.5)):
+        po.main(dry_run=False)
+
+    assert len(list(rules_dir.glob("*.yaml"))) == 0
+
+
+def test_dry_run_skips_validation(tmp_path):
+    """--dry-run skips validate_recommendation entirely."""
+    eval_log, rules_dir, security_dir, prompts_dir, prom_dir, processed = _setup(tmp_path)
+    entry = _eval_entry(rule_opts=["Never use SELECT *"])
+    entry["task_id"] = "t01"
+    _write_eval_log(eval_log, [entry])
+
+    patches = _base_patches(eval_log, rules_dir, security_dir, prompts_dir, prom_dir, processed)
+    with patches[0], patches[1], patches[2], patches[3], patches[4], \
+         patches[5], patches[6], patches[7], patches[8], \
+         patch.object(po, "_synthesize_rule", return_value="Never use SELECT *"), \
+         patch.object(po, "_synthesize_security_gate", return_value=None), \
+         patch.object(po, "_synthesize_prompt_patch", return_value=None), \
+         patch.object(po, "_check_contradiction", return_value=None), \
+         patch.object(po, "validate_recommendation") as mock_val:
+        po.main(dry_run=True)
+
+    mock_val.assert_not_called()
+
+
+def test_no_baseline_score_writes_with_warning(tmp_path):
+    """original_score is None → write file anyway."""
+    eval_log, rules_dir, security_dir, prompts_dir, prom_dir, processed = _setup(tmp_path)
+    entry = _eval_entry(rule_opts=["Never use SELECT *"])
+    entry["task_id"] = "t01"
+    _write_eval_log(eval_log, [entry])
+
+    def passthrough_cluster(items, *a, **k):
+        return [(rec, ent, [h]) for rec, ent, h in items]
+
+    patches = _base_patches(eval_log, rules_dir, security_dir, prompts_dir, prom_dir, processed)
+    with patches[0], patches[1], patches[2], patches[3], patches[4], \
+         patches[5], patches[6], patches[7], patches[8], \
+         patch.object(po, "_cluster_recs", side_effect=passthrough_cluster), \
+         patch.object(po, "_synthesize_rule", return_value="Never use SELECT *"), \
+         patch.object(po, "_synthesize_security_gate", return_value=None), \
+         patch.object(po, "_synthesize_prompt_patch", return_value=None), \
+         patch.object(po, "_check_contradiction", return_value=None), \
+         patch.object(po, "validate_recommendation", return_value=(None, 0.8)):
+        po.main(dry_run=False)
+
+    assert len(list(rules_dir.glob("*.yaml"))) == 1
+
+
+def test_content_hash_dedup_per_task(tmp_path):
+    """Same rec text for same task_id validated only once."""
+    eval_log, rules_dir, security_dir, prompts_dir, prom_dir, processed = _setup(tmp_path)
+    entry1 = _eval_entry(rule_opts=["Never use SELECT *"])
+    entry1["task_id"] = "t01"
+    entry2 = _eval_entry(rule_opts=["Never use SELECT *"])
+    entry2["task_id"] = "t01"
+    _write_eval_log(eval_log, [entry1, entry2])
+
+    def passthrough_cluster(items, *a, **k):
+        return [(rec, ent, [h]) for rec, ent, h in items]
+
+    patches = _base_patches(eval_log, rules_dir, security_dir, prompts_dir, prom_dir, processed)
+    with patches[0], patches[1], patches[2], patches[3], patches[4], \
+         patches[5], patches[6], patches[7], patches[8], \
+         patch.object(po, "_cluster_recs", side_effect=passthrough_cluster), \
+         patch.object(po, "_synthesize_rule", return_value="Never use SELECT *"), \
+         patch.object(po, "_synthesize_security_gate", return_value=None), \
+         patch.object(po, "_synthesize_prompt_patch", return_value=None), \
+         patch.object(po, "_check_contradiction", return_value=None), \
+         patch.object(po, "validate_recommendation", return_value=(0.7, 0.9)) as mock_val:
+        po.main(dry_run=False)
+
+    assert mock_val.call_count == 1
