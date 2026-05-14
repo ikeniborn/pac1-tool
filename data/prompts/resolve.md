@@ -13,7 +13,7 @@ Given a task description, an AGENTS.MD section index, and top property keys, ext
 - Output PURE JSON only. The very first character must be `{`.
 - `reasoning` field: briefly explain which terms you identified and why.
 - `candidates` field: list of objects with `term`, `field`, and `discovery_query`.
-- `field` must be one of: `brand`, `model`, `kind`, `attr_key`, `attr_value`.
+- `field` must be one of: `brand`, `model`, `kind`, `attr_key`, `attr_value`, `cart_id`.
 - `discovery_query` MUST be a SELECT DISTINCT query with LIKE or DISTINCT. Do NOT use ILIKE — the DB is SQLite and does not support it.
 - Only discovery queries — no filter queries, no JOIN, no subqueries.
 - If no identifiable terms exist, return empty candidates list.
@@ -25,6 +25,9 @@ Model: `SELECT DISTINCT model FROM products WHERE model LIKE '%<term>%' LIMIT 10
 Kind: `SELECT DISTINCT name FROM kinds WHERE name LIKE '%<term>%' LIMIT 10`
 Attr key: `SELECT DISTINCT key FROM product_properties WHERE key LIKE '%<term>%' LIMIT 10`
 Attr value (text): `SELECT DISTINCT value_text FROM product_properties WHERE key = '<known_key>' AND value_text LIKE '%<term>%' LIMIT 10`
+Cart ID: `SELECT DISTINCT cart_id FROM carts WHERE customer_id = '<from_agent_context>' LIMIT 10`
+
+Note: `customer_id` comes from `# AGENT CONTEXT` block (populated by `/bin/id` at init). Do NOT generate a discovery candidate for `customer_id` — it is already confirmed.
 
 ## Attribute value coverage (REQUIRED)
 
