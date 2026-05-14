@@ -66,8 +66,21 @@ def _check_tdd_antipatterns(test_code: str, task_text: str) -> list[str]:
     return warnings
 
 
+def _check_tdd_antipatterns(test_code: str, task_text: str = "") -> list[str]:
+    warnings = []
+    # Hardcoded task literal in answer['message'] assert — only when task_text provided
+    if task_text:
+        for lit in re.findall(r"assert\s+['\"]([^'\"]+)['\"]\s+in\s+answer\[", test_code):
+            if lit in task_text:
+                warnings.append(f"hardcoded task literal in answer assert: '{lit}'")
+    # Hardcoded column alias in SQL header assert — always checked, task_text not needed
+    for col in re.findall(r"assert\s+['\"]([^'\"]+)['\"]\s+in\s+header", test_code):
+        warnings.append(f"hardcoded column alias in sql header assert: '{col}' — use numeric type check instead")
+    return warnings
+
+
 def run_tests(test_code: str, fn_name: str, context: dict, task_text: str = "") -> tuple[bool, str, list[str]]:
-    warnings = _check_tdd_antipatterns(test_code, task_text) if task_text else []
+    warnings = _check_tdd_antipatterns(test_code, task_text)
     # ... existing subprocess logic, error[:2000] ...
     return passed, error, warnings
 ```
@@ -138,7 +151,7 @@ Rules:
 - Use `.lower()` + individual keyword checks for product presence.
 - For COUNT tasks: check `<COUNT:` format, not the numeric value.
 - Include the actual value in the assertion message for easier debugging.
-- Never hardcode a specific column alias (e.g. `'count'`, `'total'`) in SQL header checks. Instead verify the result has at least one numeric-looking column: `assert any(c.strip().isdigit() or results[1:] for ...)` or simply check `results` is non-empty with plausible row count.
+- Never hardcode a specific column alias (e.g. `'count'`, `'total'`) in SQL header checks. Check that results are non-empty and the first data row contains a parseable integer, not that the header contains a specific word.
 ```
 
 ---
