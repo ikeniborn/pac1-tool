@@ -50,6 +50,17 @@ AUTO_REFS shows `/proc/catalog/PLB-2GJZ9R7K.json` — evaluator cannot match.
 LLM sees full paths in AUTO_REFS, copies them verbatim to `grounding_refs`,
 `clean_refs` filters by exact membership.
 
+Note: `check_grounding_refs` is called just before `clean_refs` and still receives
+a set of **stems** — keep that expression unchanged:
+```python
+ref_err = check_grounding_refs(
+    answer_out.grounding_refs,
+    {Path(r).stem for r in sku_refs},  # stems, not full paths
+    security_gates,
+)
+```
+`result_paths` is a separate variable used only for `clean_refs`.
+
 ## Bug 2 — `_extract_sku_refs` ignores `store_id` column
 
 ### Root cause
@@ -61,10 +72,20 @@ LLM cannot ground answer to `/proc/stores/{store_id}.json`.
 
 ### Fix
 
-Add third branch after `elif "sku" in headers:` in `_extract_sku_refs`:
+Add a **separate** `if "store_id" in headers:` block after the existing `if/elif` chain
+in `_extract_sku_refs`. It must be an independent `if`, not `elif`, so that results
+containing both `sku` and `store_id` columns (e.g. inventory queries) produce refs
+for both the catalogue item and the store.
 
 ```python
-elif "store_id" in headers:
+# existing if/elif unchanged:
+if "path" in headers:
+    ...
+elif "sku" in headers:
+    ...
+
+# new independent block:
+if "store_id" in headers:
     store_idx = headers.index("store_id")
     for row in lines[1:]:
         cols = row.split(",")
@@ -74,7 +95,9 @@ elif "store_id" in headers:
                 refs.append(f"/proc/stores/{store_id}.json")
 ```
 
-Priority order unchanged: `path` > `sku` > `store_id` (if/elif chain).
+For a result with headers `store_id, sku, available_today` (t17 case):
+`sku` branch extracts `/proc/catalog/{sku}.json`, then `store_id` block extracts
+`/proc/stores/{store_id}.json` — both refs reach AUTO_REFS.
 
 ## Bug 3 — `AttributeError: 'str' object has no attribute 'get'`
 
@@ -132,7 +155,8 @@ except Exception:
 ## Test Plan
 
 - Unit test for `_obj_mutation_tool` with `obj["function"]` as string → no crash, returns `None`.
-- Unit test for `_extract_sku_refs` with `store_id` column → returns `/proc/stores/{id}.json`.
+- Unit test for `_extract_sku_refs` with `store_id`-only column → returns `/proc/stores/{id}.json`.
+- Unit test for `_extract_sku_refs` with both `sku` and `store_id` columns in one result → returns both `/proc/catalog/{sku}.json` and `/proc/stores/{store_id}.json`.
 - Unit test for `_build_answer_user_msg` → AUTO_REFS contains full paths (no stem stripping).
 - Unit test for `clean_refs` filter → exact match, not stem match.
 - Existing pipeline tests must continue to pass.
