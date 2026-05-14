@@ -13,7 +13,7 @@
 
 ## Решение
 
-Добавить env var `OLLAMA_API_KEY`. Пустое значение → fallback `"ollama"` (поведение как сейчас).
+Добавить env var `OLLAMA_API_KEY`. Fallback `"ollama"` при **отсутствии** переменной или пустой строке (`.env` может содержать `OLLAMA_API_KEY=` без значения — нужен `or`-fallback, не только default в `get()`).
 
 ## Изменения
 
@@ -24,7 +24,7 @@
 ollama_client = OpenAI(base_url=_OLLAMA_URL, api_key="ollama", timeout=_HTTP_TIMEOUT)
 
 # станет:
-_OLLAMA_KEY = os.environ.get("OLLAMA_API_KEY", "ollama")
+_OLLAMA_KEY = os.environ.get("OLLAMA_API_KEY") or "ollama"
 ollama_client = OpenAI(base_url=_OLLAMA_URL, api_key=_OLLAMA_KEY, timeout=_HTTP_TIMEOUT)
 ```
 
@@ -48,6 +48,6 @@ OLLAMA_API_KEY=           # ключ для OpenAI-совместимого пр
 
 ## Тестирование
 
-1. Без `OLLAMA_API_KEY` — локальный Ollama работает как раньше.
+1. Без `OLLAMA_API_KEY` (или `OLLAMA_API_KEY=`) — локальный Ollama работает как раньше. Проверка: `make task TASKS='t01'`.
 2. С `OLLAMA_API_KEY=sk-...` + `OLLAMA_BASE_URL=https://vps/v1` — запрос уходит с заголовком `Authorization: Bearer sk-...`. Проверка: `make task TASKS='t01'`.
 3. Неверный ключ → `AuthenticationError` от OpenAI SDK. `AuthenticationError` не содержит ни одного слова из `TRANSIENT_KWS`/`HARD_CONNECTION_KWS` (`llm.py:215–228`) → retry не выполняется → attempt-цикл прерывается (`break`) → plain-text retry также падает с 401 → функция возвращает `None`. Исключение не пробрасывается; pipeline обрабатывает `None` как штатный сбой.
