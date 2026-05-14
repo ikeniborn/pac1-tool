@@ -11,7 +11,7 @@ from .agents_md_parser import parse_agents_md
 from .llm import CLI_BLUE, CLI_CLR, CLI_GREEN, CLI_YELLOW
 
 _LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
-_SCHEMA_TABLES = ["products", "product_properties", "inventory", "kinds"]
+_SCHEMA_TABLES = ["products", "product_properties", "inventory", "kinds", "carts", "cart_items"]
 
 
 @dataclass
@@ -21,6 +21,8 @@ class PrephaseResult:
     db_schema: str = ""
     agents_md_index: dict = field(default_factory=dict)
     schema_digest: dict = field(default_factory=dict)
+    agent_id: str = ""
+    current_date: str = ""
 
 
 def _exec_sql_text(vm: EcomRuntimeClientSync, query: str) -> str:
@@ -113,6 +115,24 @@ def run_prephase(
 
     agents_md_index: dict = parse_agents_md(agents_md_content) if agents_md_content else {}
 
+    # /bin/date — best-effort
+    current_date = ""
+    try:
+        date_result = vm.exec(ExecRequest(path="/bin/date"))
+        current_date = getattr(date_result, "stdout", "").strip()
+        print(f"{CLI_BLUE}[prephase] /bin/date:{CLI_CLR} {CLI_GREEN}{current_date!r}{CLI_CLR}")
+    except Exception as e:
+        print(f"{CLI_YELLOW}[prephase] /bin/date failed: {e}{CLI_CLR}")
+
+    # /bin/id — best-effort
+    agent_id = ""
+    try:
+        id_result = vm.exec(ExecRequest(path="/bin/id"))
+        agent_id = getattr(id_result, "stdout", "").strip()
+        print(f"{CLI_BLUE}[prephase] /bin/id:{CLI_CLR} {CLI_GREEN}{agent_id!r}{CLI_CLR}")
+    except Exception as e:
+        print(f"{CLI_YELLOW}[prephase] /bin/id failed: {e}{CLI_CLR}")
+
     db_schema = ""
     schema_digest: dict = {}
     try:
@@ -138,4 +158,6 @@ def run_prephase(
         db_schema=db_schema,
         agents_md_index=agents_md_index,
         schema_digest=schema_digest,
+        agent_id=agent_id,
+        current_date=current_date,
     )

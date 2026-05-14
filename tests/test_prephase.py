@@ -17,10 +17,13 @@ def _make_vm(agents_md="AGENTS CONTENT", bin_sql="SQL CONTENT"):
 
 
 def test_prephase_result_fields():
-    """PrephaseResult has exactly the expected fields — no log or preserve_prefix."""
+    """PrephaseResult has exactly the expected fields including agent_id and current_date."""
     import dataclasses
     fields = {f.name for f in dataclasses.fields(PrephaseResult)}
-    assert fields == {"agents_md_content", "agents_md_path", "db_schema", "agents_md_index", "schema_digest"}
+    assert fields == {
+        "agents_md_content", "agents_md_path", "db_schema",
+        "agents_md_index", "schema_digest", "agent_id", "current_date",
+    }
 
 
 def test_run_prephase_no_system_prompt_param():
@@ -114,13 +117,6 @@ def _make_vm_with_schema(agents_md="## Brand Aliases\nheco = Heco", schema="CREA
     return vm
 
 
-def test_prephase_result_fields_updated():
-    """PrephaseResult has agents_md_index and schema_digest fields."""
-    import dataclasses
-    fields = {f.name for f in dataclasses.fields(PrephaseResult)}
-    assert "agents_md_index" in fields
-    assert "schema_digest" in fields
-
 
 def test_agents_md_index_populated():
     """agents_md_index has parsed sections from AGENTS.MD."""
@@ -173,3 +169,59 @@ def test_schema_digest_empty_on_exec_failure():
     vm.exec.side_effect = Exception("exec failed")
     result = run_prephase(vm, "task")
     assert result.schema_digest == {}
+
+
+def test_prephase_calls_bin_date_and_bin_id():
+    """run_prephase() calls vm.exec with /bin/date and /bin/id after AGENTS.MD read."""
+    from unittest.mock import MagicMock
+
+    vm = MagicMock()
+    agents_r = MagicMock(); agents_r.content = "AGENTS CONTENT"
+    vm.read.return_value = agents_r
+
+    date_r = MagicMock(); date_r.stdout = "2026-05-14"
+    id_r = MagicMock(); id_r.stdout = "customer-42"
+
+    def _exec(req):
+        if req.path == "/bin/date":
+            return date_r
+        if req.path == "/bin/id":
+            return id_r
+        r = MagicMock(); r.stdout = ""
+        return r
+
+    vm.exec.side_effect = _exec
+    result = run_prephase(vm, "find products")
+
+    exec_paths = [c.args[0].path for c in vm.exec.call_args_list]
+    assert "/bin/date" in exec_paths
+    assert "/bin/id" in exec_paths
+    assert result.current_date == "2026-05-14"
+    assert result.agent_id == "customer-42"
+
+
+def test_prephase_bin_date_failure_produces_empty_string():
+    """If /bin/date or /bin/id raises, agent_id/current_date are empty strings — no crash."""
+    from unittest.mock import MagicMock
+
+    vm = MagicMock()
+    agents_r = MagicMock(); agents_r.content = "AGENTS"
+    vm.read.return_value = agents_r
+
+    def _exec(req):
+        if req.path in ("/bin/date", "/bin/id"):
+            raise Exception("not found")
+        r = MagicMock(); r.stdout = ""
+        return r
+
+    vm.exec.side_effect = _exec
+    result = run_prephase(vm, "task")
+    assert result.current_date == ""
+    assert result.agent_id == ""
+
+
+def test_prephase_schema_tables_includes_carts():
+    """_SCHEMA_TABLES includes carts and cart_items."""
+    from agent.prephase import _SCHEMA_TABLES
+    assert "carts" in _SCHEMA_TABLES
+    assert "cart_items" in _SCHEMA_TABLES
