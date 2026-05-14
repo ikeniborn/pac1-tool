@@ -53,3 +53,48 @@ def test_answer_tests_signature():
     )
     assert passed is True
     assert err == ""
+
+
+# ── _check_tdd_antipatterns tests ──────────────────────────────────────────
+
+
+def test_antipattern_literal_in_answer_warns_when_in_task():
+    from agent.test_runner import _check_tdd_antipatterns
+    code = "def test_answer(sql_results, answer):\n    assert 'Cordless Drill Driver' in answer['message']\n"
+    task = "How many Cordless Drill Driver SKUs are active?"
+    warnings = _check_tdd_antipatterns(code, task_text=task)
+    assert any("Cordless Drill Driver" in w for w in warnings)
+
+
+def test_antipattern_literal_not_in_task_no_warn():
+    from agent.test_runner import _check_tdd_antipatterns
+    code = "def test_answer(sql_results, answer):\n    assert 'Cordless Drill Driver' in answer['message']\n"
+    # task does NOT contain the literal
+    warnings = _check_tdd_antipatterns(code, task_text="List active SKUs")
+    assert not any("Cordless Drill Driver" in w for w in warnings)
+
+
+def test_antipattern_no_task_text_no_answer_warn():
+    from agent.test_runner import _check_tdd_antipatterns
+    code = "def test_answer(sql_results, answer):\n    assert 'Cordless Drill Driver' in answer['message']\n"
+    # task_text omitted — answer anti-pattern check skipped
+    warnings = _check_tdd_antipatterns(code)
+    assert not any("Cordless Drill Driver" in w for w in warnings)
+
+
+def test_antipattern_header_literal_always_warns():
+    from agent.test_runner import _check_tdd_antipatterns
+    code = "def test_sql(results):\n    header = results[0].split('\\n')[0].lower()\n    assert 'count' in header\n"
+    warnings = _check_tdd_antipatterns(code)
+    assert any("count" in w for w in warnings)
+
+
+def test_antipattern_unescaped_opposite_quote_no_warn():
+    """False-negative: regex does not match unescaped opposite-quote inside literal. Acceptable for MVP."""
+    from agent.test_runner import _check_tdd_antipatterns
+    # "Bob's Drill" — embedded apostrophe inside double-quoted string
+    code = "def test_answer(sql_results, answer):\n    assert \"Bob's Drill\" in answer['message']\n"
+    task = "Find Bob's Drill products"
+    warnings = _check_tdd_antipatterns(code, task_text=task)
+    # regex stops on the embedded ' — no match, no warning (documented false-negative)
+    assert not warnings
