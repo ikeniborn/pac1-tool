@@ -96,3 +96,22 @@ def test_clean_refs_excludes_unmatched_ref():
     grounding_refs = ["/proc/catalog/plumbing/PLB-ABC.json", "/proc/catalog/other/OTH-XYZ.json"]
     clean = [r for r in grounding_refs if r in result_paths] if result_paths else list(grounding_refs)
     assert clean == ["/proc/catalog/plumbing/PLB-ABC.json"]
+
+
+# ── Bug 3 / Level 2: run_pipeline try/except wrapper ─────────────────────────
+
+def test_run_pipeline_unhandled_exception_calls_vm_answer_once(tmp_path):
+    """Bug t21: unhandled exception in for-loop must call vm.answer exactly once."""
+    vm = MagicMock()
+    rules_dir = tmp_path / "rules"
+    rules_dir.mkdir()
+
+    with patch("agent.pipeline._call_llm_phase", side_effect=AttributeError("str has no .get")), \
+         patch("agent.pipeline._RULES_DIR", rules_dir), \
+         patch("agent.pipeline.load_security_gates", return_value=[]), \
+         patch("agent.pipeline.run_resolve", return_value={}):
+        run_pipeline(vm, "anthropic/claude-sonnet-4-6", "checkout task", _make_pre(), {})
+
+    assert vm.answer.call_count == 1
+    call_arg = vm.answer.call_args[0][0]
+    assert call_arg.message == "Internal pipeline error."
