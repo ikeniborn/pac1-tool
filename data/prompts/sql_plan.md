@@ -219,3 +219,30 @@ If previous cycle's query failed (error or empty result), new plan MUST differ s
 - Required change: different columns projected, different filter predicate, different join shape, or different discovery approach (e.g. `LIKE '%term%'` probe instead of exact match, EXISTS instead of JOIN, alternate attribute key).
 - Cosmetic changes (whitespace, alias rename, LIMIT bump) do NOT count as divergence.
 - If no structural variation possible, escalate to LEARN cycle instead of re-issuing same SQL.
+
+## Cart and Basket Queries
+
+When task involves a buyer's cart or basket:
+
+1. Use `customer_id` from `# AGENT CONTEXT` block to scope the query to current buyer.
+2. Cart data is in `carts` and `cart_items` tables (names may vary — verify via `.schema`).
+3. Join pattern: `carts → cart_items → products` to resolve product details.
+4. `grounding_refs` for cart answers: use `/proc/catalog/{sku}.json` for each product SKU in cart.
+
+Sample cart lookup:
+
+```sql
+SELECT ci.sku, ci.quantity, p.name, p.path
+FROM carts c
+JOIN cart_items ci ON ci.cart_id = c.cart_id
+JOIN products p ON p.sku = ci.sku
+WHERE c.customer_id = '<customer_id_from_agent_context>'
+```
+
+## /bin/checkout
+
+`/bin/checkout` is a runtime tool, NOT a SQL query.
+- Do NOT model checkout as SQL.
+- If task requires checkout action: use exec tool with `path="/bin/checkout"`. Pass `cart_id` via `ExecRequest.args` field (verify field name in `ecom.proto` — likely `args: [cart_id]`).
+- For preview-only: same exec call returns preview without finalizing.
+- Pipeline does not have a checkout phase — checkout tasks will be handled based on AGENTS.MD guidance.
