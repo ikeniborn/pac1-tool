@@ -152,3 +152,15 @@ def test_exists_subquery_aliases_pass():
         "AND EXISTS (SELECT 1 FROM product_properties pp2 WHERE pp2.sku = p.sku AND pp2.key = 'weight')"
     )
     assert check_schema_compliance([q], _DIGEST, {"color": ["red"], "weight": ["1kg"]}, "find red 1kg") is None
+
+
+def test_unknown_table_not_blocked():
+    """Queries referencing tables absent from schema_digest are not blocked — EXPLAIN will catch them."""
+    schema_digest = {
+        "tables": {
+            "products": {"columns": [{"name": "sku", "type": "TEXT"}, {"name": "path", "type": "TEXT"}]}
+        }
+    }
+    q = "SELECT c.cart_id, ci.sku FROM carts c JOIN cart_items ci ON ci.cart_id = c.cart_id WHERE c.customer_id = 'x'"
+    err = check_schema_compliance([q], schema_digest, {"customer_id": ["x"]}, "cart query")
+    assert err is None, f"Unknown tables should not be blocked by schema gate, got: {err}"
