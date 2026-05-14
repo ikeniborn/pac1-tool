@@ -94,3 +94,34 @@ def test_run_agent_returns_dict():
 
     assert isinstance(result, dict)
     assert result["outcome"] == "OUTCOME_OK"
+
+
+def test_run_agent_passes_injection_params():
+    """run_agent forwards injection params + task_id to run_pipeline."""
+    mock_pre = MagicMock()
+    mock_pre.agents_md_content = ""
+    mock_pre.agents_md_index = {}
+    mock_pre.db_schema = ""
+    mock_pre.schema_digest = {"tables": {}}
+
+    with patch("agent.orchestrator.EcomRuntimeClientSync"), \
+         patch("agent.orchestrator.run_prephase", return_value=mock_pre), \
+         patch("agent.orchestrator.run_pipeline", return_value=(
+             {"outcome": "OUTCOME_OK", "cycles_used": 1, "step_facts": [],
+              "done_ops": [], "input_tokens": 0, "output_tokens": 0, "total_elapsed_ms": 0},
+             None,
+         )) as mock_pipeline:
+        run_agent(
+            model_configs={},
+            harness_url="http://localhost",
+            task_text="test",
+            task_id="t01",
+            injected_session_rules=["rule1"],
+            injected_prompt_addendum="addon",
+            injected_security_gates=[{"id": "g1"}],
+        )
+    _args, kwargs = mock_pipeline.call_args
+    assert kwargs["task_id"] == "t01"
+    assert kwargs["injected_session_rules"] == ["rule1"]
+    assert kwargs["injected_prompt_addendum"] == "addon"
+    assert kwargs["injected_security_gates"] == [{"id": "g1"}]

@@ -11,13 +11,27 @@ from agent.pipeline import run_pipeline
 _MODEL = os.environ.get("MODEL", "")
 
 
-def run_agent(model_configs: dict, harness_url: str, task_text: str, task_id: str = "") -> dict:
+def run_agent(
+    model_configs: dict,
+    harness_url: str,
+    task_text: str,
+    task_id: str = "",
+    injected_session_rules: list[str] | None = None,
+    injected_prompt_addendum: str = "",
+    injected_security_gates: list[dict] | None = None,
+) -> dict:
     """Execute a single benchmark task."""
     vm = EcomRuntimeClientSync(harness_url)
     model = _MODEL
     cfg = model_configs.get(model, {}) if model_configs else {}
     pre = run_prephase(vm, task_text)
-    stats, eval_thread = run_pipeline(vm, model, task_text, pre, cfg)
+    stats, eval_thread = run_pipeline(
+        vm, model, task_text, pre, cfg,
+        task_id=task_id,
+        injected_session_rules=injected_session_rules or [],
+        injected_prompt_addendum=injected_prompt_addendum,
+        injected_security_gates=injected_security_gates or [],
+    )
     if eval_thread is not None:
         eval_thread.join(timeout=30)
         if eval_thread.is_alive():
