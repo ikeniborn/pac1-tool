@@ -12,7 +12,7 @@ def _make_pre(db_schema="CREATE TABLE products(id INT, brand TEXT, type TEXT, sk
     return PrephaseResult(agents_md_content="", agents_md_path="/AGENTS.MD", db_schema=db_schema)
 
 
-def _exec_ok(stdout='[{"brand":"Heco"}]'):
+def _exec_ok(stdout="sku,path\nHeco-001,/proc/catalog/Heco-001.json"):
     r = MagicMock()
     r.stdout = stdout
     return r
@@ -52,7 +52,8 @@ def test_llm_call_records_written_on_success(tmp_path):
          patch("agent.pipeline._get_rules_loader"), \
          patch("agent.pipeline._get_security_gates", return_value=[]), \
          patch("agent.pipeline.check_sql_queries", return_value=None), \
-         patch("agent.pipeline.check_schema_compliance", return_value=None):
+         patch("agent.pipeline.check_schema_compliance", return_value=None), \
+         patch("agent.pipeline._TDD_ENABLED", False):
         run_pipeline(vm, "anthropic/claude-sonnet-4-6", "find X", _make_pre(), {})
 
     t.close()
@@ -88,7 +89,8 @@ def test_gate_check_records_written(tmp_path):
          patch("agent.pipeline._get_rules_loader"), \
          patch("agent.pipeline._get_security_gates", return_value=[]), \
          patch("agent.pipeline.check_sql_queries", return_value=None), \
-         patch("agent.pipeline.check_schema_compliance", return_value=None):
+         patch("agent.pipeline.check_schema_compliance", return_value=None), \
+         patch("agent.pipeline._TDD_ENABLED", False):
         run_pipeline(vm, "anthropic/claude-sonnet-4-6", "find X", _make_pre(), {})
 
     t.close()
@@ -118,7 +120,8 @@ def test_sql_validate_and_execute_records(tmp_path):
          patch("agent.pipeline._get_rules_loader"), \
          patch("agent.pipeline._get_security_gates", return_value=[]), \
          patch("agent.pipeline.check_sql_queries", return_value=None), \
-         patch("agent.pipeline.check_schema_compliance", return_value=None):
+         patch("agent.pipeline.check_schema_compliance", return_value=None), \
+         patch("agent.pipeline._TDD_ENABLED", False):
         run_pipeline(vm, "anthropic/claude-sonnet-4-6", "find X", _make_pre(), {})
 
     t.close()
