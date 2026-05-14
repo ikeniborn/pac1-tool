@@ -173,8 +173,6 @@ def test_schema_digest_empty_on_exec_failure():
 
 def test_prephase_calls_bin_date_and_bin_id():
     """run_prephase() calls vm.exec with /bin/date and /bin/id after AGENTS.MD read."""
-    from unittest.mock import MagicMock
-
     vm = MagicMock()
     agents_r = MagicMock(); agents_r.content = "AGENTS CONTENT"
     vm.read.return_value = agents_r
@@ -202,8 +200,6 @@ def test_prephase_calls_bin_date_and_bin_id():
 
 def test_prephase_bin_date_failure_produces_empty_string():
     """If /bin/date or /bin/id raises, agent_id/current_date are empty strings — no crash."""
-    from unittest.mock import MagicMock
-
     vm = MagicMock()
     agents_r = MagicMock(); agents_r.content = "AGENTS"
     vm.read.return_value = agents_r
