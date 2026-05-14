@@ -125,10 +125,10 @@ message ExecRequest {
 message ExecResponse {
   int32 exit_code = 1;
   // MIME type for stdout, e.g. text/plain, text/csv, application/json.
-  string content_type = 2;
+  string content_type = 2 [deprecated = true];
   string stdout = 3;
   string stderr = 4;
-  bool truncated = 5;
+  bool truncated = 5 [deprecated = true];
 }
 
 message WriteRequest {
@@ -137,12 +137,13 @@ message WriteRequest {
   // Optional idempotency key for `/run/actions/*` writes. The runtime may also
   // accept action-level idempotency inside the JSON payload; this field gives
   // clients one consistent transport-level place to put it.
-  string idempotency_key = 3;
+  string idempotency_key = 3 [deprecated = true];
   // Optional SHA-256 precondition over the current full rendered file content.
   // Empty means no precondition.
   string if_match_sha256 = 4;
 }
 
+// Deprecated: action-handler pattern removed; enum values unused.
 enum ActionStatus {
   ACTION_STATUS_UNSPECIFIED = 0;
   ACTION_STATUS_NOT_ACTION = 1;
@@ -153,9 +154,9 @@ enum ActionStatus {
 message WriteResponse {
   string path = 1;
   // Set for `/run/actions/*` writes when the runtime records an audit receipt.
-  string audit_path = 2;
-  string action_id = 3;
-  ActionStatus action_status = 4;
+  string audit_path = 2 [deprecated = true];
+  string action_id = 3 [deprecated = true];
+  ActionStatus action_status = 4 [deprecated = true];
 }
 
 message DeleteRequest {
@@ -176,10 +177,10 @@ message StatResponse {
   string content_type = 3;
   bool writable = 4;
   // MIME type for `write_schema`. Empty when writes do not have a fixed schema.
-  string write_schema_content_type = 5;
+  string write_schema_content_type = 5 [deprecated = true];
   // Usually JSON Schema (`application/schema+json`) for `/run/actions/*`.
-  string write_schema = 6;
-  string description = 7;
+  string write_schema = 6 [deprecated = true];
+  string description = 7 [deprecated = true];
 }
 
 enum Outcome {
@@ -202,7 +203,9 @@ message AnswerResponse {}
 // buf:lint:ignore SERVICE_SUFFIX
 // Service for the ECOM ecommerce OS runtime.
 service EcomRuntime {
-  rpc Context(ContextRequest) returns (ContextResponse);
+  rpc Context(ContextRequest) returns (ContextResponse) {
+    option deprecated = true; // use Exec /bin/date
+  }
   rpc Read(ReadRequest) returns (ReadResponse);
   rpc List(ListRequest) returns (ListResponse);
   rpc Tree(TreeRequest) returns (TreeResponse);
