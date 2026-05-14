@@ -44,4 +44,4 @@ Do not skip values just because they are short or seem obvious.
 
 ## Output format (JSON only)
 
-{"reasoning": "<which terms found and why>", "candidates": [{"term": "<raw term from task>", "field": "<brand|model|kind|attr_key|attr_value>", "discovery_query": "SELECT DISTINCT ..."}]}
+{"reasoning": "<which terms found and why>", "candidates": [{"term": "<raw term from task>", "field": "<brand|model|kind|attr_key|attr_value|cart_id>", "discovery_query": "SELECT DISTINCT ..."}]}
