@@ -498,3 +498,95 @@ def test_read_original_score_not_found_returns_none(tmp_path):
 def test_read_original_score_no_logs_dir(tmp_path):
     score = po.read_original_score("t01", logs_dir=tmp_path / "nonexistent")
     assert score is None
+
+
+from unittest.mock import MagicMock
+
+def _make_harness_mocks(task_id="t01", trial_score=0.9, trial_ids=None):
+    if trial_ids is None:
+        trial_ids = ["trial-1", "trial-2"]
+    mock_run = MagicMock()
+    mock_run.run_id = "run-abc"
+    mock_run.trial_ids = trial_ids
+
+    def fake_start_trial(req):
+        resp = MagicMock()
+        resp.task_id = task_id if req.trial_id == trial_ids[0] else "other-task"
+        resp.trial_id = req.trial_id
+        resp.harness_url = "http://fake"
+        resp.instruction = "How many items?"
+        return resp
+
+    mock_end = MagicMock()
+    mock_end.score = trial_score
+
+    client = MagicMock()
+    client.start_run.return_value = mock_run
+    client.start_trial.side_effect = fake_start_trial
+    client.end_trial.return_value = mock_end
+    return client
+
+
+def test_validate_recommendation_accepted(tmp_path):
+    logs_dir = tmp_path / "logs"
+    run_dir = logs_dir / "20240101_120000_model"
+    run_dir.mkdir(parents=True)
+    (run_dir / "t01.jsonl").write_text(
+        json.dumps({"type": "task_result", "score": 0.7}) + "\n"
+    )
+    client = _make_harness_mocks(task_id="t01", trial_score=0.9)
+    with patch.object(po, "_LOGS_DIR", logs_dir), \
+         patch("bitgn.harness_connect.HarnessServiceClientSync", return_value=client), \
+         patch("agent.run_agent") as mock_run_agent:
+        original, validation = po.validate_recommendation(
+            "t01", injected_session_rules=["Never use SELECT *"]
+        )
+    assert original == pytest.approx(0.7)
+    assert validation == pytest.approx(0.9)
+    mock_run_agent.assert_called_once()
+    call_kw = mock_run_agent.call_args[1]
+    assert call_kw["injected_session_rules"] == ["Never use SELECT *"]
+    assert call_kw["task_id"] == "t01"
+
+
+def test_validate_recommendation_rejected(tmp_path):
+    logs_dir = tmp_path / "logs"
+    run_dir = logs_dir / "20240101_120000_model"
+    run_dir.mkdir(parents=True)
+    (run_dir / "t01.jsonl").write_text(
+        json.dumps({"type": "task_result", "score": 1.0}) + "\n"
+    )
+    client = _make_harness_mocks(task_id="t01", trial_score=0.5)
+    with patch.object(po, "_LOGS_DIR", logs_dir), \
+         patch("bitgn.harness_connect.HarnessServiceClientSync", return_value=client), \
+         patch("agent.run_agent"):
+        original, validation = po.validate_recommendation("t01")
+    assert original == pytest.approx(1.0)
+    assert validation == pytest.approx(0.5)
+
+
+def test_validate_recommendation_task_not_in_trials(tmp_path):
+    logs_dir = tmp_path / "logs"
+    run_dir = logs_dir / "20240101_120000_model"
+    run_dir.mkdir(parents=True)
+    (run_dir / "t01.jsonl").write_text(
+        json.dumps({"type": "task_result", "score": 0.8}) + "\n"
+    )
+    client = _make_harness_mocks(task_id="other", trial_score=0.0, trial_ids=["trial-1"])
+    with patch.object(po, "_LOGS_DIR", logs_dir), \
+         patch("bitgn.harness_connect.HarnessServiceClientSync", return_value=client), \
+         patch("agent.run_agent") as mock_run_agent:
+        original, validation = po.validate_recommendation("t01")
+    assert original == pytest.approx(0.8)
+    assert validation is None
+    mock_run_agent.assert_not_called()
+
+
+def test_validate_recommendation_no_baseline(tmp_path):
+    client = _make_harness_mocks(task_id="t99", trial_score=0.9, trial_ids=["trial-1"])
+    with patch.object(po, "_LOGS_DIR", tmp_path / "empty"), \
+         patch("bitgn.harness_connect.HarnessServiceClientSync", return_value=client), \
+         patch("agent.run_agent"):
+        original, validation = po.validate_recommendation("t99")
+    assert original is None
+    assert validation == pytest.approx(0.9)

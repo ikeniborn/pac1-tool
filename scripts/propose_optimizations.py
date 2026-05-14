@@ -63,6 +63,59 @@ def read_original_score(task_id: str, logs_dir: Path | None = None) -> float | N
     return None
 
 
+def validate_recommendation(
+    task_id: str,
+    *,
+    injected_session_rules: list[str] | None = None,
+    injected_prompt_addendum: str = "",
+    injected_security_gates: list[dict] | None = None,
+) -> tuple[float | None, float | None]:
+    """Re-run task_id with recommendation injected. Returns (original_score, validation_score).
+
+    Either may be None: original if no baseline; validation if task not found in trials.
+    """
+    import datetime
+    from bitgn.harness_connect import HarnessServiceClientSync
+    from bitgn.harness_pb2 import StartRunRequest, StartTrialRequest, EndTrialRequest, SubmitRunRequest
+    from agent import run_agent
+
+    original_score = read_original_score(task_id)
+
+    timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    client = HarnessServiceClientSync(_BITGN_URL)
+    run = client.start_run(StartRunRequest(
+        name=f"validate-{timestamp}",
+        benchmark_id=_BENCHMARK_ID,
+        api_key=_BITGN_API_KEY,
+    ))
+
+    validation_score: float | None = None
+    for trial_id in run.trial_ids:
+        trial = client.start_trial(StartTrialRequest(trial_id=trial_id))
+        if trial.task_id != task_id:
+            client.end_trial(EndTrialRequest(trial_id=trial.trial_id))
+            continue
+        run_agent(
+            model_configs={},
+            harness_url=trial.harness_url,
+            task_text=trial.instruction,
+            task_id=trial.task_id,
+            injected_session_rules=injected_session_rules or [],
+            injected_prompt_addendum=injected_prompt_addendum,
+            injected_security_gates=injected_security_gates or [],
+        )
+        result = client.end_trial(EndTrialRequest(trial_id=trial.trial_id))
+        validation_score = float(result.score)
+        break
+
+    client.submit_run(SubmitRunRequest(run_id=run.run_id, force=True))
+
+    if validation_score is None:
+        print(f"[validate] WARNING: task_id={task_id!r} not found in trial_ids — skipping")
+
+    return original_score, validation_score
+
+
 def _load_model_cfg(model: str) -> dict:
     raw = json.loads(_MODELS_JSON.read_text())
     profiles = raw.get("_profiles", {})
