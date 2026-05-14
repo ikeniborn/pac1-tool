@@ -70,7 +70,7 @@ When `_skip_sql=True` (answer_test failure), `queries` = queries from the last e
 
 Current code truncates session rules to last 3: `session_rules[:] = session_rules[-3:]`.
 
-Remove the slice. With TDD, a single run may generate up to `MAX_STEPS * 2` LEARN calls (sql_test fail + answer_test fail per cycle). Dropping earlier rules causes the model to repeat corrected mistakes.
+Remove the slice unconditionally (applies to both `TDD_ENABLED=0` and `TDD_ENABLED=1`). With TDD, a single run may generate up to `MAX_STEPS * 2` LEARN calls (sql_test fail + answer_test fail per cycle). Without TDD, the limit was arbitrary — accumulating all rules is strictly better. Dropping earlier rules causes the model to repeat corrected mistakes in both modes.
 
 Change: `session_rules[:] = session_rules[-3:]` → delete line, accumulate all rules.
 
@@ -99,13 +99,15 @@ def run_tests(test_code: str, fn_name: str, context: dict) -> tuple[bool, str]:
     """
 ```
 
-The generated test code must be a standalone function. The runner wraps it with:
+The generated test code must be a standalone function. The runner builds the script via string concatenation (not `.format()` / f-strings — LLM code may contain `{}`):
 
 ```python
-import json, sys
-context = json.loads(sys.stdin.read())
-{test_code}
-{fn_name}(**context)
+script = (
+    "import json, sys\n"
+    "context = json.loads(sys.stdin.read())\n"
+    + test_code + "\n"
+    + fn_name + "(**context)\n"
+)
 ```
 
 Test signals failure via `assert` (raises `AssertionError`) or `raise`. Non-zero exit = failure.
@@ -141,6 +143,7 @@ Instructs the model to:
 | `agent/pipeline.py` | Add `_run_test_gen() -> TestGenOutput \| None` (None = parse failure → hard stop). Add `_skip_sql` flag. Move ANSWER inside cycle when TDD_ENABLED. Add RUN_SQL_TESTS and RUN_ANSWER_TESTS call sites. Remove `session_rules[-3:]` truncation. |
 | `agent/models.py` | Add `TestGenOutput`. |
 | `agent/test_runner.py` | New file. |
+| `agent/trace.py` | Add `log_test_gen(sql_tests_code, answer_tests_code)` and `log_test_run(cycle, suite, passed, error)`. |
 | `data/prompts/test_gen.md` | New file. |
 
 ---
@@ -170,5 +173,9 @@ Unit tests in `tests/test_test_runner.py`:
 - `run_tests` with failing assert → returns `(False, error_msg)`.
 - `run_tests` with syntax error in test code → returns `(False, ...)`.
 - `run_tests` with timeout → returns `(False, "test timeout")`.
+
+Pipeline integration tests:
+- `TEST_GEN` returns `None` (parse failure) → `vm.answer(OUTCOME_NONE_CLARIFICATION)` called, cycle loop not entered.
+- `TDD_ENABLED=0` → pipeline behaves identically to current implementation (no regressions).
 
 Integration: `TDD_ENABLED=1 MODEL_TEST_GEN=... uv run python main.py`
