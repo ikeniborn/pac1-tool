@@ -577,7 +577,10 @@ def run_pipeline(
             ref_err = check_grounding_refs(answer_out.grounding_refs, result_skus, security_gates)
             if ref_err:
                 print(f"{CLI_YELLOW}[pipeline] ANSWER grounding_refs blocked: {ref_err}{CLI_CLR}")
-            clean_refs = [r for r in answer_out.grounding_refs if r in sku_refs or not result_skus]
+            clean_refs = (
+                [_to_short_ref(r) for r in answer_out.grounding_refs if Path(r).stem in result_skus]
+                if result_skus else list(answer_out.grounding_refs)
+            )
             try:
                 vm.answer(AnswerRequest(
                     message=answer_out.message,
