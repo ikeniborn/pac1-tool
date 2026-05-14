@@ -61,14 +61,3 @@ def test_build_answer_user_msg_preserves_hierarchical_ref():
         ["/proc/catalog/hand_tools/subcat/HND-6D7TN1CT.json"],
     )
     assert "/proc/catalog/hand_tools/subcat/HND-6D7TN1CT.json" in msg
-
-
-def test_clean_refs_stem_match_normalizes():
-    """clean_refs accepts model output in any format, outputs short-form."""
-    from pathlib import Path
-    from agent.pipeline import _to_short_ref
-    sku_refs = ["/proc/catalog/hand_tools/subcat/HND-6D7TN1CT.json"]
-    result_skus = {Path(r).stem for r in sku_refs}
-    grounding_refs = ["/proc/catalog/HND-6D7TN1CT.json"]  # model used short form
-    clean = [_to_short_ref(r) for r in grounding_refs if Path(r).stem in result_skus]
-    assert clean == ["/proc/catalog/HND-6D7TN1CT.json"]

@@ -68,3 +68,31 @@ def test_build_answer_user_msg_preserves_full_path():
     )
     assert "/proc/catalog/plumbing/pipe_fittings/PLB-2GJZ9R7K.json" in msg
     assert msg.count("/proc/catalog/PLB-2GJZ9R7K.json") == 0
+
+
+# ── Bug 1 / Part 2: clean_refs exact-path filter ─────────────────────────────
+
+def test_clean_refs_exact_match_preserves_full_path():
+    """clean_refs must use exact path match, not stem match."""
+    sku_refs = ["/proc/catalog/plumbing/pipe_fittings/PLB-2GJZ9R7K.json"]
+    result_paths = set(sku_refs)
+    grounding_refs = ["/proc/catalog/plumbing/pipe_fittings/PLB-2GJZ9R7K.json"]
+    clean = [r for r in grounding_refs if r in result_paths]
+    assert clean == ["/proc/catalog/plumbing/pipe_fittings/PLB-2GJZ9R7K.json"]
+
+
+def test_clean_refs_passthrough_when_result_paths_empty():
+    """clean_refs passes all grounding_refs through when sku_refs is empty."""
+    result_paths: set[str] = set()
+    grounding_refs = ["/proc/catalog/PLB-2GJZ9R7K.json"]
+    clean = [r for r in grounding_refs if r in result_paths] if result_paths else list(grounding_refs)
+    assert clean == ["/proc/catalog/PLB-2GJZ9R7K.json"]
+
+
+def test_clean_refs_excludes_unmatched_ref():
+    """Refs not in sku_refs are excluded from clean_refs."""
+    sku_refs = ["/proc/catalog/plumbing/PLB-ABC.json"]
+    result_paths = set(sku_refs)
+    grounding_refs = ["/proc/catalog/plumbing/PLB-ABC.json", "/proc/catalog/other/OTH-XYZ.json"]
+    clean = [r for r in grounding_refs if r in result_paths] if result_paths else list(grounding_refs)
+    assert clean == ["/proc/catalog/plumbing/PLB-ABC.json"]

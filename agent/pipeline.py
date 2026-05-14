@@ -35,9 +35,6 @@ from .sql_security import (
 from .trace import get_trace
 
 
-def _to_short_ref(path: str) -> str:
-    return f"/proc/catalog/{Path(path).stem}.json"
-
 
 _MAX_CYCLES = int(os.environ.get("MAX_STEPS", "3"))
 _EVAL_ENABLED = os.environ.get("EVAL_ENABLED", "0") == "1"
@@ -667,13 +664,17 @@ def run_pipeline(
 
             outcome = answer_out.outcome
             print(f"{CLI_GREEN}[pipeline] ANSWER: {outcome} — {answer_out.message[:100]}{CLI_CLR}")
-            result_skus = {Path(r).stem for r in sku_refs}
-            ref_err = check_grounding_refs(answer_out.grounding_refs, result_skus, security_gates)
+            ref_err = check_grounding_refs(
+                answer_out.grounding_refs,
+                {Path(r).stem for r in sku_refs},
+                security_gates,
+            )
             if ref_err:
                 print(f"{CLI_YELLOW}[pipeline] ANSWER grounding_refs blocked: {ref_err}{CLI_CLR}")
+            result_paths = set(sku_refs)
             clean_refs = (
-                [_to_short_ref(r) for r in answer_out.grounding_refs if Path(r).stem in result_skus]
-                if result_skus else list(answer_out.grounding_refs)
+                [r for r in answer_out.grounding_refs if r in result_paths]
+                if result_paths else list(answer_out.grounding_refs)
             )
             try:
                 vm.answer(AnswerRequest(
@@ -710,13 +711,17 @@ def run_pipeline(
         if answer_out:
             outcome = answer_out.outcome
             print(f"{CLI_GREEN}[pipeline] ANSWER: {outcome} — {answer_out.message[:100]}{CLI_CLR}")
-            result_skus = {Path(r).stem for r in sku_refs}
-            ref_err = check_grounding_refs(answer_out.grounding_refs, result_skus, security_gates)
+            ref_err = check_grounding_refs(
+                answer_out.grounding_refs,
+                {Path(r).stem for r in sku_refs},
+                security_gates,
+            )
             if ref_err:
                 print(f"{CLI_YELLOW}[pipeline] ANSWER grounding_refs blocked: {ref_err}{CLI_CLR}")
+            result_paths = set(sku_refs)
             clean_refs = (
-                [_to_short_ref(r) for r in answer_out.grounding_refs if Path(r).stem in result_skus]
-                if result_skus else list(answer_out.grounding_refs)
+                [r for r in answer_out.grounding_refs if r in result_paths]
+                if result_paths else list(answer_out.grounding_refs)
             )
             try:
                 vm.answer(AnswerRequest(
