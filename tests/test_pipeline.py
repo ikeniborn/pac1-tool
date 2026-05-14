@@ -668,3 +668,43 @@ def test_no_addendum_no_injection(tmp_path):
     )
     guide_block = blocks[-1]["text"]
     assert "# INJECTED OPTIMIZATION" not in guide_block
+
+
+def test_run_pipeline_has_injection_params():
+    """run_pipeline signature includes all injection params."""
+    import inspect
+    sig = inspect.signature(run_pipeline)
+    assert "task_id" in sig.parameters
+    assert "injected_session_rules" in sig.parameters
+    assert "injected_prompt_addendum" in sig.parameters
+    assert "injected_security_gates" in sig.parameters
+
+
+def test_run_evaluator_safe_has_task_id():
+    """_run_evaluator_safe accepts task_id param."""
+    import inspect
+    from agent.pipeline import _run_evaluator_safe
+    sig = inspect.signature(_run_evaluator_safe)
+    assert "task_id" in sig.parameters
+
+
+def test_injected_session_rules_prepopulate_session():
+    """injected_session_rules start the session_rules list."""
+    captured_user_msgs = []
+
+    def fake_call_llm(system, user_msg, model, cfg, **kw):
+        captured_user_msgs.append(user_msg)
+        return None
+
+    pre = _make_pre()
+    vm = MagicMock()
+    rl = MagicMock()
+    rl.get_rules_markdown.return_value = ""
+    with patch("agent.pipeline.call_llm_raw", side_effect=fake_call_llm), \
+         patch("agent.pipeline._get_security_gates", return_value=[]), \
+         patch("agent.pipeline._get_rules_loader", return_value=rl), \
+         patch("agent.pipeline.run_resolve", return_value={}), \
+         patch("agent.pipeline._EVAL_ENABLED", False):
+        run_pipeline(vm, "m", "task text", pre, {},
+                     injected_session_rules=["Always use LIMIT 100"])
+    assert any("Always use LIMIT 100" in m for m in captured_user_msgs)
