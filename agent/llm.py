@@ -44,6 +44,7 @@ _load_secrets()         # credentials (.secrets)
 _ANTHROPIC_KEY = os.environ.get("ANTHROPIC_API_KEY")
 _OPENROUTER_KEY = os.environ.get("OPENROUTER_API_KEY")
 _OLLAMA_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434/v1")
+_OLLAMA_KEY = os.environ.get("OLLAMA_API_KEY") or "ollama"
 _CC_ENABLED = os.environ.get("CC_ENABLED") == "1"  # Claude Code tier (iclaude subprocess)
 
 # FIX-215: explicit HTTP timeout — OpenAI SDK defaults to 600s; Ollama local can hang
@@ -84,7 +85,7 @@ openrouter_client: OpenAI | None = (
 )
 
 # Tier 3: Ollama via OpenAI-compatible API (local fallback)
-ollama_client = OpenAI(base_url=_OLLAMA_URL, api_key="ollama", timeout=_HTTP_TIMEOUT)
+ollama_client = OpenAI(base_url=_OLLAMA_URL, api_key=_OLLAMA_KEY, timeout=_HTTP_TIMEOUT)
 
 # Tier 1b: Claude Code CLI (subprocess, OAuth via iclaude). Enabled via CC_ENABLED=1.
 # Only reachable when a model config declares provider="claude-code" — interleaves
