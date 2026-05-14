@@ -50,7 +50,7 @@ security_gates = _get_security_gates() + (injected_security_gates or [])
 
 `propose_optimizations.py` validates each recommendation via a new `validate_recommendation()` function.
 
-**Disabling eval during validation:** `validate_recommendation()` sets `EVAL_ENABLED=0` in the subprocess environment before calling `run_agent()`. Since `_EVAL_ENABLED` is read at module import time in `pipeline.py`, validation calls `run_agent()` in a fresh subprocess (or patches the env before import). Implementation: set `os.environ["EVAL_ENABLED"] = "0"` at the top of `validate_recommendation()`, restore after. This prevents recursive eval threads during validation runs.
+**Disabling eval during validation:** `propose_optimizations.py` sets `os.environ["EVAL_ENABLED"] = "0"` at module top — before any `agent` imports — so that `pipeline._EVAL_ENABLED` is `False` for all `run_agent()` calls within the script. No restore needed: the script is a one-shot process and does not run the main benchmark loop.
 
 **read_original_score:** scans `logs/*/` dirs, excludes dirs whose name starts with `"validate-"`, picks the latest by mtime, reads `{task_id}.jsonl`, extracts `task_result.score` event. Returns `None` if not found (validation skipped, file written unconditionally with warning).
 
@@ -66,29 +66,29 @@ run = client.start_run(
     api_key=BITGN_API_KEY,
 )
 
-os.environ["EVAL_ENABLED"] = "0"
-try:
-    for trial_id in run.trial_ids:
-        trial = client.start_trial(trial_id)
-        if trial.task_id != task_id:
-            client.end_trial(trial.trial_id)   # no answer, score=0, irrelevant
-            continue
-        run_agent(
-            model_configs={},
-            harness_url=trial.harness_url,
-            task_text=trial.instruction,
-            task_id=trial.task_id,
-            injected_session_rules=rules,
-            injected_prompt_addendum=prompt_addon,
-            injected_security_gates=gates,
-        )
-        result = client.end_trial(trial.trial_id)
-        validation_score = result.score
-        break
-finally:
-    os.environ["EVAL_ENABLED"] = original_eval_enabled  # restore
+validation_score = None
+for trial_id in run.trial_ids:
+    trial = client.start_trial(trial_id)
+    if trial.task_id != task_id:
+        client.end_trial(trial.trial_id)   # no answer, score=0, irrelevant
+        continue
+    run_agent(
+        model_configs={},
+        harness_url=trial.harness_url,
+        task_text=trial.instruction,
+        task_id=trial.task_id,
+        injected_session_rules=rules,
+        injected_prompt_addendum=prompt_addon,
+        injected_security_gates=gates,
+    )
+    result = client.end_trial(trial.trial_id)
+    validation_score = result.score
+    break
 
 client.submit_run(run_id=run.run_id, force=True)
+
+if validation_score is None:
+    log WARNING: task_id not found in trial_ids — recommendation skipped
 ```
 
 Validation runs use `name=f"validate-{timestamp}"` — excluded from `read_original_score` lookups and separate from main leaderboard runs.
@@ -122,7 +122,7 @@ Preserved. With `--dry-run`: skip validation, write files as before.
 
 | eval field | injection param | file written | notes |
 |---|---|---|---|
-| `rule_optimization` | `injected_session_rules` | `data/rules/sql-NNN.yaml` | list joined as multiple rules, each validated separately |
+| `rule_optimization` | `injected_session_rules` | `data/rules/sql-NNN.yaml` | each element validated separately as single-element list; one file per accepted element |
 | `prompt_optimization` | `injected_prompt_addendum` | `data/prompts/optimized/YYYY-MM-DD-NN-<block>.md` | each list element validated separately, one file per accepted element |
 | `security_optimization` | `injected_security_gates` | `data/security/sec-NNN.yaml` | each element validated separately |
 
@@ -133,7 +133,7 @@ Preserved. With `--dry-run`: skip validation, write files as before.
 | `agent/evaluator.py` | Add `task_id: str` to `EvalInput`; write `task_id` to eval_log entry |
 | `agent/pipeline.py` | `run_pipeline` signature gets `task_id: str = ""` + 3 injection params; `_build_static_system` gets `injected_prompt_addendum: str = ""`; security gates merge; `task_id` forwarded to `_run_evaluator_safe` kwargs |
 | `agent/orchestrator.py` | `run_agent` gets `task_id` (already exists) + 3 injection params, passes all to `run_pipeline` |
-| `scripts/propose_optimizations.py` | Add `validate_recommendation()`, `read_original_score()`; deduplicate by content hash; gate file writes on validation result; set/restore `EVAL_ENABLED=0` during validation; preserve `--dry-run` |
+| `scripts/propose_optimizations.py` | Set `os.environ["EVAL_ENABLED"] = "0"` at module top before agent imports; add `validate_recommendation()`, `read_original_score()`; deduplicate by content hash; gate file writes on validation result; preserve `--dry-run` |
 
 ### Out of Scope
 
