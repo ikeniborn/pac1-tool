@@ -20,7 +20,8 @@ from .llm import (
     CLI_BLUE, CLI_CLR, CLI_GREEN, CLI_RED, CLI_YELLOW,
 )
 from .json_extract import _extract_json_from_text
-from .models import SqlPlanOutput, LearnOutput, AnswerOutput
+from .models import SqlPlanOutput, LearnOutput, AnswerOutput, TestGenOutput
+from .test_runner import run_tests
 from .prephase import PrephaseResult
 from .prompt import load_prompt
 from .resolve import run_resolve
@@ -42,6 +43,8 @@ _MAX_CYCLES = int(os.environ.get("MAX_STEPS", "3"))
 _EVAL_ENABLED = os.environ.get("EVAL_ENABLED", "0") == "1"
 _MODEL_EVALUATOR = os.environ.get("MODEL_EVALUATOR", "")
 _EVAL_LOG = Path(__file__).parent.parent / "data" / "eval_log.jsonl"
+_TDD_ENABLED = os.environ.get("TDD_ENABLED", "0") == "1"
+_MODEL_TEST_GEN = os.environ.get("MODEL_TEST_GEN", "")
 
 _rules_loader_cache: "RulesLoader | None" = None
 _security_gates_cache: "list[dict] | None" = None
@@ -325,6 +328,27 @@ def _extract_sku_refs(queries: list[str], results: list[str]) -> list[str]:
                     if sku:
                         refs.append(f"/proc/catalog/{sku}.json")
     return refs
+
+
+def _run_test_gen(
+    model: str,
+    cfg: dict,
+    task_text: str,
+    db_schema: str,
+    agents_md: str,
+) -> "TestGenOutput | None":
+    test_gen_model = _MODEL_TEST_GEN or model
+    guide = load_prompt("test_gen")
+    system = guide or "# PHASE: test_gen\nGenerate sql_tests and answer_tests as JSON."
+    user_msg = f"TASK: {task_text}\n\nDB_SCHEMA:\n{db_schema}\n\nAGENTS_MD:\n{agents_md}"
+    out, _, _ = _call_llm_phase(
+        system, user_msg, test_gen_model, cfg, TestGenOutput,
+        phase="TEST_GEN", cycle=0,
+    )
+    if out:
+        if t := get_trace():
+            t.log_test_gen(out.sql_tests, out.answer_tests)
+    return out
 
 
 def run_pipeline(
