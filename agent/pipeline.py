@@ -33,6 +33,11 @@ from .sql_security import (
 )
 from .trace import get_trace
 
+
+def _to_short_ref(path: str) -> str:
+    return f"/proc/catalog/{Path(path).stem}.json"
+
+
 _MAX_CYCLES = int(os.environ.get("MAX_STEPS", "3"))
 _EVAL_ENABLED = os.environ.get("EVAL_ENABLED", "0") == "1"
 _MODEL_EVALUATOR = os.environ.get("MODEL_EVALUATOR", "")
@@ -265,10 +270,11 @@ def _build_answer_user_msg(task_text: str, sql_results: list[str], auto_refs: li
     base = f"TASK: {task_text}\n\nSQL RESULTS:\n" + "\n---\n".join(sql_results)
     if not auto_refs:
         return base
-    refs_block = "\n".join(auto_refs)
+    short_refs = [_to_short_ref(r) for r in auto_refs]
+    refs_block = "\n".join(short_refs)
     return (
         base
-        + f"\n\nAUTO_REFS (from sku column in SQL results — MUST be included in grounding_refs):\n{refs_block}"
+        + f"\n\nAUTO_REFS (catalogue paths for grounding_refs — use exactly as shown):\n{refs_block}"
     )
 
 

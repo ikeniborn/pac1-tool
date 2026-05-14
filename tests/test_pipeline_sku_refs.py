@@ -44,3 +44,32 @@ def test_build_answer_user_msg_with_refs():
 def test_build_answer_user_msg_no_refs():
     msg = _build_answer_user_msg("find Heco", ["brand\nHeco\n"], [])
     assert "AUTO_REFS" not in msg
+
+
+def test_extract_sku_refs_hierarchical_path_preserved():
+    """Raw hierarchical paths stored verbatim in sku_refs."""
+    results = ["path,sku\n/proc/catalog/hand_tools/subcat/HND-6D7TN1CT.json,HND-6D7TN1CT\n"]
+    refs = _extract_sku_refs(["SELECT p.path, p.sku FROM products p"], results)
+    assert refs == ["/proc/catalog/hand_tools/subcat/HND-6D7TN1CT.json"]
+
+
+def test_build_answer_user_msg_normalizes_hierarchical_ref():
+    """AUTO_REFS block shows short-form refs regardless of raw path depth."""
+    msg = _build_answer_user_msg(
+        "find hand tool",
+        ["sku\nHND-6D7TN1CT\n"],
+        ["/proc/catalog/hand_tools/subcat/HND-6D7TN1CT.json"],
+    )
+    assert "/proc/catalog/HND-6D7TN1CT.json" in msg
+    assert "hand_tools/subcat" not in msg
+
+
+def test_clean_refs_stem_match_normalizes():
+    """clean_refs accepts model output in any format, outputs short-form."""
+    from pathlib import Path
+    from agent.pipeline import _to_short_ref
+    sku_refs = ["/proc/catalog/hand_tools/subcat/HND-6D7TN1CT.json"]
+    result_skus = {Path(r).stem for r in sku_refs}
+    grounding_refs = ["/proc/catalog/HND-6D7TN1CT.json"]  # model used short form
+    clean = [_to_short_ref(r) for r in grounding_refs if Path(r).stem in result_skus]
+    assert clean == ["/proc/catalog/HND-6D7TN1CT.json"]
