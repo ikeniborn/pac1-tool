@@ -44,7 +44,10 @@ AUTO_REFS shows `/proc/catalog/PLB-2GJZ9R7K.json` — evaluator cannot match.
 
    # After
    result_paths = set(sku_refs)
-   clean_refs = [r for r in answer_out.grounding_refs if r in result_paths]
+   clean_refs = (
+       [r for r in answer_out.grounding_refs if r in result_paths]
+       if result_paths else list(answer_out.grounding_refs)
+   )
    ```
 
 LLM sees full paths in AUTO_REFS, copies them verbatim to `grounding_refs`,
@@ -170,7 +173,8 @@ The evaluator section (`if _EVAL_ENABLED ...`) and `stats` construction remain
 - Unit test for `_extract_sku_refs` with `store_id`-only column → returns `/proc/stores/{id}.json`.
 - Unit test for `_extract_sku_refs` with both `sku` and `store_id` columns in one result → returns both `/proc/catalog/{sku}.json` and `/proc/stores/{store_id}.json`.
 - Unit test for `_build_answer_user_msg` → AUTO_REFS contains full paths (no stem stripping).
-- Unit test for `clean_refs` filter → exact match, not stem match.
+- Unit test for `clean_refs` filter → exact match, not stem match; passthrough when `result_paths` is empty.
+- Integration test for `run_pipeline` try/except wrapper: mock the for-loop body to raise `AttributeError`, assert `vm.answer` called once with `message="Internal pipeline error."`.
 - Existing pipeline tests must continue to pass.
 
 ## Files Changed

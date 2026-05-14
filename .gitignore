@@ -15,3 +15,5 @@ tmp/*
 .ruff_cache/*
 .venv/*
 .worktrees/
+.graphify/.graphify_python
+.graphify/cache/
