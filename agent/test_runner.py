@@ -2,14 +2,43 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
+# Regex: (?:[^'"\\]|\\.)* handles basic escape sequences (e.g. \', \").
+# Known edge cases (acceptable for MVP):
+#   False-negative: unescaped embedded opposite-quote inside string — e.g. assert "Bob's Drill" in answer[...]
+#                   The [^'"\\] class stops on the embedded quote; regex fails to match.
+#   False-positive: mismatched delimiters — e.g. assert 'foo" in answer[...]
+#                   Acceptable since LLM-generated test code is expected to be syntactically valid.
+_ANSWER_ASSERT_RE = re.compile(r"""assert\s+['"]((?:[^'"\\]|\\.)*)['"]\s+in\s+answer\[""")
+# _HEADER_ASSERT_RE matches `assert '<literal>' in header` only — not `in header[0]`, `in headers`,
+# or any compound name.
+# Known edge case (acceptable for MVP):
+#   False-positive: non-aggregate column names (e.g. `sku`, `path`) also match and emit a warning.
+_HEADER_ASSERT_RE = re.compile(r"""assert\s+['"]((?:[^'"\\]|\\.)*)['"]\s+in\s+header""")
 
-def run_tests(test_code: str, fn_name: str, context: dict) -> tuple[bool, str]:
-    """Run test_code in isolated subprocess. Returns (passed, error_message)."""
+
+def _check_tdd_antipatterns(test_code: str, task_text: str = "") -> list[str]:
+    warnings = []
+    if task_text:
+        for lit in _ANSWER_ASSERT_RE.findall(test_code):
+            if lit in task_text:
+                warnings.append(f"hardcoded task literal in answer assert: '{lit}'")
+    for col in _HEADER_ASSERT_RE.findall(test_code):
+        warnings.append(
+            f"hardcoded string in sql header assert: '{col}' — "
+            "for aggregates use row/type check; for named columns this warning may be a false-positive"
+        )
+    return warnings
+
+
+def run_tests(test_code: str, fn_name: str, context: dict, task_text: str = "") -> tuple[bool, str, list[str]]:
+    """Run test_code in isolated subprocess. Returns (passed, error_message, warnings)."""
+    warnings = _check_tdd_antipatterns(test_code, task_text)
     script = (
         "import json, sys\n"
         "context = json.loads(sys.stdin.read())\n"
@@ -29,13 +58,13 @@ def run_tests(test_code: str, fn_name: str, context: dict) -> tuple[bool, str]:
             timeout=10,
         )
         if result.returncode == 0:
-            return True, ""
+            return True, "", warnings
         error = (result.stderr or result.stdout or "non-zero exit").strip()
-        return False, error[:500]
+        return False, error[:2000], warnings
     except subprocess.TimeoutExpired:
-        return False, "test timeout"
+        return False, "test timeout", warnings
     except Exception as e:
-        return False, str(e)[:500]
+        return False, str(e)[:2000], warnings
     finally:
         if tmp_path:
             Path(tmp_path).unlink(missing_ok=True)
