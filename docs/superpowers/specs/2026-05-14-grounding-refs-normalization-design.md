@@ -56,12 +56,15 @@ clean_refs = [r for r in answer_out.grounding_refs if r in sku_refs or not resul
 
 With:
 ```python
-result_stems = {Path(r).stem for r in sku_refs}
+result_skus = {Path(r).stem for r in sku_refs}   # keep — passed to check_grounding_refs
+result_stems = result_skus                         # alias for clean_refs logic
 clean_refs = (
     [_to_short_ref(r) for r in answer_out.grounding_refs if Path(r).stem in result_stems]
     if result_stems else list(answer_out.grounding_refs)
 )
 ```
+
+`result_skus` preserved unchanged — `check_grounding_refs(answer_out.grounding_refs, result_skus, ...)` still receives it on the next line. `result_stems` is an alias introduced for clarity; implementer may use `result_skus` directly and skip the alias.
 
 Stem-based match tolerates any path format from the model. Output is always short-form → VM accepts.
 
@@ -73,7 +76,7 @@ Replace:
 With:
 > `grounding_refs` MUST list catalogue paths for every product in the results. Use values from AUTO_REFS exactly as shown — do NOT construct paths manually from `sku` or raw `path` column values.
 
-Update `Forbidden sources` block — remove the prohibition on `/proc/catalog/{sku}.json` formula (now covered by "use AUTO_REFS exactly").
+Update `Forbidden sources` block — keep the prohibition on manual path construction, but update the wording: "Paths constructed manually from `sku` (e.g. `/proc/catalog/{sku}.json`) or raw `path` column — use AUTO_REFS values instead." The prohibition itself stays; only the positive instruction changes from "use path column" to "use AUTO_REFS".
 
 ### 6. Tests
 
@@ -98,15 +101,11 @@ def test_build_answer_user_msg_normalizes_hierarchical_ref():
 
 def test_clean_refs_stem_match_normalizes():
     """clean_refs accepts model output in any format, outputs short-form."""
-    from pathlib import Path
+    from agent.pipeline import _to_short_ref
     sku_refs = ["/proc/catalog/hand_tools/subcat/HND-6D7TN1CT.json"]
     result_stems = {Path(r).stem for r in sku_refs}
     grounding_refs = ["/proc/catalog/HND-6D7TN1CT.json"]  # model used short form
-    clean = [
-        f"/proc/catalog/{Path(r).stem}.json"
-        for r in grounding_refs
-        if Path(r).stem in result_stems
-    ]
+    clean = [_to_short_ref(r) for r in grounding_refs if Path(r).stem in result_stems]
     assert clean == ["/proc/catalog/HND-6D7TN1CT.json"]
 ```
 
