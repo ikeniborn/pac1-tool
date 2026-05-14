@@ -80,9 +80,9 @@ def test_run_resolve_stores_all_matching_values():
     ```python
     import json
     from unittest.mock import MagicMock, patch
-    from agent.resolve import _security_check, _first_value, _all_values, run_resolve
+    from agent.resolve import _security_check, _all_values, run_resolve
     ```
-  - (`json`, `MagicMock`, `patch` may already be imported — add only what's missing)
+  - (`json`, `MagicMock`, `patch` may already be imported — add only what's missing; `_first_value` intentionally omitted — shim exists but tests no longer need it)
 
 - [ ] **Step 1b:** Append the five new test functions above to end of `tests/test_resolve.py`
 
@@ -151,6 +151,12 @@ def _first_value(csv_text: str) -> str | None:
   - `test_first_value_returns_none_for_empty` → `test_all_values_empty_for_empty_string` (already added — delete old)
   - `test_first_value_strips_quotes` → `test_all_values_strips_quotes_first_row`
     - Change body: `assert _all_values('brand\n"Heco GmbH"') == ["Heco GmbH"]`
+
+- [ ] After renaming, verify `_first_value` no longer appears anywhere in `tests/test_resolve.py`:
+  ```bash
+  grep "_first_value" tests/test_resolve.py
+  ```
+  Expected: no output (shim kept in `resolve.py` for backward compat but unused in tests).
 
 - [ ] Run:
   ```bash
@@ -229,7 +235,8 @@ def test_answer_fallback_called_when_parse_fails(tmp_path):
 
     # vm.answer must have been called despite parse failure
     vm.answer.assert_called_once()
-    assert "OUTCOME_NONE_CLARIFICATION" in str(vm.answer.call_args)
+    req = vm.answer.call_args.args[0]   # AnswerRequest positional arg
+    assert "Could not synthesize" in req.message
 ```
 
 - [ ] Run to confirm it fails:
@@ -298,60 +305,67 @@ Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>"
 - Modify: `agent/pipeline.py:522-537`
 - Test: `tests/test_pipeline.py` (add two tests)
 
-### Step 1: Write failing tests
+### Step 1: Write failing test
 
 - [ ] Add to `tests/test_pipeline.py`:
 
 ```python
-def test_discovery_only_triggers_without_all_distinct(monkeypatch):
-    """Cycle with non-DISTINCT query mixed in but no sku/path refs → discovery-only continuation."""
-    # This simulates t09 cycle 2: schema query + DISTINCT kind_id query
-    # Old code: all_discovery=False → success=True → wrong
-    # New code: not new_refs and not has_count_result → continue correctly
-    from agent.pipeline import _csv_has_data
-    import re
+def test_discovery_only_detection_fires_without_all_distinct(tmp_path):
+    """Schema query (non-DISTINCT) mixed with DISTINCT batch → discovery-only fires if no sku/path.
 
-    queries = [
-        "SELECT name, sql FROM sqlite_schema WHERE name = 'kinds'",
-        "SELECT DISTINCT kind_id FROM products WHERE kind_id LIKE '%Tool%'",
+    Old code: all_discovery = all(SELECT DISTINCT ...) → False → ANSWER after cycle 1
+              call_seq[1] = _sql_plan_json (invalid AnswerOutput) → parse fails → vm.answer not called
+    New code: not new_refs and not has_count_result → continue → cycle 2 → sku/path → vm.answer called
+    """
+    vm = MagicMock()
+
+    def mock_exec(req):
+        arg = req.args[0] if req.args else ""
+        if arg.startswith("EXPLAIN"):
+            return _make_exec_result("")
+        if "sqlite_schema" in arg:
+            return _make_exec_result("")
+        if "DISTINCT" in arg.upper() and "kind_id" in arg:
+            return _make_exec_result("kind_id\ntool_boxes\n")
+        return _make_exec_result("sku,path\nSKU-001,/proc/catalog/SKU-001.json\n")
+
+    vm.exec.side_effect = mock_exec
+    pre = _make_pre()
+    rules_dir = tmp_path / "rules"
+    rules_dir.mkdir()
+
+    # call_seq designed for new code: SQL_PLAN cycle1 → (discovery-only) → SQL_PLAN cycle2 → ANSWER
+    # With old code: cycle1 goes directly to ANSWER, consuming call_seq[1] = _sql_plan_json
+    # → AnswerOutput.model_validate fails → answer_out=None → vm.answer never called
+    call_seq = [
+        json.dumps({
+            "reasoning": "discover schema then kind_id",
+            "queries": [
+                "SELECT name, sql FROM sqlite_schema WHERE name = 'kinds'",
+                "SELECT DISTINCT kind_id FROM products WHERE kind_id LIKE '%tool%'",
+            ],
+        }),
+        _sql_plan_json(["SELECT p.sku, p.path FROM products p WHERE p.kind_id = 'tool_boxes'"]),
+        _answer_json(),
     ]
-    results = [
-        "",                              # schema query empty
-        "kind_id\ntool_boxes_bags\n",    # discovery data, no sku/path
-    ]
+    call_iter = iter(call_seq)
 
-    # Verify new condition logic directly
-    new_refs: list = []  # no sku/path in results
-    has_count_result = any(
-        re.search(r'\bCOUNT\s*\(', q, re.IGNORECASE) and _csv_has_data(r)
-        for q, r in zip(queries, results)
-    )
-    # Should detect as discovery-only
-    assert not new_refs and not has_count_result
+    with patch("agent.pipeline.call_llm_raw", side_effect=lambda *a, **kw: next(call_iter)), \
+         patch("agent.pipeline._RULES_DIR", rules_dir), \
+         patch("agent.pipeline.load_security_gates", return_value=[]), \
+         patch("agent.pipeline.run_resolve", return_value={}), \
+         patch("agent.pipeline.check_schema_compliance", return_value=None):
+        run_pipeline(vm, "test-model", "find tool boxes", pre, {})
 
-
-def test_count_query_not_treated_as_discovery(monkeypatch):
-    """Cycle with COUNT(*) result → not discovery-only, must proceed to ANSWER."""
-    from agent.pipeline import _csv_has_data
-    import re
-
-    queries = ["SELECT COUNT(*) AS total FROM products WHERE kind_id = 'tool_boxes_bags'"]
-    results = ["total\n5\n"]
-
-    new_refs: list = []
-    has_count_result = any(
-        re.search(r'\bCOUNT\s*\(', q, re.IGNORECASE) and _csv_has_data(r)
-        for q, r in zip(queries, results)
-    )
-    # COUNT result → not discovery-only
-    assert not (not new_refs and not has_count_result)
+    # New code: cycle 2 ran → sku refs found → vm.answer called
+    vm.answer.assert_called_once()
 ```
 
-- [ ] Run to confirm they pass (these test the logic directly, not the pipeline):
+- [ ] Run to confirm it fails:
   ```bash
-  uv run pytest tests/test_pipeline.py::test_discovery_only_triggers_without_all_distinct tests/test_pipeline.py::test_count_query_not_treated_as_discovery -v
+  uv run pytest tests/test_pipeline.py::test_discovery_only_detection_fires_without_all_distinct -v
   ```
-  Expected: PASS (logic tests, no pipeline invocation needed).
+  Expected: FAIL — `AssertionError: Expected 'answer' to have been called once. Called 0 times.`
 
 ### Step 2: Implement structural detection in `agent/pipeline.py`
 
@@ -379,7 +393,13 @@ def test_count_query_not_treated_as_discovery(monkeypatch):
             continue
 ```
 
-### Step 3: Full test suite
+### Step 3: Run new test + full suite
+
+- [ ] Run:
+  ```bash
+  uv run pytest tests/test_pipeline.py::test_discovery_only_detection_fires_without_all_distinct -v
+  ```
+  Expected: PASS.
 
 - [ ] Run:
   ```bash
@@ -507,3 +527,6 @@ Run 5 tasks including t04, t09, t16 to confirm improvements.
 - [x] **Spec dependency note (2B)** — documented in Task 3 Step 2 comment ✓
 - [x] No placeholders — all steps have exact code ✓
 - [x] Type consistency — `_all_values` returns `list[str]` used consistently ✓
+- [x] Task 1 import — `_first_value` removed from test import; Step 4 adds grep check ✓
+- [x] Task 2 assertion — checks `req.message` directly, not `str(call_args)` ✓
+- [x] Task 3 TDD — integration test via `run_pipeline`; red before Step 2, green after ✓

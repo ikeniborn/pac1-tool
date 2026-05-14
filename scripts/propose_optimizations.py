@@ -29,6 +29,9 @@ _PROMPTS_OPTIMIZED_DIR = _PROMPTS_DIR / "optimized"
 _PROCESSED_FILE = _ROOT / "data" / ".eval_optimizations_processed"
 _MODELS_JSON = _ROOT / "models.json"
 
+for _d in (_RULES_DIR, _SECURITY_DIR, _PROMPTS_OPTIMIZED_DIR):
+    _d.mkdir(parents=True, exist_ok=True)
+
 
 def _load_model_cfg(model: str) -> dict:
     raw = json.loads(_MODELS_JSON.read_text())
