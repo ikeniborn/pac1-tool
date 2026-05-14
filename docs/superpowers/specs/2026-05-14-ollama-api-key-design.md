@@ -30,14 +30,14 @@ ollama_client = OpenAI(base_url=_OLLAMA_URL, api_key=_OLLAMA_KEY, timeout=_HTTP_
 
 ### .env.example
 
-Добавить строку рядом с `OLLAMA_BASE_URL`:
+Добавить строку рядом с `OLLAMA_BASE_URL` — **без значения**, только как документация:
 ```
-OLLAMA_API_KEY=           # ключ для OpenAI-совместимого прокси (пусто = "ollama")
+OLLAMA_API_KEY=           # ключ для OpenAI-совместимого прокси (пусто = "ollama"); значение — только в .secrets
 ```
 
 ### .secrets.example
 
-Добавить строку:
+Добавить строку (реальное значение только здесь):
 ```
 # OLLAMA_API_KEY=sk-...
 ```
@@ -49,5 +49,5 @@ OLLAMA_API_KEY=           # ключ для OpenAI-совместимого пр
 ## Тестирование
 
 1. Без `OLLAMA_API_KEY` — локальный Ollama работает как раньше.
-2. С `OLLAMA_API_KEY=sk-...` + `OLLAMA_BASE_URL=https://vps/v1` — запрос уходит с заголовком `Authorization: Bearer sk-...`.
-3. Неверный ключ → `AuthenticationError` от OpenAI SDK → логируется в retry-цикл `llm.py`.
+2. С `OLLAMA_API_KEY=sk-...` + `OLLAMA_BASE_URL=https://vps/v1` — запрос уходит с заголовком `Authorization: Bearer sk-...`. Проверка: `make task TASKS='t01'`.
+3. Неверный ключ → `AuthenticationError` от OpenAI SDK. `AuthenticationError` — не transient ошибка; retry **не выполняется**, исключение пробрасывается наружу и задача завершается с ошибкой.
