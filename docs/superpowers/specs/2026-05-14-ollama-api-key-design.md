@@ -49,5 +49,8 @@ OLLAMA_API_KEY=           # ключ для OpenAI-совместимого пр
 ## Тестирование
 
 1. Без `OLLAMA_API_KEY` (или `OLLAMA_API_KEY=`) — локальный Ollama работает как раньше. Проверка: `make task TASKS='t01'`.
-2. С `OLLAMA_API_KEY=sk-...` + `OLLAMA_BASE_URL=https://vps/v1` — запрос уходит с заголовком `Authorization: Bearer sk-...`. Проверка: `make task TASKS='t01'`.
+2. С `OLLAMA_API_KEY=sk-...` + `OLLAMA_BASE_URL=https://vps/v1` — запрос уходит с заголовком `Authorization: Bearer sk-...`. Проверка (MODEL должен указывать на Ollama-модель, иначе тир не задействуется):
+   ```bash
+   MODEL=qwen3:latest OLLAMA_BASE_URL=https://vps/v1 OLLAMA_API_KEY=sk-... make task TASKS='t01'
+   ```
 3. Неверный ключ → `AuthenticationError` от OpenAI SDK. `AuthenticationError` не содержит ни одного слова из `TRANSIENT_KWS`/`HARD_CONNECTION_KWS` (`llm.py:215–228`) → retry не выполняется → attempt-цикл прерывается (`break`) → plain-text retry также падает с 401 → функция возвращает `None`. Исключение не пробрасывается; pipeline обрабатывает `None` как штатный сбой.
