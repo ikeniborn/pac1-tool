@@ -40,7 +40,11 @@ _REQ_PREFIX_RE = re.compile(r"Req_(\w+)\s*\(", re.IGNORECASE)
 
 def _obj_mutation_tool(obj: dict) -> str | None:
     """Return the mutation tool name if obj is a write/delete/exec action, else None."""
-    tool = obj.get("tool") or (obj.get("function") or {}).get("tool", "")
+    tool = obj.get("tool")
+    if not tool:
+        fn = obj.get("function")
+        if isinstance(fn, dict):
+            tool = fn.get("tool", "")
     return tool if tool in _MUTATION_TOOLS else None
 
 
