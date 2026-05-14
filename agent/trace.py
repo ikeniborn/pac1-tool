@@ -131,6 +131,22 @@ class TraceLogger:
             "value_extracted": value,
         })
 
+    def log_test_gen(self, sql_tests_code: str, answer_tests_code: str) -> None:
+        self._write({
+            "type": "test_gen",
+            "sql_tests": sql_tests_code,
+            "answer_tests": answer_tests_code,
+        })
+
+    def log_test_run(self, cycle: int, suite: str, passed: bool, error: str) -> None:
+        self._write({
+            "type": "test_run",
+            "cycle": cycle,
+            "suite": suite,
+            "passed": passed,
+            "error": error,
+        })
+
     def log_task_result(
         self,
         outcome: str,

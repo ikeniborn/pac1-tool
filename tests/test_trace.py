@@ -133,6 +133,36 @@ def test_task_result_record(tmp_path):
     assert r["cycles_used"] == 2
 
 
+def test_log_test_gen(tmp_path):
+    import json
+    from agent.trace import TraceLogger, set_trace
+    log_file = tmp_path / "trace.jsonl"
+    logger = TraceLogger(log_file, "task-tdd")
+    set_trace(logger)
+    logger.log_test_gen("def test_sql(results): pass", "def test_answer(sql_results, answer): pass")
+    logger.close()
+    records = [json.loads(l) for l in log_file.read_text().splitlines() if l.strip()]
+    tg = next(r for r in records if r["type"] == "test_gen")
+    assert tg["sql_tests"] == "def test_sql(results): pass"
+    assert tg["answer_tests"] == "def test_answer(sql_results, answer): pass"
+
+
+def test_log_test_run(tmp_path):
+    import json
+    from agent.trace import TraceLogger, set_trace
+    log_file = tmp_path / "trace.jsonl"
+    logger = TraceLogger(log_file, "task-tdd2")
+    set_trace(logger)
+    logger.log_test_run(1, "sql", True, "")
+    logger.log_test_run(2, "answer", False, "AssertionError: wrong outcome")
+    logger.close()
+    records = [json.loads(l) for l in log_file.read_text().splitlines() if l.strip()]
+    runs = [r for r in records if r["type"] == "test_run"]
+    assert runs[0]["cycle"] == 1 and runs[0]["suite"] == "sql" and runs[0]["passed"] is True
+    assert runs[1]["passed"] is False
+    assert "AssertionError" in runs[1]["error"]
+
+
 def test_thread_isolation(tmp_path):
     results = {}
 
