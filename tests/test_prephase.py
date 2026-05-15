@@ -262,3 +262,51 @@ def test_format_schema_digest_includes_role():
     out = _format_schema_digest(digest)
     assert "product_kinds" in out
     assert "role=kinds" in out
+
+
+def test_merge_schema_from_create_table():
+    from agent.prephase import merge_schema_from_sqlite_results
+    digest = {"tables": {}, "top_keys": [], "value_type_map": {}}
+    csv_text = (
+        "name,sql\n"
+        '"product_kinds","CREATE TABLE product_kinds (id INTEGER PRIMARY KEY, category_id INTEGER, name TEXT)"\n'
+    )
+    added = merge_schema_from_sqlite_results(digest, [csv_text])
+    assert "product_kinds" in added
+    assert "product_kinds" in digest["tables"]
+    cols = {c["name"] for c in digest["tables"]["product_kinds"]["columns"]}
+    assert {"id", "category_id", "name"}.issubset(cols)
+    assert digest["tables"]["product_kinds"]["role"] == "kinds"
+
+
+def test_merge_idempotent():
+    from agent.prephase import merge_schema_from_sqlite_results
+    digest = {"tables": {}, "top_keys": [], "value_type_map": {}}
+    csv_text = (
+        "name,sql\n"
+        '"product_kinds","CREATE TABLE product_kinds (id INTEGER, category_id INTEGER, name TEXT)"\n'
+    )
+    merge_schema_from_sqlite_results(digest, [csv_text])
+    added2 = merge_schema_from_sqlite_results(digest, [csv_text])
+    assert added2 == []
+    assert len(digest["tables"]["product_kinds"]["columns"]) == 3
+
+
+def test_merge_skips_unparseable_sql():
+    from agent.prephase import merge_schema_from_sqlite_results
+    digest = {"tables": {}, "top_keys": [], "value_type_map": {}}
+    csv_text = "name,sql\n\"weird\",\"NOT A VALID CREATE STATEMENT\"\n"
+    added = merge_schema_from_sqlite_results(digest, [csv_text])
+    assert added == []
+    assert "weird" not in digest["tables"]
+
+
+def test_merge_ignores_non_create_rows():
+    from agent.prephase import merge_schema_from_sqlite_results
+    digest = {"tables": {}, "top_keys": [], "value_type_map": {}}
+    csv_text = (
+        "name,sql\n"
+        '"idx_x","CREATE INDEX idx_x ON products(sku)"\n'
+    )
+    added = merge_schema_from_sqlite_results(digest, [csv_text])
+    assert added == []

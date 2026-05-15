@@ -3,6 +3,9 @@ import io
 import os
 from dataclasses import dataclass, field
 
+import sqlglot
+import sqlglot.expressions as _sg_exp
+
 from bitgn.vm.ecom.ecom_connect import EcomRuntimeClientSync
 from bitgn.vm.ecom.ecom_pb2 import ExecRequest, ReadRequest
 from google.protobuf.json_format import MessageToDict
@@ -100,6 +103,46 @@ def _build_schema_digest(vm: EcomRuntimeClientSync) -> dict:
             value_type_map[r["key"]] = "text"
 
     return {"tables": tables, "value_type_map": value_type_map, "top_keys": top_keys}
+
+
+def merge_schema_from_sqlite_results(
+    schema_digest: dict, csv_results: list[str]
+) -> list[str]:
+    """Merge CREATE TABLE rows from sqlite_schema CSV output into schema_digest.
+
+    Returns list of newly added table names. Mutates schema_digest in place.
+    Parse failures on individual rows are skipped silently.
+    """
+    added: list[str] = []
+    tables = schema_digest.setdefault("tables", {})
+    for csv_text in csv_results:
+        rows = _parse_csv_rows(csv_text)
+        for row in rows:
+            sql = (row.get("sql") or "").strip()
+            if not sql.upper().startswith("CREATE TABLE"):
+                continue
+            try:
+                parsed = sqlglot.parse_one(sql, dialect="sqlite")
+            except Exception:
+                continue
+            table_node = parsed.find(_sg_exp.Table)
+            if table_node is None or not table_node.name:
+                continue
+            table_name = table_node.name
+            if table_name in tables:
+                continue
+            cols: list[dict] = []
+            for col_def in parsed.find_all(_sg_exp.ColumnDef):
+                col_name = col_def.name
+                col_type_node = col_def.args.get("kind")
+                col_type = col_type_node.sql(dialect="sqlite") if col_type_node else ""
+                if col_name:
+                    cols.append({"name": col_name, "type": col_type})
+            if not cols:
+                continue
+            tables[table_name] = {"columns": cols, "role": _infer_role(cols)}
+            added.append(table_name)
+    return added
 
 
 def _format_schema_digest(sd: dict) -> str:
