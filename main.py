@@ -171,7 +171,7 @@ def _run_single_task(trial_id: str, task_filter: list) -> tuple:
         _score_f = float(score)
         in_t = token_stats.get("input_tokens", 0)
         out_t = token_stats.get("output_tokens", 0)
-        t_type = token_stats.get("task_type", "—")
+        cycles = token_stats.get("cycles_used", 0)
         m_short = (token_stats.get("model_used") or "—").split("/")[-1]
         style = CLI_GREEN if score == 1 else CLI_RED
         detail_str = "\n" + textwrap.indent("\n".join(detail), "  ") if detail else ""
@@ -179,7 +179,7 @@ def _run_single_task(trial_id: str, task_filter: list) -> tuple:
             f"{style}[{task_id}] Score: {score:0.2f}"
             f" | {task_elapsed:.1f}s"
             f" | in {in_t:,} / out {out_t:,} tok"
-            f" | {t_type} | {m_short}"
+            f" | cycles={cycles} | {m_short}"
             f"{detail_str}{CLI_CLR}"
         )
         return (task_id, _score_f, detail, task_elapsed, token_stats)
@@ -194,7 +194,7 @@ def _print_table_header() -> None:
         f"\n{'=' * 80}",
         f"{'ИТОГОВАЯ СТАТИСТИКА':^80}",
         '=' * 80,
-        f"{'Задание':<10} {'Оценка':>7} {'Время':>8}  {'Вход(tok)':>10} {'Выход(tok)':>10}  {'Тип':<11} {'Модель':<30}  Проблемы",
+        f"{'Задание':<10} {'Оценка':>7} {'Время':>8}  {'Вход(tok)':>10} {'Выход(tok)':>10}  {'Циклы':>6}  {'Модель':<30}  Проблемы",
         "-" * 80,
     ]
     for line in lines:
@@ -208,8 +208,8 @@ def _print_table_row(task_id: str, score: float, detail: list, elapsed: float, t
     out_t = ts.get("output_tokens", 0)
     m = ts.get("model_used", "—")
     m_short = m.split("/")[-1] if "/" in m else m
-    t_type = ts.get("task_type", "—")
-    line = f"{task_id:<10} {score:>7.2f} {elapsed:>7.1f}s  {in_t:>10,} {out_t:>10,}  {t_type:<11} {m_short:<30}  {issues}"
+    cycles = ts.get("cycles_used", 0)
+    line = f"{task_id:<10} {score:>7.2f} {elapsed:>7.1f}s  {in_t:>10,} {out_t:>10,}  {cycles:>6}  {m_short:<30}  {issues}"
     print(line)
     _log_stats(line)
 

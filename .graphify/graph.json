@@ -8,7 +8,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/main.py",
       "source_location": "L1",
-      "community": 9,
+      "community": 8,
       "norm_label": "main.py",
       "id": "home_uf_rt_ru_i_y_tischenko_\u0434\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b_git_ecom1_agent_main_py"
     },
@@ -17,7 +17,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/main.py",
       "source_location": "L20",
-      "community": 9,
+      "community": 8,
       "norm_label": "_log_stats()",
       "id": "ecom1_agent_main_log_stats"
     },
@@ -26,7 +26,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/main.py",
       "source_location": "L26",
-      "community": 9,
+      "community": 8,
       "norm_label": "_setup_logging()",
       "id": "ecom1_agent_main_setup_logging"
     },
@@ -35,7 +35,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/main.py",
       "source_location": "L119",
-      "community": 9,
+      "community": 8,
       "norm_label": "_require_env()",
       "id": "ecom1_agent_main_require_env"
     },
@@ -44,7 +44,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/main.py",
       "source_location": "L134",
-      "community": 9,
+      "community": 8,
       "norm_label": "_run_single_task()",
       "id": "ecom1_agent_main_run_single_task"
     },
@@ -53,7 +53,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/main.py",
       "source_location": "L192",
-      "community": 9,
+      "community": 8,
       "norm_label": "_print_table_header()",
       "id": "ecom1_agent_main_print_table_header"
     },
@@ -62,7 +62,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/main.py",
       "source_location": "L205",
-      "community": 9,
+      "community": 8,
       "norm_label": "_print_table_row()",
       "id": "ecom1_agent_main_print_table_row"
     },
@@ -71,7 +71,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/main.py",
       "source_location": "L217",
-      "community": 9,
+      "community": 8,
       "norm_label": "_write_summary()",
       "id": "ecom1_agent_main_write_summary"
     },
@@ -80,7 +80,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/main.py",
       "source_location": "L233",
-      "community": 9,
+      "community": 8,
       "norm_label": "main()",
       "id": "ecom1_agent_main_main"
     },
@@ -89,7 +89,7 @@
       "file_type": "rationale",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/main.py",
       "source_location": "L27",
-      "community": 9,
+      "community": 8,
       "norm_label": "create run dir, open main.log for stats, wrap stdout for [task_id] terminal pref",
       "id": "ecom1_agent_main_rationale_27"
     },
@@ -98,7 +98,7 @@
       "file_type": "rationale",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/main.py",
       "source_location": "L135",
-      "community": 9,
+      "community": 8,
       "norm_label": "execute one benchmark trial.",
       "id": "ecom1_agent_main_rationale_135"
     },
@@ -170,7 +170,7 @@
       "file_type": "code",
       "source_file": "agent/pipeline.py",
       "source_location": "L1",
-      "community": 19,
+      "community": 21,
       "norm_label": "pipeline.py",
       "id": "agent_pipeline_py"
     },
@@ -179,7 +179,7 @@
       "file_type": "code",
       "source_file": "agent/pipeline.py",
       "source_location": "L50",
-      "community": 19,
+      "community": 21,
       "norm_label": "_get_rules_loader()",
       "id": "agent_pipeline_get_rules_loader"
     },
@@ -188,7 +188,7 @@
       "file_type": "code",
       "source_file": "agent/pipeline.py",
       "source_location": "L57",
-      "community": 19,
+      "community": 21,
       "norm_label": "_get_security_gates()",
       "id": "agent_pipeline_get_security_gates"
     },
@@ -197,7 +197,7 @@
       "file_type": "code",
       "source_file": "agent/pipeline.py",
       "source_location": "L64",
-      "community": 19,
+      "community": 21,
       "norm_label": "_exec_result_text()",
       "id": "agent_pipeline_exec_result_text"
     },
@@ -206,7 +206,7 @@
       "file_type": "code",
       "source_file": "agent/pipeline.py",
       "source_location": "L74",
-      "community": 19,
+      "community": 21,
       "norm_label": "_csv_has_data()",
       "id": "agent_pipeline_csv_has_data"
     },
@@ -215,7 +215,7 @@
       "file_type": "code",
       "source_file": "agent/pipeline.py",
       "source_location": "L86",
-      "community": 19,
+      "community": 21,
       "norm_label": "_call_llm_phase()",
       "id": "agent_pipeline_call_llm_phase"
     },
@@ -269,7 +269,7 @@
       "file_type": "code",
       "source_file": "agent/pipeline.py",
       "source_location": "L257",
-      "community": 19,
+      "community": 21,
       "norm_label": "_build_sql_user_msg()",
       "id": "agent_pipeline_build_sql_user_msg"
     },
@@ -278,7 +278,7 @@
       "file_type": "code",
       "source_file": "agent/pipeline.py",
       "source_location": "L274",
-      "community": 19,
+      "community": 21,
       "norm_label": "_build_learn_user_msg()",
       "id": "agent_pipeline_build_learn_user_msg"
     },
@@ -287,7 +287,7 @@
       "file_type": "code",
       "source_file": "agent/pipeline.py",
       "source_location": "L283",
-      "community": 8,
+      "community": 7,
       "norm_label": "_build_answer_user_msg()",
       "id": "agent_pipeline_build_answer_user_msg"
     },
@@ -305,7 +305,7 @@
       "file_type": "code",
       "source_file": "agent/pipeline.py",
       "source_location": "L315",
-      "community": 8,
+      "community": 7,
       "norm_label": "_extract_sku_refs()",
       "id": "agent_pipeline_extract_sku_refs"
     },
@@ -314,7 +314,7 @@
       "file_type": "code",
       "source_file": "agent/pipeline.py",
       "source_location": "L352",
-      "community": 19,
+      "community": 21,
       "norm_label": "_run_test_gen()",
       "id": "agent_pipeline_run_test_gen"
     },
@@ -323,7 +323,7 @@
       "file_type": "code",
       "source_file": "agent/pipeline.py",
       "source_location": "L373",
-      "community": 19,
+      "community": 21,
       "norm_label": "run_pipeline()",
       "id": "agent_pipeline_run_pipeline"
     },
@@ -331,8 +331,8 @@
       "label": "_run_learn()",
       "file_type": "code",
       "source_file": "agent/pipeline.py",
-      "source_location": "L820",
-      "community": 19,
+      "source_location": "L837",
+      "community": 21,
       "norm_label": "_run_learn()",
       "id": "agent_pipeline_run_learn"
     },
@@ -340,8 +340,8 @@
       "label": "_run_evaluator_safe()",
       "file_type": "code",
       "source_file": "agent/pipeline.py",
-      "source_location": "L864",
-      "community": 1,
+      "source_location": "L881",
+      "community": 19,
       "norm_label": "_run_evaluator_safe()",
       "id": "agent_pipeline_run_evaluator_safe"
     },
@@ -350,7 +350,7 @@
       "file_type": "rationale",
       "source_file": "agent/pipeline.py",
       "source_location": "L1",
-      "community": 19,
+      "community": 21,
       "norm_label": "phase-based sql pipeline for lookup tasks \u2014 replaces run_loop() for task_type='l",
       "id": "agent_pipeline_rationale_1"
     },
@@ -359,7 +359,7 @@
       "file_type": "rationale",
       "source_file": "agent/pipeline.py",
       "source_location": "L96",
-      "community": 19,
+      "community": 21,
       "norm_label": "sgr llm call: returns (parsed_output_or_none, sgr_trace_entry, tok_info).",
       "id": "agent_pipeline_rationale_96"
     },
@@ -377,7 +377,7 @@
       "file_type": "rationale",
       "source_file": "agent/pipeline.py",
       "source_location": "L316",
-      "community": 8,
+      "community": 7,
       "norm_label": "extract catalogue paths from sql results. uses 'path' column when present,     f",
       "id": "agent_pipeline_rationale_316"
     },
@@ -386,7 +386,7 @@
       "file_type": "rationale",
       "source_file": "agent/pipeline.py",
       "source_location": "L384",
-      "community": 19,
+      "community": 21,
       "norm_label": "phase-based sql pipeline. returns (stats dict, eval thread or none).",
       "id": "agent_pipeline_rationale_384"
     },
@@ -395,7 +395,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/agent/knowledge_loader.py",
       "source_location": "L1",
-      "community": 27,
+      "community": 28,
       "norm_label": "knowledge_loader.py",
       "id": "home_uf_rt_ru_i_y_tischenko_\u0434\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b_git_ecom1_agent_agent_knowledge_loader_py"
     },
@@ -404,7 +404,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/agent/knowledge_loader.py",
       "source_location": "L15",
-      "community": 27,
+      "community": 28,
       "norm_label": "existing_rules_text()",
       "id": "agent_knowledge_loader_existing_rules_text"
     },
@@ -413,7 +413,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/agent/knowledge_loader.py",
       "source_location": "L27",
-      "community": 27,
+      "community": 28,
       "norm_label": "existing_security_text()",
       "id": "agent_knowledge_loader_existing_security_text"
     },
@@ -422,7 +422,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/agent/knowledge_loader.py",
       "source_location": "L39",
-      "community": 27,
+      "community": 28,
       "norm_label": "existing_prompts_text()",
       "id": "agent_knowledge_loader_existing_prompts_text"
     },
@@ -431,7 +431,7 @@
       "file_type": "rationale",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/agent/knowledge_loader.py",
       "source_location": "L1",
-      "community": 27,
+      "community": 28,
       "norm_label": "shared loaders for existing rules/security/prompts content.",
       "id": "agent_knowledge_loader_rationale_1"
     },
@@ -440,7 +440,7 @@
       "file_type": "code",
       "source_file": "agent/json_extract.py",
       "source_location": "L1",
-      "community": 1,
+      "community": 9,
       "norm_label": "json_extract.py",
       "id": "agent_json_extract_py"
     },
@@ -449,7 +449,7 @@
       "file_type": "code",
       "source_file": "agent/json_extract.py",
       "source_location": "L14",
-      "community": 1,
+      "community": 9,
       "norm_label": "_try_json5()",
       "id": "agent_json_extract_try_json5"
     },
@@ -458,7 +458,7 @@
       "file_type": "code",
       "source_file": "agent/json_extract.py",
       "source_location": "L41",
-      "community": 8,
+      "community": 7,
       "norm_label": "_obj_mutation_tool()",
       "id": "agent_json_extract_obj_mutation_tool"
     },
@@ -467,7 +467,7 @@
       "file_type": "code",
       "source_file": "agent/json_extract.py",
       "source_location": "L51",
-      "community": 1,
+      "community": 9,
       "norm_label": "_richness_key()",
       "id": "agent_json_extract_richness_key"
     },
@@ -476,7 +476,7 @@
       "file_type": "code",
       "source_file": "agent/json_extract.py",
       "source_location": "L60",
-      "community": 1,
+      "community": 9,
       "norm_label": "_extract_json_from_text()",
       "id": "agent_json_extract_extract_json_from_text"
     },
@@ -485,7 +485,7 @@
       "file_type": "rationale",
       "source_file": "agent/json_extract.py",
       "source_location": "L1",
-      "community": 1,
+      "community": 9,
       "norm_label": "json extraction from free-form llm text output.  public api:   _obj_mutation_too",
       "id": "agent_json_extract_rationale_1"
     },
@@ -494,7 +494,7 @@
       "file_type": "rationale",
       "source_file": "agent/json_extract.py",
       "source_location": "L15",
-      "community": 1,
+      "community": 9,
       "norm_label": "try json5 parse; raises on failure (importerror or parse error).",
       "id": "agent_json_extract_rationale_15"
     },
@@ -503,7 +503,7 @@
       "file_type": "rationale",
       "source_file": "agent/json_extract.py",
       "source_location": "L42",
-      "community": 8,
+      "community": 7,
       "norm_label": "return the mutation tool name if obj is a write/delete/exec action, else none.",
       "id": "agent_json_extract_rationale_42"
     },
@@ -512,7 +512,7 @@
       "file_type": "rationale",
       "source_file": "agent/json_extract.py",
       "source_location": "L52",
-      "community": 1,
+      "community": 9,
       "norm_label": "lower tuple = preferred. used by min() to break ties among same-tier candidates.",
       "id": "agent_json_extract_rationale_52"
     },
@@ -521,7 +521,7 @@
       "file_type": "rationale",
       "source_file": "agent/json_extract.py",
       "source_location": "L61",
-      "community": 1,
+      "community": 9,
       "norm_label": "extract the most actionable valid json object from free-form model output.",
       "id": "agent_json_extract_rationale_61"
     },
@@ -530,7 +530,7 @@
       "file_type": "code",
       "source_file": "agent/test_runner.py",
       "source_location": "L1",
-      "community": 22,
+      "community": 20,
       "norm_label": "test_runner.py",
       "id": "agent_test_runner_py"
     },
@@ -538,8 +538,8 @@
       "label": "run_tests()",
       "file_type": "code",
       "source_file": "agent/test_runner.py",
-      "source_location": "L11",
-      "community": 22,
+      "source_location": "L39",
+      "community": 20,
       "norm_label": "run_tests()",
       "id": "agent_test_runner_run_tests"
     },
@@ -548,7 +548,7 @@
       "file_type": "rationale",
       "source_file": "agent/test_runner.py",
       "source_location": "L1",
-      "community": 22,
+      "community": 20,
       "norm_label": "subprocess test runner for tdd pipeline.",
       "id": "agent_test_runner_rationale_1"
     },
@@ -557,7 +557,7 @@
       "file_type": "rationale",
       "source_file": "agent/test_runner.py",
       "source_location": "L12",
-      "community": 22,
+      "community": 20,
       "norm_label": "run test_code in isolated subprocess. returns (passed, error_message).",
       "id": "agent_test_runner_rationale_12"
     },
@@ -665,7 +665,7 @@
       "file_type": "code",
       "source_file": "agent/evaluator.py",
       "source_location": "L1",
-      "community": 1,
+      "community": 19,
       "norm_label": "evaluator.py",
       "id": "agent_evaluator_py"
     },
@@ -674,7 +674,7 @@
       "file_type": "code",
       "source_file": "agent/evaluator.py",
       "source_location": "L19",
-      "community": 1,
+      "community": 19,
       "norm_label": "evalinput",
       "id": "agent_evaluator_evalinput"
     },
@@ -683,7 +683,7 @@
       "file_type": "code",
       "source_file": "agent/evaluator.py",
       "source_location": "L33",
-      "community": 4,
+      "community": 3,
       "norm_label": "_compute_eval_metrics()",
       "id": "agent_evaluator_compute_eval_metrics"
     },
@@ -692,7 +692,7 @@
       "file_type": "code",
       "source_file": "agent/evaluator.py",
       "source_location": "L75",
-      "community": 1,
+      "community": 19,
       "norm_label": "run_evaluator()",
       "id": "agent_evaluator_run_evaluator"
     },
@@ -701,7 +701,7 @@
       "file_type": "code",
       "source_file": "agent/evaluator.py",
       "source_location": "L88",
-      "community": 1,
+      "community": 19,
       "norm_label": "_run()",
       "id": "agent_evaluator_run"
     },
@@ -710,7 +710,7 @@
       "file_type": "code",
       "source_file": "agent/evaluator.py",
       "source_location": "L131",
-      "community": 1,
+      "community": 19,
       "norm_label": "_build_eval_system()",
       "id": "agent_evaluator_build_eval_system"
     },
@@ -719,7 +719,7 @@
       "file_type": "code",
       "source_file": "agent/evaluator.py",
       "source_location": "L152",
-      "community": 1,
+      "community": 19,
       "norm_label": "_append_log()",
       "id": "agent_evaluator_append_log"
     },
@@ -728,7 +728,7 @@
       "file_type": "rationale",
       "source_file": "agent/evaluator.py",
       "source_location": "L1",
-      "community": 1,
+      "community": 19,
       "norm_label": "post-execution pipeline evaluator. fail-open: any exception returns none.",
       "id": "agent_evaluator_rationale_1"
     },
@@ -737,7 +737,7 @@
       "file_type": "rationale",
       "source_file": "agent/evaluator.py",
       "source_location": "L40",
-      "community": 4,
+      "community": 3,
       "norm_label": "compute agents_md_coverage and schema_grounding. returns dict with both floats.",
       "id": "agent_evaluator_rationale_40"
     },
@@ -746,7 +746,7 @@
       "file_type": "rationale",
       "source_file": "agent/evaluator.py",
       "source_location": "L80",
-      "community": 1,
+      "community": 19,
       "norm_label": "evaluate pipeline trace. returns pipelineevaloutput or none on any failure.",
       "id": "agent_evaluator_rationale_80"
     },
@@ -755,7 +755,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/agent/contract_models.py",
       "source_location": "L1",
-      "community": 4,
+      "community": 3,
       "norm_label": "contract_models.py",
       "id": "home_uf_rt_ru_i_y_tischenko_git_ecom1_agent_agent_contract_models_py"
     },
@@ -764,7 +764,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/agent/contract_models.py",
       "source_location": "L6",
-      "community": 4,
+      "community": 3,
       "norm_label": "executorproposal",
       "id": "agent_contract_models_executorproposal"
     },
@@ -773,7 +773,7 @@
       "file_type": "code",
       "source_file": "",
       "source_location": "",
-      "community": 4,
+      "community": 3,
       "norm_label": "basemodel",
       "id": "basemodel"
     },
@@ -782,7 +782,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/agent/contract_models.py",
       "source_location": "L16",
-      "community": 4,
+      "community": 3,
       "norm_label": "evaluatorresponse",
       "id": "agent_contract_models_evaluatorresponse"
     },
@@ -791,7 +791,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/agent/contract_models.py",
       "source_location": "L26",
-      "community": 4,
+      "community": 3,
       "norm_label": "contract",
       "id": "agent_contract_models_contract"
     },
@@ -800,7 +800,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/agent/contract_models.py",
       "source_location": "L40",
-      "community": 4,
+      "community": 3,
       "norm_label": "contractround",
       "id": "agent_contract_models_contractround"
     },
@@ -809,7 +809,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/agent/__init__.py",
       "source_location": "L1",
-      "community": 32,
+      "community": 33,
       "norm_label": "__init__.py",
       "id": "home_uf_rt_ru_i_y_tischenko_git_ecom1_agent_agent_init_py"
     },
@@ -818,7 +818,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/agent/cc_client.py",
       "source_location": "L1",
-      "community": 21,
+      "community": 23,
       "norm_label": "cc_client.py",
       "id": "home_uf_rt_ru_i_y_tischenko_git_ecom1_agent_agent_cc_client_py"
     },
@@ -827,7 +827,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/agent/cc_client.py",
       "source_location": "L48",
-      "community": 21,
+      "community": 23,
       "norm_label": "_build_env()",
       "id": "agent_cc_client_build_env"
     },
@@ -836,7 +836,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/agent/cc_client.py",
       "source_location": "L54",
-      "community": 21,
+      "community": 23,
       "norm_label": "_collect_stdout()",
       "id": "agent_cc_client_collect_stdout"
     },
@@ -845,7 +845,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/agent/cc_client.py",
       "source_location": "L62",
-      "community": 21,
+      "community": 23,
       "norm_label": "_parse_envelope()",
       "id": "agent_cc_client_parse_envelope"
     },
@@ -854,7 +854,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/agent/cc_client.py",
       "source_location": "L115",
-      "community": 21,
+      "community": 23,
       "norm_label": "_spawn_once()",
       "id": "agent_cc_client_spawn_once"
     },
@@ -863,7 +863,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/agent/cc_client.py",
       "source_location": "L171",
-      "community": 21,
+      "community": 23,
       "norm_label": "cc_complete()",
       "id": "agent_cc_client_cc_complete"
     },
@@ -872,7 +872,7 @@
       "file_type": "rationale",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/agent/cc_client.py",
       "source_location": "L1",
-      "community": 21,
+      "community": 23,
       "norm_label": "claude code tier \u2014 spawn iclaude cli as stateless llm.  bypasses applied (all re",
       "id": "agent_cc_client_rationale_1"
     },
@@ -881,7 +881,7 @@
       "file_type": "rationale",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/agent/cc_client.py",
       "source_location": "L63",
-      "community": 21,
+      "community": 23,
       "norm_label": "extract result text and token usage from iclaude --output-format json.     envel",
       "id": "agent_cc_client_rationale_63"
     },
@@ -890,7 +890,7 @@
       "file_type": "rationale",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/agent/cc_client.py",
       "source_location": "L121",
-      "community": 21,
+      "community": 23,
       "norm_label": "spawn iclaude once. returns (stdout_lines, exit_code, fail_reason).     fail_rea",
       "id": "agent_cc_client_rationale_121"
     },
@@ -899,7 +899,7 @@
       "file_type": "rationale",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/agent/cc_client.py",
       "source_location": "L180",
-      "community": 21,
+      "community": 23,
       "norm_label": "stateless llm call via iclaude subprocess.      returns assistant text (json str",
       "id": "agent_cc_client_rationale_180"
     },
@@ -908,7 +908,7 @@
       "file_type": "code",
       "source_file": "agent/trace.py",
       "source_location": "L1",
-      "community": 19,
+      "community": 21,
       "norm_label": "trace.py",
       "id": "agent_trace_py"
     },
@@ -917,7 +917,7 @@
       "file_type": "code",
       "source_file": "agent/trace.py",
       "source_location": "L13",
-      "community": 19,
+      "community": 21,
       "norm_label": "get_trace()",
       "id": "agent_trace_get_trace"
     },
@@ -926,7 +926,7 @@
       "file_type": "code",
       "source_file": "agent/trace.py",
       "source_location": "L17",
-      "community": 3,
+      "community": 2,
       "norm_label": "set_trace()",
       "id": "agent_trace_set_trace"
     },
@@ -935,7 +935,7 @@
       "file_type": "code",
       "source_file": "agent/trace.py",
       "source_location": "L21",
-      "community": 3,
+      "community": 2,
       "norm_label": "tracelogger",
       "id": "agent_trace_tracelogger"
     },
@@ -944,7 +944,7 @@
       "file_type": "code",
       "source_file": "agent/trace.py",
       "source_location": "L22",
-      "community": 3,
+      "community": 2,
       "norm_label": ".__init__()",
       "id": "agent_trace_tracelogger_init"
     },
@@ -953,7 +953,7 @@
       "file_type": "code",
       "source_file": "agent/trace.py",
       "source_location": "L27",
-      "community": 3,
+      "community": 2,
       "norm_label": "._ts()",
       "id": "agent_trace_tracelogger_ts"
     },
@@ -962,7 +962,7 @@
       "file_type": "code",
       "source_file": "agent/trace.py",
       "source_location": "L30",
-      "community": 3,
+      "community": 2,
       "norm_label": "._write()",
       "id": "agent_trace_tracelogger_write"
     },
@@ -971,7 +971,7 @@
       "file_type": "code",
       "source_file": "agent/trace.py",
       "source_location": "L35",
-      "community": 3,
+      "community": 2,
       "norm_label": "._sys_sha256()",
       "id": "agent_trace_tracelogger_sys_sha256"
     },
@@ -980,7 +980,7 @@
       "file_type": "code",
       "source_file": "agent/trace.py",
       "source_location": "L39",
-      "community": 3,
+      "community": 2,
       "norm_label": "._ensure_header_system()",
       "id": "agent_trace_tracelogger_ensure_header_system"
     },
@@ -989,7 +989,7 @@
       "file_type": "code",
       "source_file": "agent/trace.py",
       "source_location": "L47",
-      "community": 3,
+      "community": 2,
       "norm_label": ".log_header()",
       "id": "agent_trace_tracelogger_log_header"
     },
@@ -998,7 +998,7 @@
       "file_type": "code",
       "source_file": "agent/trace.py",
       "source_location": "L50",
-      "community": 3,
+      "community": 2,
       "norm_label": ".log_llm_call()",
       "id": "agent_trace_tracelogger_log_llm_call"
     },
@@ -1007,7 +1007,7 @@
       "file_type": "code",
       "source_file": "agent/trace.py",
       "source_location": "L77",
-      "community": 3,
+      "community": 2,
       "norm_label": ".log_gate_check()",
       "id": "agent_trace_tracelogger_log_gate_check"
     },
@@ -1016,7 +1016,7 @@
       "file_type": "code",
       "source_file": "agent/trace.py",
       "source_location": "L94",
-      "community": 3,
+      "community": 2,
       "norm_label": ".log_sql_validate()",
       "id": "agent_trace_tracelogger_log_sql_validate"
     },
@@ -1025,7 +1025,7 @@
       "file_type": "code",
       "source_file": "agent/trace.py",
       "source_location": "L109",
-      "community": 3,
+      "community": 2,
       "norm_label": ".log_sql_execute()",
       "id": "agent_trace_tracelogger_log_sql_execute"
     },
@@ -1034,7 +1034,7 @@
       "file_type": "code",
       "source_file": "agent/trace.py",
       "source_location": "L126",
-      "community": 3,
+      "community": 2,
       "norm_label": ".log_resolve_exec()",
       "id": "agent_trace_tracelogger_log_resolve_exec"
     },
@@ -1043,7 +1043,7 @@
       "file_type": "code",
       "source_file": "agent/trace.py",
       "source_location": "L134",
-      "community": 3,
+      "community": 2,
       "norm_label": ".log_test_gen()",
       "id": "agent_trace_tracelogger_log_test_gen"
     },
@@ -1052,7 +1052,7 @@
       "file_type": "code",
       "source_file": "agent/trace.py",
       "source_location": "L141",
-      "community": 3,
+      "community": 2,
       "norm_label": ".log_test_run()",
       "id": "agent_trace_tracelogger_log_test_run"
     },
@@ -1060,8 +1060,8 @@
       "label": ".log_task_result()",
       "file_type": "code",
       "source_file": "agent/trace.py",
-      "source_location": "L150",
-      "community": 3,
+      "source_location": "L161",
+      "community": 2,
       "norm_label": ".log_task_result()",
       "id": "agent_trace_tracelogger_log_task_result"
     },
@@ -1069,8 +1069,8 @@
       "label": ".close()",
       "file_type": "code",
       "source_file": "agent/trace.py",
-      "source_location": "L171",
-      "community": 3,
+      "source_location": "L182",
+      "community": 2,
       "norm_label": ".close()",
       "id": "agent_trace_tracelogger_close"
     },
@@ -1079,7 +1079,7 @@
       "file_type": "rationale",
       "source_file": "agent/trace.py",
       "source_location": "L1",
-      "community": 19,
+      "community": 21,
       "norm_label": "thread-local structured jsonl trace logger for per-task pipeline traces.",
       "id": "agent_trace_rationale_1"
     },
@@ -1169,7 +1169,7 @@
       "file_type": "code",
       "source_file": "agent/agents_md_parser.py",
       "source_location": "L1",
-      "community": 2,
+      "community": 1,
       "norm_label": "agents_md_parser.py",
       "id": "agent_agents_md_parser_py"
     },
@@ -1178,7 +1178,7 @@
       "file_type": "code",
       "source_file": "agent/agents_md_parser.py",
       "source_location": "L1",
-      "community": 2,
+      "community": 1,
       "norm_label": "parse_agents_md()",
       "id": "agent_agents_md_parser_parse_agents_md"
     },
@@ -1187,7 +1187,7 @@
       "file_type": "rationale",
       "source_file": "agent/agents_md_parser.py",
       "source_location": "L2",
-      "community": 2,
+      "community": 1,
       "norm_label": "parse agents.md into {section_name: [lines]} for each ## section.",
       "id": "agent_agents_md_parser_rationale_2"
     },
@@ -1196,7 +1196,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/agent/sql_security.py",
       "source_location": "L1",
-      "community": 7,
+      "community": 6,
       "norm_label": "sql_security.py",
       "id": "home_uf_rt_ru_i_y_tischenko_\u0434\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b_git_ecom1_agent_agent_sql_security_py"
     },
@@ -1205,7 +1205,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/agent/sql_security.py",
       "source_location": "L16",
-      "community": 7,
+      "community": 6,
       "norm_label": "load_security_gates()",
       "id": "agent_sql_security_load_security_gates"
     },
@@ -1214,7 +1214,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/agent/sql_security.py",
       "source_location": "L29",
-      "community": 7,
+      "community": 6,
       "norm_label": "check_sql_queries()",
       "id": "agent_sql_security_check_sql_queries"
     },
@@ -1223,7 +1223,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/agent/sql_security.py",
       "source_location": "L42",
-      "community": 7,
+      "community": 6,
       "norm_label": "check_path_access()",
       "id": "agent_sql_security_check_path_access"
     },
@@ -1232,7 +1232,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/agent/sql_security.py",
       "source_location": "L50",
-      "community": 7,
+      "community": 6,
       "norm_label": "check_where_literals()",
       "id": "agent_sql_security_check_where_literals"
     },
@@ -1241,7 +1241,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/agent/sql_security.py",
       "source_location": "L69",
-      "community": 7,
+      "community": 6,
       "norm_label": "check_grounding_refs()",
       "id": "agent_sql_security_check_grounding_refs"
     },
@@ -1250,7 +1250,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/agent/sql_security.py",
       "source_location": "L83",
-      "community": 7,
+      "community": 6,
       "norm_label": "check_learn_output()",
       "id": "agent_sql_security_check_learn_output"
     },
@@ -1259,7 +1259,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/agent/sql_security.py",
       "source_location": "L103",
-      "community": 7,
+      "community": 6,
       "norm_label": "check_retry_loop()",
       "id": "agent_sql_security_check_retry_loop"
     },
@@ -1268,7 +1268,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/agent/sql_security.py",
       "source_location": "L117",
-      "community": 7,
+      "community": 6,
       "norm_label": "make_json_hash()",
       "id": "agent_sql_security_make_json_hash"
     },
@@ -1277,7 +1277,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/agent/sql_security.py",
       "source_location": "L121",
-      "community": 7,
+      "community": 6,
       "norm_label": "_is_select()",
       "id": "agent_sql_security_is_select"
     },
@@ -1286,7 +1286,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/agent/sql_security.py",
       "source_location": "L125",
-      "community": 7,
+      "community": 6,
       "norm_label": "_has_where_clause()",
       "id": "agent_sql_security_has_where_clause"
     },
@@ -1295,7 +1295,7 @@
       "file_type": "rationale",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/agent/sql_security.py",
       "source_location": "L1",
-      "community": 7,
+      "community": 6,
       "norm_label": "security gate evaluation \u2014 gates loaded from data/security/*.yaml.",
       "id": "agent_sql_security_rationale_1"
     },
@@ -1304,7 +1304,7 @@
       "file_type": "rationale",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/agent/sql_security.py",
       "source_location": "L17",
-      "community": 7,
+      "community": 6,
       "norm_label": "load all gate definitions from *.yaml files in directory, sorted by filename.",
       "id": "agent_sql_security_rationale_17"
     },
@@ -1313,7 +1313,7 @@
       "file_type": "rationale",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/agent/sql_security.py",
       "source_location": "L30",
-      "community": 7,
+      "community": 6,
       "norm_label": "apply security gates to sql queries. returns error message or none if all pass.",
       "id": "agent_sql_security_rationale_30"
     },
@@ -1322,7 +1322,7 @@
       "file_type": "rationale",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/agent/sql_security.py",
       "source_location": "L43",
-      "community": 7,
+      "community": 6,
       "norm_label": "check if a file path access is blocked by path_prefix gates.",
       "id": "agent_sql_security_rationale_43"
     },
@@ -1331,7 +1331,7 @@
       "file_type": "rationale",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/agent/sql_security.py",
       "source_location": "L51",
-      "community": 7,
+      "community": 6,
       "norm_label": "block where clause literals not traceable to task_text (sec-037).",
       "id": "agent_sql_security_rationale_51"
     },
@@ -1340,7 +1340,7 @@
       "file_type": "rationale",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/agent/sql_security.py",
       "source_location": "L70",
-      "community": 7,
+      "community": 6,
       "norm_label": "block grounding_refs not present in sql result skus (sec-031).",
       "id": "agent_sql_security_rationale_70"
     },
@@ -1349,7 +1349,7 @@
       "file_type": "rationale",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/agent/sql_security.py",
       "source_location": "L89",
-      "community": 7,
+      "community": 6,
       "norm_label": "check learnoutput for stale replay (sec-041) and placeholder content (sec-066).",
       "id": "agent_sql_security_rationale_89"
     },
@@ -1358,7 +1358,7 @@
       "file_type": "rationale",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/agent/sql_security.py",
       "source_location": "L108",
-      "community": 7,
+      "community": 6,
       "norm_label": "block identical query retry without learn mutation (sec-073).",
       "id": "agent_sql_security_rationale_108"
     },
@@ -1367,7 +1367,7 @@
       "file_type": "code",
       "source_file": "agent/orchestrator.py",
       "source_location": "L1",
-      "community": 9,
+      "community": 8,
       "norm_label": "orchestrator.py",
       "id": "agent_orchestrator_py"
     },
@@ -1376,7 +1376,7 @@
       "file_type": "code",
       "source_file": "agent/orchestrator.py",
       "source_location": "L14",
-      "community": 9,
+      "community": 8,
       "norm_label": "run_agent()",
       "id": "agent_orchestrator_run_agent"
     },
@@ -1385,7 +1385,7 @@
       "file_type": "rationale",
       "source_file": "agent/orchestrator.py",
       "source_location": "L1",
-      "community": 9,
+      "community": 8,
       "norm_label": "minimal orchestrator for ecom benchmark.",
       "id": "agent_orchestrator_rationale_1"
     },
@@ -1394,7 +1394,7 @@
       "file_type": "rationale",
       "source_file": "agent/orchestrator.py",
       "source_location": "L23",
-      "community": 9,
+      "community": 8,
       "norm_label": "execute a single benchmark task.",
       "id": "agent_orchestrator_rationale_23"
     },
@@ -1403,7 +1403,7 @@
       "file_type": "code",
       "source_file": "agent/llm.py",
       "source_location": "L1",
-      "community": 6,
+      "community": 5,
       "norm_label": "llm.py",
       "id": "agent_llm_py"
     },
@@ -1412,7 +1412,7 @@
       "file_type": "code",
       "source_file": "agent/llm.py",
       "source_location": "L20",
-      "community": 6,
+      "community": 5,
       "norm_label": "_load_secrets()",
       "id": "agent_llm_load_secrets"
     },
@@ -1421,7 +1421,7 @@
       "file_type": "code",
       "source_file": "agent/llm.py",
       "source_location": "L131",
-      "community": 6,
+      "community": 5,
       "norm_label": "_load_capability_cache()",
       "id": "agent_llm_load_capability_cache"
     },
@@ -1430,7 +1430,7 @@
       "file_type": "code",
       "source_file": "agent/llm.py",
       "source_location": "L142",
-      "community": 6,
+      "community": 5,
       "norm_label": "_save_capability_cache()",
       "id": "agent_llm_save_capability_cache"
     },
@@ -1439,7 +1439,7 @@
       "file_type": "code",
       "source_file": "agent/llm.py",
       "source_location": "L157",
-      "community": 6,
+      "community": 5,
       "norm_label": "_get_static_hint()",
       "id": "agent_llm_get_static_hint"
     },
@@ -1448,7 +1448,7 @@
       "file_type": "code",
       "source_file": "agent/llm.py",
       "source_location": "L165",
-      "community": 6,
+      "community": 5,
       "norm_label": "probe_structured_output()",
       "id": "agent_llm_probe_structured_output"
     },
@@ -1457,7 +1457,7 @@
       "file_type": "code",
       "source_file": "agent/llm.py",
       "source_location": "L203",
-      "community": 6,
+      "community": 5,
       "norm_label": "get_response_format()",
       "id": "agent_llm_get_response_format"
     },
@@ -1466,7 +1466,7 @@
       "file_type": "code",
       "source_file": "agent/llm.py",
       "source_location": "L240",
-      "community": 6,
+      "community": 5,
       "norm_label": "_system_as_str()",
       "id": "agent_llm_system_as_str"
     },
@@ -1475,7 +1475,7 @@
       "file_type": "code",
       "source_file": "agent/llm.py",
       "source_location": "L247",
-      "community": 6,
+      "community": 5,
       "norm_label": "is_ollama_model()",
       "id": "agent_llm_is_ollama_model"
     },
@@ -1484,7 +1484,7 @@
       "file_type": "code",
       "source_file": "agent/llm.py",
       "source_location": "L257",
-      "community": 6,
+      "community": 5,
       "norm_label": "is_claude_code_model()",
       "id": "agent_llm_is_claude_code_model"
     },
@@ -1493,7 +1493,7 @@
       "file_type": "code",
       "source_file": "agent/llm.py",
       "source_location": "L262",
-      "community": 6,
+      "community": 5,
       "norm_label": "get_provider()",
       "id": "agent_llm_get_provider"
     },
@@ -1502,7 +1502,7 @@
       "file_type": "code",
       "source_file": "agent/llm.py",
       "source_location": "L279",
-      "community": 6,
+      "community": 5,
       "norm_label": "_call_raw_single_model()",
       "id": "agent_llm_call_raw_single_model"
     },
@@ -1511,7 +1511,7 @@
       "file_type": "code",
       "source_file": "agent/llm.py",
       "source_location": "L513",
-      "community": 1,
+      "community": 9,
       "norm_label": "call_llm_raw()",
       "id": "agent_llm_call_llm_raw"
     },
@@ -1520,7 +1520,7 @@
       "file_type": "code",
       "source_file": "agent/llm.py",
       "source_location": "L553",
-      "community": 6,
+      "community": 5,
       "norm_label": "is_claude_model()",
       "id": "agent_llm_is_claude_model"
     },
@@ -1529,7 +1529,7 @@
       "file_type": "code",
       "source_file": "agent/llm.py",
       "source_location": "L557",
-      "community": 6,
+      "community": 5,
       "norm_label": "get_anthropic_model_id()",
       "id": "agent_llm_get_anthropic_model_id"
     },
@@ -1538,7 +1538,7 @@
       "file_type": "rationale",
       "source_file": "agent/llm.py",
       "source_location": "L131",
-      "community": 6,
+      "community": 5,
       "norm_label": "load persisted cache, filtering stale entries (>7 days).",
       "id": "agent_llm_rationale_131"
     },
@@ -1547,7 +1547,7 @@
       "file_type": "rationale",
       "source_file": "agent/llm.py",
       "source_location": "L142",
-      "community": 6,
+      "community": 5,
       "norm_label": "persist current cache to disk. non-critical \u2014 failure is silently ignored.",
       "id": "agent_llm_rationale_142"
     },
@@ -1556,7 +1556,7 @@
       "file_type": "rationale",
       "source_file": "agent/llm.py",
       "source_location": "L165",
-      "community": 6,
+      "community": 5,
       "norm_label": "detect if model supports response_format. returns 'json_object' or 'none'.     c",
       "id": "agent_llm_rationale_165"
     },
@@ -1565,7 +1565,7 @@
       "file_type": "rationale",
       "source_file": "agent/llm.py",
       "source_location": "L203",
-      "community": 6,
+      "community": 5,
       "norm_label": "build response_format dict for the given mode, or none if mode='none'.",
       "id": "agent_llm_rationale_203"
     },
@@ -1574,7 +1574,7 @@
       "file_type": "rationale",
       "source_file": "agent/llm.py",
       "source_location": "L240",
-      "community": 6,
+      "community": 5,
       "norm_label": "flatten system prompt blocks to plain string for non-caching tiers.",
       "id": "agent_llm_rationale_240"
     },
@@ -1583,7 +1583,7 @@
       "file_type": "rationale",
       "source_file": "agent/llm.py",
       "source_location": "L247",
-      "community": 6,
+      "community": 5,
       "norm_label": "true for ollama-format models (name:tag, no slash).     examples: qwen3.5:9b, de",
       "id": "agent_llm_rationale_247"
     },
@@ -1592,7 +1592,7 @@
       "file_type": "rationale",
       "source_file": "agent/llm.py",
       "source_location": "L257",
-      "community": 6,
+      "community": 5,
       "norm_label": "true for claude-code/* aliases routed to iclaude subprocess.",
       "id": "agent_llm_rationale_257"
     },
@@ -1601,7 +1601,7 @@
       "file_type": "rationale",
       "source_file": "agent/llm.py",
       "source_location": "L262",
-      "community": 6,
+      "community": 5,
       "norm_label": "determine llm provider for a model call.     explicit cfg['provider'] wins; fall",
       "id": "agent_llm_rationale_262"
     },
@@ -1610,7 +1610,7 @@
       "file_type": "rationale",
       "source_file": "agent/llm.py",
       "source_location": "L290",
-      "community": 6,
+      "community": 5,
       "norm_label": "lightweight llm call with 3-tier routing and transient-error retry.     returns",
       "id": "agent_llm_rationale_290"
     },
@@ -1619,7 +1619,7 @@
       "file_type": "rationale",
       "source_file": "agent/llm.py",
       "source_location": "L524",
-      "community": 1,
+      "community": 9,
       "norm_label": "call llm with model_fallback retry (fix-417). primary model through all tiers fi",
       "id": "agent_llm_rationale_524"
     },
@@ -1628,7 +1628,7 @@
       "file_type": "rationale",
       "source_file": "agent/llm.py",
       "source_location": "L557",
-      "community": 6,
+      "community": 5,
       "norm_label": "map alias (e.g. 'anthropic/claude-haiku-4.5') to anthropic api model id.",
       "id": "agent_llm_rationale_557"
     },
@@ -1637,7 +1637,7 @@
       "file_type": "code",
       "source_file": "agent/prephase.py",
       "source_location": "L1",
-      "community": 2,
+      "community": 1,
       "norm_label": "prephase.py",
       "id": "agent_prephase_py"
     },
@@ -1646,7 +1646,7 @@
       "file_type": "code",
       "source_file": "agent/prephase.py",
       "source_location": "L18",
-      "community": 2,
+      "community": 1,
       "norm_label": "prephaseresult",
       "id": "agent_prephase_prephaseresult"
     },
@@ -1655,7 +1655,7 @@
       "file_type": "code",
       "source_file": "agent/prephase.py",
       "source_location": "L28",
-      "community": 2,
+      "community": 1,
       "norm_label": "_exec_sql_text()",
       "id": "agent_prephase_exec_sql_text"
     },
@@ -1664,7 +1664,7 @@
       "file_type": "code",
       "source_file": "agent/prephase.py",
       "source_location": "L43",
-      "community": 2,
+      "community": 1,
       "norm_label": "_parse_csv_rows()",
       "id": "agent_prephase_parse_csv_rows"
     },
@@ -1673,7 +1673,7 @@
       "file_type": "code",
       "source_file": "agent/prephase.py",
       "source_location": "L54",
-      "community": 2,
+      "community": 1,
       "norm_label": "_build_schema_digest()",
       "id": "agent_prephase_build_schema_digest"
     },
@@ -1682,7 +1682,7 @@
       "file_type": "code",
       "source_file": "agent/prephase.py",
       "source_location": "L94",
-      "community": 2,
+      "community": 1,
       "norm_label": "run_prephase()",
       "id": "agent_prephase_run_prephase"
     },
@@ -1745,7 +1745,7 @@
       "file_type": "code",
       "source_file": "agent/models.py",
       "source_location": "L1",
-      "community": 4,
+      "community": 3,
       "norm_label": "models.py",
       "id": "agent_models_py"
     },
@@ -1754,7 +1754,7 @@
       "file_type": "code",
       "source_file": "agent/models.py",
       "source_location": "L6",
-      "community": 4,
+      "community": 3,
       "norm_label": "sqlplanoutput",
       "id": "agent_models_sqlplanoutput"
     },
@@ -1763,7 +1763,7 @@
       "file_type": "code",
       "source_file": "agent/models.py",
       "source_location": "L12",
-      "community": 4,
+      "community": 3,
       "norm_label": "learnoutput",
       "id": "agent_models_learnoutput"
     },
@@ -1772,7 +1772,7 @@
       "file_type": "code",
       "source_file": "agent/models.py",
       "source_location": "L19",
-      "community": 4,
+      "community": 3,
       "norm_label": "answeroutput",
       "id": "agent_models_answeroutput"
     },
@@ -1781,7 +1781,7 @@
       "file_type": "code",
       "source_file": "agent/models.py",
       "source_location": "L32",
-      "community": 4,
+      "community": 3,
       "norm_label": "pipelineevaloutput",
       "id": "agent_models_pipelineevaloutput"
     },
@@ -1790,7 +1790,7 @@
       "file_type": "code",
       "source_file": "agent/models.py",
       "source_location": "L43",
-      "community": 4,
+      "community": 3,
       "norm_label": "resolvecandidate",
       "id": "agent_models_resolvecandidate"
     },
@@ -1799,7 +1799,7 @@
       "file_type": "code",
       "source_file": "agent/models.py",
       "source_location": "L50",
-      "community": 4,
+      "community": 3,
       "norm_label": "resolveoutput",
       "id": "agent_models_resolveoutput"
     },
@@ -1808,7 +1808,7 @@
       "file_type": "code",
       "source_file": "agent/models.py",
       "source_location": "L55",
-      "community": 4,
+      "community": 3,
       "norm_label": "testgenoutput",
       "id": "agent_models_testgenoutput"
     },
@@ -1817,7 +1817,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/bitgn/harness_connect.py",
       "source_location": "L1",
-      "community": 9,
+      "community": 8,
       "norm_label": "harness_connect.py",
       "id": "home_uf_rt_ru_i_y_tischenko_git_ecom1_agent_bitgn_harness_connect_py"
     },
@@ -1826,7 +1826,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/bitgn/harness_connect.py",
       "source_location": "L15",
-      "community": 9,
+      "community": 8,
       "norm_label": "harnessserviceclientsync",
       "id": "bitgn_harness_connect_harnessserviceclientsync"
     },
@@ -1844,7 +1844,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/bitgn/harness_connect.py",
       "source_location": "L19",
-      "community": 9,
+      "community": 8,
       "norm_label": ".status()",
       "id": "bitgn_harness_connect_harnessserviceclientsync_status"
     },
@@ -1853,7 +1853,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/bitgn/harness_connect.py",
       "source_location": "L22",
-      "community": 9,
+      "community": 8,
       "norm_label": ".get_benchmark()",
       "id": "bitgn_harness_connect_harnessserviceclientsync_get_benchmark"
     },
@@ -1862,7 +1862,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/bitgn/harness_connect.py",
       "source_location": "L25",
-      "community": 9,
+      "community": 8,
       "norm_label": ".start_playground()",
       "id": "bitgn_harness_connect_harnessserviceclientsync_start_playground"
     },
@@ -1871,7 +1871,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/bitgn/harness_connect.py",
       "source_location": "L28",
-      "community": 9,
+      "community": 8,
       "norm_label": ".start_run()",
       "id": "bitgn_harness_connect_harnessserviceclientsync_start_run"
     },
@@ -1880,7 +1880,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/bitgn/harness_connect.py",
       "source_location": "L31",
-      "community": 9,
+      "community": 8,
       "norm_label": ".start_trial()",
       "id": "bitgn_harness_connect_harnessserviceclientsync_start_trial"
     },
@@ -1889,7 +1889,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/bitgn/harness_connect.py",
       "source_location": "L34",
-      "community": 9,
+      "community": 8,
       "norm_label": ".end_trial()",
       "id": "bitgn_harness_connect_harnessserviceclientsync_end_trial"
     },
@@ -1898,7 +1898,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/bitgn/harness_connect.py",
       "source_location": "L37",
-      "community": 9,
+      "community": 8,
       "norm_label": ".submit_run()",
       "id": "bitgn_harness_connect_harnessserviceclientsync_submit_run"
     },
@@ -1907,7 +1907,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/bitgn/harness_pb2.py",
       "source_location": "L1",
-      "community": 33,
+      "community": 34,
       "norm_label": "harness_pb2.py",
       "id": "home_uf_rt_ru_i_y_tischenko_git_ecom1_agent_bitgn_harness_pb2_py"
     },
@@ -1916,7 +1916,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/bitgn/__init__.py",
       "source_location": "L1",
-      "community": 34,
+      "community": 35,
       "norm_label": "__init__.py",
       "id": "home_uf_rt_ru_i_y_tischenko_git_ecom1_agent_bitgn_init_py"
     },
@@ -1970,7 +1970,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/bitgn/vm/__init__.py",
       "source_location": "L1",
-      "community": 35,
+      "community": 36,
       "norm_label": "__init__.py",
       "id": "home_uf_rt_ru_i_y_tischenko_git_ecom1_agent_bitgn_vm_init_py"
     },
@@ -1979,7 +1979,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/bitgn/vm/pcm_pb2.py",
       "source_location": "L1",
-      "community": 36,
+      "community": 37,
       "norm_label": "pcm_pb2.py",
       "id": "home_uf_rt_ru_i_y_tischenko_git_ecom1_agent_bitgn_vm_pcm_pb2_py"
     },
@@ -2114,7 +2114,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/bitgn/vm/ecom/__init__.py",
       "source_location": "L1",
-      "community": 37,
+      "community": 38,
       "norm_label": "__init__.py",
       "id": "home_uf_rt_ru_i_y_tischenko_git_ecom1_agent_bitgn_vm_ecom_init_py"
     },
@@ -2123,7 +2123,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/bitgn/vm/ecom/ecom_pb2.py",
       "source_location": "L1",
-      "community": 38,
+      "community": 39,
       "norm_label": "ecom_pb2.py",
       "id": "home_uf_rt_ru_i_y_tischenko_git_ecom1_agent_bitgn_vm_ecom_ecom_pb2_py"
     },
@@ -2258,7 +2258,7 @@
       "file_type": "code",
       "source_file": "tests/test_test_runner.py",
       "source_location": "L1",
-      "community": 22,
+      "community": 20,
       "norm_label": "test_test_runner.py",
       "id": "tests_test_test_runner_py"
     },
@@ -2267,7 +2267,7 @@
       "file_type": "code",
       "source_file": "tests/test_test_runner.py",
       "source_location": "L1",
-      "community": 22,
+      "community": 20,
       "norm_label": "test_passing_assert()",
       "id": "tests_test_test_runner_test_passing_assert"
     },
@@ -2276,7 +2276,7 @@
       "file_type": "code",
       "source_file": "tests/test_test_runner.py",
       "source_location": "L9",
-      "community": 22,
+      "community": 20,
       "norm_label": "test_failing_assert()",
       "id": "tests_test_test_runner_test_failing_assert"
     },
@@ -2285,7 +2285,7 @@
       "file_type": "code",
       "source_file": "tests/test_test_runner.py",
       "source_location": "L17",
-      "community": 22,
+      "community": 20,
       "norm_label": "test_syntax_error_in_test_code()",
       "id": "tests_test_test_runner_test_syntax_error_in_test_code"
     },
@@ -2294,7 +2294,7 @@
       "file_type": "code",
       "source_file": "tests/test_test_runner.py",
       "source_location": "L25",
-      "community": 22,
+      "community": 20,
       "norm_label": "test_timeout()",
       "id": "tests_test_test_runner_test_timeout"
     },
@@ -2303,7 +2303,7 @@
       "file_type": "code",
       "source_file": "tests/test_test_runner.py",
       "source_location": "L33",
-      "community": 22,
+      "community": 20,
       "norm_label": "test_answer_tests_signature()",
       "id": "tests_test_test_runner_test_answer_tests_signature"
     },
@@ -2474,7 +2474,7 @@
       "file_type": "code",
       "source_file": "tests/test_trace_pipeline.py",
       "source_location": "L1",
-      "community": 3,
+      "community": 2,
       "norm_label": "test_trace_pipeline.py",
       "id": "tests_test_trace_pipeline_py"
     },
@@ -2483,7 +2483,7 @@
       "file_type": "code",
       "source_file": "tests/test_trace_pipeline.py",
       "source_location": "L11",
-      "community": 3,
+      "community": 2,
       "norm_label": "_make_pre()",
       "id": "tests_test_trace_pipeline_make_pre"
     },
@@ -2492,7 +2492,7 @@
       "file_type": "code",
       "source_file": "tests/test_trace_pipeline.py",
       "source_location": "L15",
-      "community": 3,
+      "community": 2,
       "norm_label": "_exec_ok()",
       "id": "tests_test_trace_pipeline_exec_ok"
     },
@@ -2501,7 +2501,7 @@
       "file_type": "code",
       "source_file": "tests/test_trace_pipeline.py",
       "source_location": "L22",
-      "community": 3,
+      "community": 2,
       "norm_label": "reset_caches()",
       "id": "tests_test_trace_pipeline_reset_caches"
     },
@@ -2510,7 +2510,7 @@
       "file_type": "code",
       "source_file": "tests/test_trace_pipeline.py",
       "source_location": "L31",
-      "community": 3,
+      "community": 2,
       "norm_label": "_collect_trace_records()",
       "id": "tests_test_trace_pipeline_collect_trace_records"
     },
@@ -2519,7 +2519,7 @@
       "file_type": "code",
       "source_file": "tests/test_trace_pipeline.py",
       "source_location": "L38",
-      "community": 3,
+      "community": 2,
       "norm_label": "test_llm_call_records_written_on_success()",
       "id": "tests_test_trace_pipeline_test_llm_call_records_written_on_success"
     },
@@ -2528,7 +2528,7 @@
       "file_type": "code",
       "source_file": "tests/test_trace_pipeline.py",
       "source_location": "L75",
-      "community": 3,
+      "community": 2,
       "norm_label": "test_gate_check_records_written()",
       "id": "tests_test_trace_pipeline_test_gate_check_records_written"
     },
@@ -2537,7 +2537,7 @@
       "file_type": "code",
       "source_file": "tests/test_trace_pipeline.py",
       "source_location": "L106",
-      "community": 3,
+      "community": 2,
       "norm_label": "test_sql_validate_and_execute_records()",
       "id": "tests_test_trace_pipeline_test_sql_validate_and_execute_records"
     },
@@ -2546,7 +2546,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_trace_pipeline.py",
       "source_location": "L1",
-      "community": 3,
+      "community": 2,
       "norm_label": "verify pipeline instruments tracelogger at all required points.",
       "id": "tests_test_trace_pipeline_rationale_1"
     },
@@ -2555,7 +2555,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_trace_pipeline.py",
       "source_location": "L39",
-      "community": 3,
+      "community": 2,
       "norm_label": "happy path: sql_plan + answer llm_call records written.",
       "id": "tests_test_trace_pipeline_rationale_39"
     },
@@ -2564,7 +2564,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_trace_pipeline.py",
       "source_location": "L76",
-      "community": 3,
+      "community": 2,
       "norm_label": "gate_check records for security + schema gates written every cycle.",
       "id": "tests_test_trace_pipeline_rationale_76"
     },
@@ -2573,7 +2573,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_trace_pipeline.py",
       "source_location": "L107",
-      "community": 3,
+      "community": 2,
       "norm_label": "sql_validate + sql_execute records written on successful cycle.",
       "id": "tests_test_trace_pipeline_rationale_107"
     },
@@ -2582,7 +2582,7 @@
       "file_type": "code",
       "source_file": "tests/test_prephase.py",
       "source_location": "L1",
-      "community": 2,
+      "community": 1,
       "norm_label": "test_prephase.py",
       "id": "tests_test_prephase_py"
     },
@@ -2591,7 +2591,7 @@
       "file_type": "code",
       "source_file": "tests/test_prephase.py",
       "source_location": "L5",
-      "community": 2,
+      "community": 1,
       "norm_label": "_make_vm()",
       "id": "tests_test_prephase_make_vm"
     },
@@ -2600,7 +2600,7 @@
       "file_type": "code",
       "source_file": "tests/test_prephase.py",
       "source_location": "L19",
-      "community": 2,
+      "community": 1,
       "norm_label": "test_prephase_result_fields()",
       "id": "tests_test_prephase_test_prephase_result_fields"
     },
@@ -2609,7 +2609,7 @@
       "file_type": "code",
       "source_file": "tests/test_prephase.py",
       "source_location": "L29",
-      "community": 2,
+      "community": 1,
       "norm_label": "test_run_prephase_no_system_prompt_param()",
       "id": "tests_test_prephase_test_run_prephase_no_system_prompt_param"
     },
@@ -2618,7 +2618,7 @@
       "file_type": "code",
       "source_file": "tests/test_prephase.py",
       "source_location": "L36",
-      "community": 2,
+      "community": 1,
       "norm_label": "test_normal_mode_reads_only_agents_md()",
       "id": "tests_test_prephase_test_normal_mode_reads_only_agents_md"
     },
@@ -2627,7 +2627,7 @@
       "file_type": "code",
       "source_file": "tests/test_prephase.py",
       "source_location": "L44",
-      "community": 2,
+      "community": 1,
       "norm_label": "test_normal_mode_no_tree_no_context()",
       "id": "tests_test_prephase_test_normal_mode_no_tree_no_context"
     },
@@ -2636,7 +2636,7 @@
       "file_type": "code",
       "source_file": "tests/test_prephase.py",
       "source_location": "L52",
-      "community": 2,
+      "community": 1,
       "norm_label": "test_agents_md_not_found()",
       "id": "tests_test_prephase_test_agents_md_not_found"
     },
@@ -2645,7 +2645,7 @@
       "file_type": "code",
       "source_file": "tests/test_prephase.py",
       "source_location": "L61",
-      "community": 2,
+      "community": 1,
       "norm_label": "test_prephase_result_has_db_schema_field()",
       "id": "tests_test_prephase_test_prephase_result_has_db_schema_field"
     },
@@ -2654,7 +2654,7 @@
       "file_type": "code",
       "source_file": "tests/test_prephase.py",
       "source_location": "L68",
-      "community": 2,
+      "community": 1,
       "norm_label": "test_normal_mode_reads_schema()",
       "id": "tests_test_prephase_test_normal_mode_reads_schema"
     },
@@ -2663,7 +2663,7 @@
       "file_type": "code",
       "source_file": "tests/test_prephase.py",
       "source_location": "L81",
-      "community": 2,
+      "community": 1,
       "norm_label": "test_schema_exec_fail_sets_empty_db_schema()",
       "id": "tests_test_prephase_test_schema_exec_fail_sets_empty_db_schema"
     },
@@ -2672,7 +2672,7 @@
       "file_type": "code",
       "source_file": "tests/test_prephase.py",
       "source_location": "L91",
-      "community": 2,
+      "community": 1,
       "norm_label": "_make_vm_with_schema()",
       "id": "tests_test_prephase_make_vm_with_schema"
     },
@@ -2681,7 +2681,7 @@
       "file_type": "code",
       "source_file": "tests/test_prephase.py",
       "source_location": "L121",
-      "community": 2,
+      "community": 1,
       "norm_label": "test_agents_md_index_populated()",
       "id": "tests_test_prephase_test_agents_md_index_populated"
     },
@@ -2690,7 +2690,7 @@
       "file_type": "code",
       "source_file": "tests/test_prephase.py",
       "source_location": "L129",
-      "community": 2,
+      "community": 1,
       "norm_label": "test_agents_md_index_empty_when_no_agents_md()",
       "id": "tests_test_prephase_test_agents_md_index_empty_when_no_agents_md"
     },
@@ -2699,7 +2699,7 @@
       "file_type": "code",
       "source_file": "tests/test_prephase.py",
       "source_location": "L139",
-      "community": 2,
+      "community": 1,
       "norm_label": "test_schema_digest_has_tables()",
       "id": "tests_test_prephase_test_schema_digest_has_tables"
     },
@@ -2708,7 +2708,7 @@
       "file_type": "code",
       "source_file": "tests/test_prephase.py",
       "source_location": "L147",
-      "community": 2,
+      "community": 1,
       "norm_label": "test_schema_digest_has_top_keys()",
       "id": "tests_test_prephase_test_schema_digest_has_top_keys"
     },
@@ -2717,7 +2717,7 @@
       "file_type": "code",
       "source_file": "tests/test_prephase.py",
       "source_location": "L155",
-      "community": 2,
+      "community": 1,
       "norm_label": "test_schema_digest_value_type_map()",
       "id": "tests_test_prephase_test_schema_digest_value_type_map"
     },
@@ -2726,7 +2726,7 @@
       "file_type": "code",
       "source_file": "tests/test_prephase.py",
       "source_location": "L164",
-      "community": 2,
+      "community": 1,
       "norm_label": "test_schema_digest_empty_on_exec_failure()",
       "id": "tests_test_prephase_test_schema_digest_empty_on_exec_failure"
     },
@@ -2735,7 +2735,7 @@
       "file_type": "code",
       "source_file": "tests/test_prephase.py",
       "source_location": "L174",
-      "community": 2,
+      "community": 1,
       "norm_label": "test_prephase_calls_bin_date_and_bin_id()",
       "id": "tests_test_prephase_test_prephase_calls_bin_date_and_bin_id"
     },
@@ -2744,7 +2744,7 @@
       "file_type": "code",
       "source_file": "tests/test_prephase.py",
       "source_location": "L201",
-      "community": 2,
+      "community": 1,
       "norm_label": "test_prephase_bin_date_failure_produces_empty_string()",
       "id": "tests_test_prephase_test_prephase_bin_date_failure_produces_empty_string"
     },
@@ -2753,7 +2753,7 @@
       "file_type": "code",
       "source_file": "tests/test_prephase.py",
       "source_location": "L219",
-      "community": 2,
+      "community": 1,
       "norm_label": "test_prephase_schema_tables_includes_carts()",
       "id": "tests_test_prephase_test_prephase_schema_tables_includes_carts"
     },
@@ -2762,7 +2762,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_prephase.py",
       "source_location": "L20",
-      "community": 2,
+      "community": 1,
       "norm_label": "prephaseresult has exactly the expected fields including agent_id and current_da",
       "id": "tests_test_prephase_rationale_20"
     },
@@ -2771,7 +2771,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_prephase.py",
       "source_location": "L30",
-      "community": 2,
+      "community": 1,
       "norm_label": "run_prephase() takes only (vm, task_text) \u2014 no system_prompt_text.",
       "id": "tests_test_prephase_rationale_30"
     },
@@ -2780,7 +2780,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_prephase.py",
       "source_location": "L37",
-      "community": 2,
+      "community": 1,
       "norm_label": "normal mode: exactly 1 vm.read call (agents.md).",
       "id": "tests_test_prephase_rationale_37"
     },
@@ -2789,7 +2789,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_prephase.py",
       "source_location": "L45",
-      "community": 2,
+      "community": 1,
       "norm_label": "vm.tree and vm.context are never called.",
       "id": "tests_test_prephase_rationale_45"
     },
@@ -2798,7 +2798,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_prephase.py",
       "source_location": "L53",
-      "community": 2,
+      "community": 1,
       "norm_label": "if agents.md missing, agents_md_content is empty, no crash.",
       "id": "tests_test_prephase_rationale_53"
     },
@@ -2807,7 +2807,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_prephase.py",
       "source_location": "L62",
-      "community": 2,
+      "community": 1,
       "norm_label": "prephaseresult now has db_schema field.",
       "id": "tests_test_prephase_rationale_62"
     },
@@ -2816,7 +2816,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_prephase.py",
       "source_location": "L69",
-      "community": 2,
+      "community": 1,
       "norm_label": "normal mode calls vm.exec for schema and digest queries.",
       "id": "tests_test_prephase_rationale_69"
     },
@@ -2825,7 +2825,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_prephase.py",
       "source_location": "L82",
-      "community": 2,
+      "community": 1,
       "norm_label": "vm.exec exception \u2192 db_schema is empty string, no crash.",
       "id": "tests_test_prephase_rationale_82"
     },
@@ -2834,7 +2834,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_prephase.py",
       "source_location": "L92",
-      "community": 2,
+      "community": 1,
       "norm_label": "vm mock that handles read (agents.md) and exec (.schema + pragma + select).",
       "id": "tests_test_prephase_rationale_92"
     },
@@ -2843,7 +2843,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_prephase.py",
       "source_location": "L122",
-      "community": 2,
+      "community": 1,
       "norm_label": "agents_md_index has parsed sections from agents.md.",
       "id": "tests_test_prephase_rationale_122"
     },
@@ -2852,7 +2852,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_prephase.py",
       "source_location": "L130",
-      "community": 2,
+      "community": 1,
       "norm_label": "agents_md_index is empty dict if agents.md not found.",
       "id": "tests_test_prephase_rationale_130"
     },
@@ -2861,7 +2861,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_prephase.py",
       "source_location": "L140",
-      "community": 2,
+      "community": 1,
       "norm_label": "schema_digest['tables'] has product-related tables.",
       "id": "tests_test_prephase_rationale_140"
     },
@@ -2870,7 +2870,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_prephase.py",
       "source_location": "L148",
-      "community": 2,
+      "community": 1,
       "norm_label": "schema_digest['top_keys'] lists top property keys.",
       "id": "tests_test_prephase_rationale_148"
     },
@@ -2879,7 +2879,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_prephase.py",
       "source_location": "L156",
-      "community": 2,
+      "community": 1,
       "norm_label": "schema_digest['value_type_map'] maps key to text/number.",
       "id": "tests_test_prephase_rationale_156"
     },
@@ -2888,7 +2888,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_prephase.py",
       "source_location": "L165",
-      "community": 2,
+      "community": 1,
       "norm_label": "schema_digest is empty dict if all exec calls fail.",
       "id": "tests_test_prephase_rationale_165"
     },
@@ -2897,7 +2897,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_prephase.py",
       "source_location": "L175",
-      "community": 2,
+      "community": 1,
       "norm_label": "run_prephase() calls vm.exec with /bin/date and /bin/id after agents.md read.",
       "id": "tests_test_prephase_rationale_175"
     },
@@ -2906,7 +2906,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_prephase.py",
       "source_location": "L202",
-      "community": 2,
+      "community": 1,
       "norm_label": "if /bin/date or /bin/id raises, agent_id/current_date are empty strings \u2014 no cra",
       "id": "tests_test_prephase_rationale_202"
     },
@@ -2915,7 +2915,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_prephase.py",
       "source_location": "L220",
-      "community": 2,
+      "community": 1,
       "norm_label": "_schema_tables includes carts and cart_items.",
       "id": "tests_test_prephase_rationale_220"
     },
@@ -2924,7 +2924,7 @@
       "file_type": "code",
       "source_file": "tests/test_evaluator.py",
       "source_location": "L1",
-      "community": 1,
+      "community": 19,
       "norm_label": "test_evaluator.py",
       "id": "tests_test_evaluator_py"
     },
@@ -2933,7 +2933,7 @@
       "file_type": "code",
       "source_file": "tests/test_evaluator.py",
       "source_location": "L9",
-      "community": 1,
+      "community": 19,
       "norm_label": "_make_eval_input()",
       "id": "tests_test_evaluator_make_eval_input"
     },
@@ -2942,7 +2942,7 @@
       "file_type": "code",
       "source_file": "tests/test_evaluator.py",
       "source_location": "L23",
-      "community": 1,
+      "community": 19,
       "norm_label": "test_run_evaluator_writes_to_log()",
       "id": "tests_test_evaluator_test_run_evaluator_writes_to_log"
     },
@@ -2951,7 +2951,7 @@
       "file_type": "code",
       "source_file": "tests/test_evaluator.py",
       "source_location": "L47",
-      "community": 1,
+      "community": 19,
       "norm_label": "test_run_evaluator_llm_failure_returns_none()",
       "id": "tests_test_evaluator_test_run_evaluator_llm_failure_returns_none"
     },
@@ -2960,7 +2960,7 @@
       "file_type": "code",
       "source_file": "tests/test_evaluator.py",
       "source_location": "L57",
-      "community": 1,
+      "community": 19,
       "norm_label": "test_run_evaluator_parse_failure_returns_none()",
       "id": "tests_test_evaluator_test_run_evaluator_parse_failure_returns_none"
     },
@@ -2969,7 +2969,7 @@
       "file_type": "code",
       "source_file": "tests/test_evaluator.py",
       "source_location": "L66",
-      "community": 1,
+      "community": 19,
       "norm_label": "test_run_evaluator_exception_returns_none()",
       "id": "tests_test_evaluator_test_run_evaluator_exception_returns_none"
     },
@@ -2978,7 +2978,7 @@
       "file_type": "code",
       "source_file": "tests/test_evaluator.py",
       "source_location": "L75",
-      "community": 1,
+      "community": 19,
       "norm_label": "test_build_eval_system_injects_existing_blocks()",
       "id": "tests_test_evaluator_test_build_eval_system_injects_existing_blocks"
     },
@@ -2987,7 +2987,7 @@
       "file_type": "code",
       "source_file": "tests/test_evaluator.py",
       "source_location": "L90",
-      "community": 1,
+      "community": 19,
       "norm_label": "test_run_evaluator_loads_knowledge_into_system_prompt()",
       "id": "tests_test_evaluator_test_run_evaluator_loads_knowledge_into_system_prompt"
     },
@@ -2996,7 +2996,7 @@
       "file_type": "code",
       "source_file": "tests/test_evaluator.py",
       "source_location": "L119",
-      "community": 1,
+      "community": 19,
       "norm_label": "test_task_id_written_to_log()",
       "id": "tests_test_evaluator_test_task_id_written_to_log"
     },
@@ -3005,7 +3005,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_evaluator.py",
       "source_location": "L48",
-      "community": 1,
+      "community": 19,
       "norm_label": "llm failure \u2192 returns none, no crash.",
       "id": "tests_test_evaluator_rationale_48"
     },
@@ -3014,7 +3014,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_evaluator.py",
       "source_location": "L58",
-      "community": 1,
+      "community": 19,
       "norm_label": "unparseable llm response \u2192 returns none, no crash.",
       "id": "tests_test_evaluator_rationale_58"
     },
@@ -3023,7 +3023,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_evaluator.py",
       "source_location": "L67",
-      "community": 1,
+      "community": 19,
       "norm_label": "any exception in evaluator \u2192 returns none (fail-open).",
       "id": "tests_test_evaluator_rationale_67"
     },
@@ -3032,7 +3032,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_evaluator.py",
       "source_location": "L91",
-      "community": 1,
+      "community": 19,
       "norm_label": "run_evaluator must pass existing content from knowledge_loader into the system p",
       "id": "tests_test_evaluator_rationale_91"
     },
@@ -3041,7 +3041,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/tests/test_trace_main.py",
       "source_location": "L1",
-      "community": 24,
+      "community": 25,
       "norm_label": "test_trace_main.py",
       "id": "home_uf_rt_ru_i_y_tischenko_\u0434\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b_git_ecom1_agent_tests_test_trace_main_py"
     },
@@ -3050,7 +3050,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/tests/test_trace_main.py",
       "source_location": "L6",
-      "community": 24,
+      "community": 25,
       "norm_label": "test_run_single_task_creates_jsonl_and_removes_log()",
       "id": "tests_test_trace_main_test_run_single_task_creates_jsonl_and_removes_log"
     },
@@ -3059,7 +3059,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/tests/test_trace_main.py",
       "source_location": "L42",
-      "community": 24,
+      "community": 25,
       "norm_label": "test_main_log_contains_only_stats()",
       "id": "tests_test_trace_main_test_main_log_contains_only_stats"
     },
@@ -3068,7 +3068,7 @@
       "file_type": "rationale",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/tests/test_trace_main.py",
       "source_location": "L1",
-      "community": 24,
+      "community": 25,
       "norm_label": "verify main.py creates/closes tracelogger and calls log_header + log_task_result",
       "id": "tests_test_trace_main_rationale_1"
     },
@@ -3077,7 +3077,7 @@
       "file_type": "rationale",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/tests/test_trace_main.py",
       "source_location": "L7",
-      "community": 24,
+      "community": 25,
       "norm_label": "after _run_single_task: .jsonl created, no .log file, log_header + log_task_resu",
       "id": "tests_test_trace_main_rationale_7"
     },
@@ -3086,7 +3086,7 @@
       "file_type": "rationale",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/tests/test_trace_main.py",
       "source_location": "L43",
-      "community": 24,
+      "community": 25,
       "norm_label": "main.log must contain stats rows but not pipeline cycle lines.",
       "id": "tests_test_trace_main_rationale_43"
     },
@@ -3149,7 +3149,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/tests/__init__.py",
       "source_location": "L1",
-      "community": 39,
+      "community": 40,
       "norm_label": "__init__.py",
       "id": "home_uf_rt_ru_i_y_tischenko_git_ecom1_agent_tests_init_py"
     },
@@ -3158,7 +3158,7 @@
       "file_type": "code",
       "source_file": "tests/conftest.py",
       "source_location": "L1",
-      "community": 29,
+      "community": 30,
       "norm_label": "conftest.py",
       "id": "tests_conftest_py"
     },
@@ -3167,7 +3167,7 @@
       "file_type": "code",
       "source_file": "tests/conftest.py",
       "source_location": "L7",
-      "community": 29,
+      "community": 30,
       "norm_label": "reset_pipeline_caches()",
       "id": "tests_conftest_reset_pipeline_caches"
     },
@@ -3176,7 +3176,7 @@
       "file_type": "rationale",
       "source_file": "tests/conftest.py",
       "source_location": "L1",
-      "community": 29,
+      "community": 30,
       "norm_label": "reset module-level caches between tests.",
       "id": "tests_conftest_rationale_1"
     },
@@ -3185,7 +3185,7 @@
       "file_type": "code",
       "source_file": "tests/test_pipeline_tdd.py",
       "source_location": "L1",
-      "community": 20,
+      "community": 22,
       "norm_label": "test_pipeline_tdd.py",
       "id": "tests_test_pipeline_tdd_py"
     },
@@ -3194,7 +3194,7 @@
       "file_type": "code",
       "source_file": "tests/test_pipeline_tdd.py",
       "source_location": "L8",
-      "community": 20,
+      "community": 22,
       "norm_label": "_make_pre()",
       "id": "tests_test_pipeline_tdd_make_pre"
     },
@@ -3203,7 +3203,7 @@
       "file_type": "code",
       "source_file": "tests/test_pipeline_tdd.py",
       "source_location": "L16",
-      "community": 20,
+      "community": 22,
       "norm_label": "_test_gen_json()",
       "id": "tests_test_pipeline_tdd_test_gen_json"
     },
@@ -3212,7 +3212,7 @@
       "file_type": "code",
       "source_file": "tests/test_pipeline_tdd.py",
       "source_location": "L24",
-      "community": 20,
+      "community": 22,
       "norm_label": "test_test_gen_parse_failure_hard_stop()",
       "id": "tests_test_pipeline_tdd_test_test_gen_parse_failure_hard_stop"
     },
@@ -3221,7 +3221,7 @@
       "file_type": "code",
       "source_file": "tests/test_pipeline_tdd.py",
       "source_location": "L45",
-      "community": 20,
+      "community": 22,
       "norm_label": "_sql_plan_json()",
       "id": "tests_test_pipeline_tdd_sql_plan_json"
     },
@@ -3230,7 +3230,7 @@
       "file_type": "code",
       "source_file": "tests/test_pipeline_tdd.py",
       "source_location": "L52",
-      "community": 20,
+      "community": 22,
       "norm_label": "_answer_json()",
       "id": "tests_test_pipeline_tdd_answer_json"
     },
@@ -3239,7 +3239,7 @@
       "file_type": "code",
       "source_file": "tests/test_pipeline_tdd.py",
       "source_location": "L62",
-      "community": 20,
+      "community": 22,
       "norm_label": "_make_exec_result()",
       "id": "tests_test_pipeline_tdd_make_exec_result"
     },
@@ -3248,7 +3248,7 @@
       "file_type": "code",
       "source_file": "tests/test_pipeline_tdd.py",
       "source_location": "L68",
-      "community": 20,
+      "community": 22,
       "norm_label": "test_tdd_disabled_no_regression()",
       "id": "tests_test_pipeline_tdd_test_tdd_disabled_no_regression"
     },
@@ -3257,7 +3257,7 @@
       "file_type": "code",
       "source_file": "tests/test_pipeline_tdd.py",
       "source_location": "L92",
-      "community": 20,
+      "community": 22,
       "norm_label": "test_tdd_happy_path()",
       "id": "tests_test_pipeline_tdd_test_tdd_happy_path"
     },
@@ -3266,7 +3266,7 @@
       "file_type": "code",
       "source_file": "tests/test_pipeline_tdd.py",
       "source_location": "L116",
-      "community": 20,
+      "community": 22,
       "norm_label": "test_tdd_sql_test_failure_triggers_learn_and_retry()",
       "id": "tests_test_pipeline_tdd_test_tdd_sql_test_failure_triggers_learn_and_retry"
     },
@@ -3275,7 +3275,7 @@
       "file_type": "code",
       "source_file": "tests/test_pipeline_tdd.py",
       "source_location": "L153",
-      "community": 20,
+      "community": 22,
       "norm_label": "test_tdd_answer_test_failure_skips_sql_retry()",
       "id": "tests_test_pipeline_tdd_test_tdd_answer_test_failure_skips_sql_retry"
     },
@@ -3284,7 +3284,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_pipeline_tdd.py",
       "source_location": "L25",
-      "community": 20,
+      "community": 22,
       "norm_label": "test_gen returns garbage \u2192 vm.answer(outcome_none_clarification), sql never runs",
       "id": "tests_test_pipeline_tdd_rationale_25"
     },
@@ -3293,7 +3293,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_pipeline_tdd.py",
       "source_location": "L69",
-      "community": 20,
+      "community": 22,
       "norm_label": "tdd_enabled=0 \u2192 pipeline identical to current; run_tests never called.",
       "id": "tests_test_pipeline_tdd_rationale_69"
     },
@@ -3302,7 +3302,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_pipeline_tdd.py",
       "source_location": "L93",
-      "community": 20,
+      "community": 22,
       "norm_label": "tdd_enabled=1 + all tests pass \u2192 outcome_ok, vm.answer called once.",
       "id": "tests_test_pipeline_tdd_rationale_93"
     },
@@ -3311,7 +3311,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_pipeline_tdd.py",
       "source_location": "L117",
-      "community": 20,
+      "community": 22,
       "norm_label": "sql_tests fail \u2192 learn + sql_plan retry (_skip_sql=false) \u2192 sql_tests pass \u2192 ans",
       "id": "tests_test_pipeline_tdd_rationale_117"
     },
@@ -3320,7 +3320,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_pipeline_tdd.py",
       "source_location": "L154",
-      "community": 20,
+      "community": 22,
       "norm_label": "answer_tests fail \u2192 learn + _skip_sql=true \u2192 next cycle skips sql, retries answe",
       "id": "tests_test_pipeline_tdd_rationale_154"
     },
@@ -3329,7 +3329,7 @@
       "file_type": "code",
       "source_file": "tests/test_agents_md_parser.py",
       "source_location": "L1",
-      "community": 2,
+      "community": 1,
       "norm_label": "test_agents_md_parser.py",
       "id": "tests_test_agents_md_parser_py"
     },
@@ -3338,7 +3338,7 @@
       "file_type": "code",
       "source_file": "tests/test_agents_md_parser.py",
       "source_location": "L5",
-      "community": 2,
+      "community": 1,
       "norm_label": "test_empty_string_returns_empty_dict()",
       "id": "tests_test_agents_md_parser_test_empty_string_returns_empty_dict"
     },
@@ -3347,7 +3347,7 @@
       "file_type": "code",
       "source_file": "tests/test_agents_md_parser.py",
       "source_location": "L9",
-      "community": 2,
+      "community": 1,
       "norm_label": "test_no_sections_returns_empty_dict()",
       "id": "tests_test_agents_md_parser_test_no_sections_returns_empty_dict"
     },
@@ -3356,7 +3356,7 @@
       "file_type": "code",
       "source_file": "tests/test_agents_md_parser.py",
       "source_location": "L13",
-      "community": 2,
+      "community": 1,
       "norm_label": "test_single_section()",
       "id": "tests_test_agents_md_parser_test_single_section"
     },
@@ -3365,7 +3365,7 @@
       "file_type": "code",
       "source_file": "tests/test_agents_md_parser.py",
       "source_location": "L20",
-      "community": 2,
+      "community": 1,
       "norm_label": "test_multiple_sections()",
       "id": "tests_test_agents_md_parser_test_multiple_sections"
     },
@@ -3374,7 +3374,7 @@
       "file_type": "code",
       "source_file": "tests/test_agents_md_parser.py",
       "source_location": "L28",
-      "community": 2,
+      "community": 1,
       "norm_label": "test_section_name_lowercased_and_underscored()",
       "id": "tests_test_agents_md_parser_test_section_name_lowercased_and_underscored"
     },
@@ -3383,7 +3383,7 @@
       "file_type": "code",
       "source_file": "tests/test_agents_md_parser.py",
       "source_location": "L34",
-      "community": 2,
+      "community": 1,
       "norm_label": "test_leading_content_before_first_section_ignored()",
       "id": "tests_test_agents_md_parser_test_leading_content_before_first_section_ignored"
     },
@@ -3392,7 +3392,7 @@
       "file_type": "code",
       "source_file": "tests/test_agents_md_parser.py",
       "source_location": "L40",
-      "community": 2,
+      "community": 1,
       "norm_label": "test_empty_section_has_empty_lines()",
       "id": "tests_test_agents_md_parser_test_empty_section_has_empty_lines"
     },
@@ -3401,7 +3401,7 @@
       "file_type": "code",
       "source_file": "tests/test_agents_md_parser.py",
       "source_location": "L47",
-      "community": 2,
+      "community": 1,
       "norm_label": "test_h1_heading_not_treated_as_section()",
       "id": "tests_test_agents_md_parser_test_h1_heading_not_treated_as_section"
     },
@@ -3410,7 +3410,7 @@
       "file_type": "code",
       "source_file": "tests/test_ref_bugs.py",
       "source_location": "L1",
-      "community": 8,
+      "community": 7,
       "norm_label": "test_ref_bugs.py",
       "id": "tests_test_ref_bugs_py"
     },
@@ -3419,7 +3419,7 @@
       "file_type": "code",
       "source_file": "tests/test_ref_bugs.py",
       "source_location": "L9",
-      "community": 8,
+      "community": 7,
       "norm_label": "_make_pre()",
       "id": "tests_test_ref_bugs_make_pre"
     },
@@ -3428,7 +3428,7 @@
       "file_type": "code",
       "source_file": "tests/test_ref_bugs.py",
       "source_location": "L19",
-      "community": 8,
+      "community": 7,
       "norm_label": "test_obj_mutation_tool_function_as_string()",
       "id": "tests_test_ref_bugs_test_obj_mutation_tool_function_as_string"
     },
@@ -3437,7 +3437,7 @@
       "file_type": "code",
       "source_file": "tests/test_ref_bugs.py",
       "source_location": "L25",
-      "community": 8,
+      "community": 7,
       "norm_label": "test_obj_mutation_tool_function_as_dict_with_mutation_tool()",
       "id": "tests_test_ref_bugs_test_obj_mutation_tool_function_as_dict_with_mutation_tool"
     },
@@ -3446,7 +3446,7 @@
       "file_type": "code",
       "source_file": "tests/test_ref_bugs.py",
       "source_location": "L31",
-      "community": 8,
+      "community": 7,
       "norm_label": "test_obj_mutation_tool_top_level_tool()",
       "id": "tests_test_ref_bugs_test_obj_mutation_tool_top_level_tool"
     },
@@ -3455,7 +3455,7 @@
       "file_type": "code",
       "source_file": "tests/test_ref_bugs.py",
       "source_location": "L37",
-      "community": 8,
+      "community": 7,
       "norm_label": "test_obj_mutation_tool_no_mutation()",
       "id": "tests_test_ref_bugs_test_obj_mutation_tool_no_mutation"
     },
@@ -3464,7 +3464,7 @@
       "file_type": "code",
       "source_file": "tests/test_ref_bugs.py",
       "source_location": "L45",
-      "community": 8,
+      "community": 7,
       "norm_label": "test_extract_sku_refs_store_id_only()",
       "id": "tests_test_ref_bugs_test_extract_sku_refs_store_id_only"
     },
@@ -3473,7 +3473,7 @@
       "file_type": "code",
       "source_file": "tests/test_ref_bugs.py",
       "source_location": "L52",
-      "community": 8,
+      "community": 7,
       "norm_label": "test_extract_sku_refs_sku_and_store_id()",
       "id": "tests_test_ref_bugs_test_extract_sku_refs_sku_and_store_id"
     },
@@ -3482,7 +3482,7 @@
       "file_type": "code",
       "source_file": "tests/test_ref_bugs.py",
       "source_location": "L62",
-      "community": 8,
+      "community": 7,
       "norm_label": "test_build_answer_user_msg_preserves_full_path()",
       "id": "tests_test_ref_bugs_test_build_answer_user_msg_preserves_full_path"
     },
@@ -3491,7 +3491,7 @@
       "file_type": "code",
       "source_file": "tests/test_ref_bugs.py",
       "source_location": "L75",
-      "community": 8,
+      "community": 7,
       "norm_label": "test_clean_refs_exact_match_preserves_full_path()",
       "id": "tests_test_ref_bugs_test_clean_refs_exact_match_preserves_full_path"
     },
@@ -3500,7 +3500,7 @@
       "file_type": "code",
       "source_file": "tests/test_ref_bugs.py",
       "source_location": "L84",
-      "community": 8,
+      "community": 7,
       "norm_label": "test_clean_refs_passthrough_when_result_paths_empty()",
       "id": "tests_test_ref_bugs_test_clean_refs_passthrough_when_result_paths_empty"
     },
@@ -3509,7 +3509,7 @@
       "file_type": "code",
       "source_file": "tests/test_ref_bugs.py",
       "source_location": "L92",
-      "community": 8,
+      "community": 7,
       "norm_label": "test_clean_refs_excludes_unmatched_ref()",
       "id": "tests_test_ref_bugs_test_clean_refs_excludes_unmatched_ref"
     },
@@ -3518,7 +3518,7 @@
       "file_type": "code",
       "source_file": "tests/test_ref_bugs.py",
       "source_location": "L103",
-      "community": 8,
+      "community": 7,
       "norm_label": "test_run_pipeline_unhandled_exception_calls_vm_answer_once()",
       "id": "tests_test_ref_bugs_test_run_pipeline_unhandled_exception_calls_vm_answer_once"
     },
@@ -3527,7 +3527,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_ref_bugs.py",
       "source_location": "L20",
-      "community": 8,
+      "community": 7,
       "norm_label": "bug t21: 'function' field is a string \u2014 must not crash, must return none.",
       "id": "tests_test_ref_bugs_rationale_20"
     },
@@ -3536,7 +3536,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_ref_bugs.py",
       "source_location": "L26",
-      "community": 8,
+      "community": 7,
       "norm_label": "normal case: 'function' is a dict with a valid mutation tool name.",
       "id": "tests_test_ref_bugs_rationale_26"
     },
@@ -3545,7 +3545,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_ref_bugs.py",
       "source_location": "L32",
-      "community": 8,
+      "community": 7,
       "norm_label": "top-level 'tool' key wins regardless of 'function'.",
       "id": "tests_test_ref_bugs_rationale_32"
     },
@@ -3554,7 +3554,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_ref_bugs.py",
       "source_location": "L38",
-      "community": 8,
+      "community": 7,
       "norm_label": "read-type tool returns none.",
       "id": "tests_test_ref_bugs_rationale_38"
     },
@@ -3563,7 +3563,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_ref_bugs.py",
       "source_location": "L46",
-      "community": 8,
+      "community": 7,
       "norm_label": "bug t17: store_id column must produce /proc/stores/{id}.json.",
       "id": "tests_test_ref_bugs_rationale_46"
     },
@@ -3572,7 +3572,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_ref_bugs.py",
       "source_location": "L53",
-      "community": 8,
+      "community": 7,
       "norm_label": "inventory query has both sku and store_id \u2014 both refs must appear.",
       "id": "tests_test_ref_bugs_rationale_53"
     },
@@ -3581,7 +3581,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_ref_bugs.py",
       "source_location": "L63",
-      "community": 8,
+      "community": 7,
       "norm_label": "bug t03: auto_refs must show full hierarchical paths, not stem-only.",
       "id": "tests_test_ref_bugs_rationale_63"
     },
@@ -3590,7 +3590,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_ref_bugs.py",
       "source_location": "L76",
-      "community": 8,
+      "community": 7,
       "norm_label": "clean_refs must use exact path match, not stem match.",
       "id": "tests_test_ref_bugs_rationale_76"
     },
@@ -3599,7 +3599,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_ref_bugs.py",
       "source_location": "L85",
-      "community": 8,
+      "community": 7,
       "norm_label": "clean_refs passes all grounding_refs through when sku_refs is empty.",
       "id": "tests_test_ref_bugs_rationale_85"
     },
@@ -3608,7 +3608,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_ref_bugs.py",
       "source_location": "L93",
-      "community": 8,
+      "community": 7,
       "norm_label": "refs not in sku_refs are excluded from clean_refs.",
       "id": "tests_test_ref_bugs_rationale_93"
     },
@@ -3617,7 +3617,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_ref_bugs.py",
       "source_location": "L104",
-      "community": 8,
+      "community": 7,
       "norm_label": "bug t21: unhandled exception in for-loop must call vm.answer exactly once.",
       "id": "tests_test_ref_bugs_rationale_104"
     },
@@ -3626,7 +3626,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/tests/test_knowledge_loader.py",
       "source_location": "L1",
-      "community": 25,
+      "community": 26,
       "norm_label": "test_knowledge_loader.py",
       "id": "home_uf_rt_ru_i_y_tischenko_\u0434\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b_git_ecom1_agent_tests_test_knowledge_loader_py"
     },
@@ -3635,7 +3635,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/tests/test_knowledge_loader.py",
       "source_location": "L5",
-      "community": 25,
+      "community": 26,
       "norm_label": "test_existing_rules_text_includes_id()",
       "id": "tests_test_knowledge_loader_test_existing_rules_text_includes_id"
     },
@@ -3644,7 +3644,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/tests/test_knowledge_loader.py",
       "source_location": "L16",
-      "community": 25,
+      "community": 26,
       "norm_label": "test_existing_rules_text_skips_missing_fields()",
       "id": "tests_test_knowledge_loader_test_existing_rules_text_skips_missing_fields"
     },
@@ -3653,7 +3653,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/tests/test_knowledge_loader.py",
       "source_location": "L25",
-      "community": 25,
+      "community": 26,
       "norm_label": "test_existing_security_text_includes_id_message()",
       "id": "tests_test_knowledge_loader_test_existing_security_text_includes_id_message"
     },
@@ -3662,7 +3662,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/tests/test_knowledge_loader.py",
       "source_location": "L36",
-      "community": 25,
+      "community": 26,
       "norm_label": "test_existing_prompts_text_includes_main_and_optimized()",
       "id": "tests_test_knowledge_loader_test_existing_prompts_text_includes_main_and_optimized"
     },
@@ -3671,7 +3671,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/tests/test_knowledge_loader.py",
       "source_location": "L52",
-      "community": 25,
+      "community": 26,
       "norm_label": "test_existing_prompts_text_empty()",
       "id": "tests_test_knowledge_loader_test_existing_prompts_text_empty"
     },
@@ -3680,7 +3680,7 @@
       "file_type": "code",
       "source_file": "tests/test_trace.py",
       "source_location": "L1",
-      "community": 3,
+      "community": 2,
       "norm_label": "test_trace.py",
       "id": "tests_test_trace_py"
     },
@@ -3689,7 +3689,7 @@
       "file_type": "code",
       "source_file": "tests/test_trace.py",
       "source_location": "L8",
-      "community": 3,
+      "community": 2,
       "norm_label": "_read_records()",
       "id": "tests_test_trace_read_records"
     },
@@ -3698,7 +3698,7 @@
       "file_type": "code",
       "source_file": "tests/test_trace.py",
       "source_location": "L12",
-      "community": 3,
+      "community": 2,
       "norm_label": "test_get_trace_none_by_default()",
       "id": "tests_test_trace_test_get_trace_none_by_default"
     },
@@ -3707,7 +3707,7 @@
       "file_type": "code",
       "source_file": "tests/test_trace.py",
       "source_location": "L16",
-      "community": 3,
+      "community": 2,
       "norm_label": "test_set_and_get_trace()",
       "id": "tests_test_trace_test_set_and_get_trace"
     },
@@ -3716,7 +3716,7 @@
       "file_type": "code",
       "source_file": "tests/test_trace.py",
       "source_location": "L25",
-      "community": 3,
+      "community": 2,
       "norm_label": "test_header_record()",
       "id": "tests_test_trace_test_header_record"
     },
@@ -3725,7 +3725,7 @@
       "file_type": "code",
       "source_file": "tests/test_trace.py",
       "source_location": "L40",
-      "community": 3,
+      "community": 2,
       "norm_label": "test_llm_call_deduplication()",
       "id": "tests_test_trace_test_llm_call_deduplication"
     },
@@ -3734,7 +3734,7 @@
       "file_type": "code",
       "source_file": "tests/test_trace.py",
       "source_location": "L59",
-      "community": 3,
+      "community": 2,
       "norm_label": "test_llm_call_new_system_writes_new_header_system()",
       "id": "tests_test_trace_test_llm_call_new_system_writes_new_header_system"
     },
@@ -3743,7 +3743,7 @@
       "file_type": "code",
       "source_file": "tests/test_trace.py",
       "source_location": "L69",
-      "community": 3,
+      "community": 2,
       "norm_label": "test_gate_check_record()",
       "id": "tests_test_trace_test_gate_check_record"
     },
@@ -3752,7 +3752,7 @@
       "file_type": "code",
       "source_file": "tests/test_trace.py",
       "source_location": "L82",
-      "community": 3,
+      "community": 2,
       "norm_label": "test_gate_check_not_blocked()",
       "id": "tests_test_trace_test_gate_check_not_blocked"
     },
@@ -3761,7 +3761,7 @@
       "file_type": "code",
       "source_file": "tests/test_trace.py",
       "source_location": "L92",
-      "community": 3,
+      "community": 2,
       "norm_label": "test_sql_validate_record()",
       "id": "tests_test_trace_test_sql_validate_record"
     },
@@ -3770,7 +3770,7 @@
       "file_type": "code",
       "source_file": "tests/test_trace.py",
       "source_location": "L103",
-      "community": 3,
+      "community": 2,
       "norm_label": "test_sql_execute_record()",
       "id": "tests_test_trace_test_sql_execute_record"
     },
@@ -3779,7 +3779,7 @@
       "file_type": "code",
       "source_file": "tests/test_trace.py",
       "source_location": "L114",
-      "community": 3,
+      "community": 2,
       "norm_label": "test_resolve_exec_record()",
       "id": "tests_test_trace_test_resolve_exec_record"
     },
@@ -3788,7 +3788,7 @@
       "file_type": "code",
       "source_file": "tests/test_trace.py",
       "source_location": "L124",
-      "community": 3,
+      "community": 2,
       "norm_label": "test_task_result_record()",
       "id": "tests_test_trace_test_task_result_record"
     },
@@ -3797,7 +3797,7 @@
       "file_type": "code",
       "source_file": "tests/test_trace.py",
       "source_location": "L136",
-      "community": 3,
+      "community": 2,
       "norm_label": "test_log_test_gen()",
       "id": "tests_test_trace_test_log_test_gen"
     },
@@ -3806,7 +3806,7 @@
       "file_type": "code",
       "source_file": "tests/test_trace.py",
       "source_location": "L150",
-      "community": 3,
+      "community": 2,
       "norm_label": "test_log_test_run()",
       "id": "tests_test_trace_test_log_test_run"
     },
@@ -3815,7 +3815,7 @@
       "file_type": "code",
       "source_file": "tests/test_trace.py",
       "source_location": "L166",
-      "community": 3,
+      "community": 2,
       "norm_label": "test_thread_isolation()",
       "id": "tests_test_trace_test_thread_isolation"
     },
@@ -5165,7 +5165,7 @@
       "file_type": "code",
       "source_file": "tests/test_llm_module.py",
       "source_location": "L1",
-      "community": 6,
+      "community": 5,
       "norm_label": "test_llm_module.py",
       "id": "tests_test_llm_module_py"
     },
@@ -5174,7 +5174,7 @@
       "file_type": "code",
       "source_file": "tests/test_llm_module.py",
       "source_location": "L4",
-      "community": 6,
+      "community": 5,
       "norm_label": "test_dispatch_module_deleted()",
       "id": "tests_test_llm_module_test_dispatch_module_deleted"
     },
@@ -5183,7 +5183,7 @@
       "file_type": "code",
       "source_file": "tests/test_llm_module.py",
       "source_location": "L11",
-      "community": 6,
+      "community": 5,
       "norm_label": "test_llm_module_exports()",
       "id": "tests_test_llm_module_test_llm_module_exports"
     },
@@ -5192,7 +5192,7 @@
       "file_type": "code",
       "source_file": "tests/test_llm_module.py",
       "source_location": "L17",
-      "community": 6,
+      "community": 5,
       "norm_label": "test_llm_exports_cli_colors()",
       "id": "tests_test_llm_module_test_llm_exports_cli_colors"
     },
@@ -5201,7 +5201,7 @@
       "file_type": "code",
       "source_file": "tests/test_llm_module.py",
       "source_location": "L22",
-      "community": 6,
+      "community": 5,
       "norm_label": "test_dispatch_function_removed()",
       "id": "tests_test_llm_module_test_dispatch_function_removed"
     },
@@ -5210,7 +5210,7 @@
       "file_type": "code",
       "source_file": "tests/test_llm_module.py",
       "source_location": "L27",
-      "community": 6,
+      "community": 5,
       "norm_label": "test_system_as_str_from_blocks()",
       "id": "tests_test_llm_module_test_system_as_str_from_blocks"
     },
@@ -5219,7 +5219,7 @@
       "file_type": "code",
       "source_file": "tests/test_llm_module.py",
       "source_location": "L39",
-      "community": 6,
+      "community": 5,
       "norm_label": "test_system_as_str_passthrough_str()",
       "id": "tests_test_llm_module_test_system_as_str_passthrough_str"
     },
@@ -5228,7 +5228,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_llm_module.py",
       "source_location": "L25",
-      "community": 6,
+      "community": 5,
       "norm_label": "_system_as_str flattens list[dict] blocks to newline-joined text.",
       "id": "tests_test_llm_module_rationale_25"
     },
@@ -5237,7 +5237,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_llm_module.py",
       "source_location": "L37",
-      "community": 6,
+      "community": 5,
       "norm_label": "_system_as_str returns str unchanged.",
       "id": "tests_test_llm_module_rationale_37"
     },
@@ -5246,7 +5246,7 @@
       "file_type": "code",
       "source_file": "tests/test_json_extract_cleanup.py",
       "source_location": "L1",
-      "community": 26,
+      "community": 27,
       "norm_label": "test_json_extract_cleanup.py",
       "id": "tests_test_json_extract_cleanup_py"
     },
@@ -5255,7 +5255,7 @@
       "file_type": "code",
       "source_file": "tests/test_json_extract_cleanup.py",
       "source_location": "L4",
-      "community": 26,
+      "community": 27,
       "norm_label": "test_normalize_parsed_removed()",
       "id": "tests_test_json_extract_cleanup_test_normalize_parsed_removed"
     },
@@ -5264,7 +5264,7 @@
       "file_type": "code",
       "source_file": "tests/test_json_extract_cleanup.py",
       "source_location": "L8",
-      "community": 26,
+      "community": 27,
       "norm_label": "test_extract_json_fenced_block()",
       "id": "tests_test_json_extract_cleanup_test_extract_json_fenced_block"
     },
@@ -5273,7 +5273,7 @@
       "file_type": "code",
       "source_file": "tests/test_json_extract_cleanup.py",
       "source_location": "L14",
-      "community": 26,
+      "community": 27,
       "norm_label": "test_extract_json_plain_object()",
       "id": "tests_test_json_extract_cleanup_test_extract_json_plain_object"
     },
@@ -5282,7 +5282,7 @@
       "file_type": "code",
       "source_file": "tests/test_json_extract_cleanup.py",
       "source_location": "L21",
-      "community": 26,
+      "community": 27,
       "norm_label": "test_extract_json_mutation_preferred()",
       "id": "tests_test_json_extract_cleanup_test_extract_json_mutation_preferred"
     },
@@ -5291,7 +5291,7 @@
       "file_type": "code",
       "source_file": "tests/test_json_extract_cleanup.py",
       "source_location": "L28",
-      "community": 26,
+      "community": 27,
       "norm_label": "test_extract_json_returns_none_for_no_json()",
       "id": "tests_test_json_extract_cleanup_test_extract_json_returns_none_for_no_json"
     },
@@ -5300,7 +5300,7 @@
       "file_type": "code",
       "source_file": "tests/test_models_cleanup.py",
       "source_location": "L1",
-      "community": 4,
+      "community": 3,
       "norm_label": "test_models_cleanup.py",
       "id": "tests_test_models_cleanup_py"
     },
@@ -5309,7 +5309,7 @@
       "file_type": "code",
       "source_file": "tests/test_models_cleanup.py",
       "source_location": "L7",
-      "community": 4,
+      "community": 3,
       "norm_label": "test_pipeline_models_present()",
       "id": "tests_test_models_cleanup_test_pipeline_models_present"
     },
@@ -5318,7 +5318,7 @@
       "file_type": "code",
       "source_file": "tests/test_models_cleanup.py",
       "source_location": "L16",
-      "community": 4,
+      "community": 3,
       "norm_label": "test_vault_models_removed()",
       "id": "tests_test_models_cleanup_test_vault_models_removed"
     },
@@ -5327,7 +5327,7 @@
       "file_type": "code",
       "source_file": "tests/test_models_cleanup.py",
       "source_location": "L29",
-      "community": 4,
+      "community": 3,
       "norm_label": "test_models_has_exactly_seven_classes()",
       "id": "tests_test_models_cleanup_test_models_has_exactly_seven_classes"
     },
@@ -5336,7 +5336,7 @@
       "file_type": "code",
       "source_file": "tests/test_models_cleanup.py",
       "source_location": "L43",
-      "community": 4,
+      "community": 3,
       "norm_label": "test_test_gen_output_fields()",
       "id": "tests_test_models_cleanup_test_test_gen_output_fields"
     },
@@ -5345,7 +5345,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_models_cleanup.py",
       "source_location": "L8",
-      "community": 4,
+      "community": 3,
       "norm_label": "test that the 4 pipeline models are present in models.py",
       "id": "tests_test_models_cleanup_rationale_8"
     },
@@ -5354,7 +5354,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_models_cleanup.py",
       "source_location": "L17",
-      "community": 4,
+      "community": 3,
       "norm_label": "test that all vault classes have been removed from models.py",
       "id": "tests_test_models_cleanup_rationale_17"
     },
@@ -5363,7 +5363,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_models_cleanup.py",
       "source_location": "L30",
-      "community": 4,
+      "community": 3,
       "norm_label": "test that models.py contains exactly 7 basemodel classes (4 pipeline + 2 resolve",
       "id": "tests_test_models_cleanup_rationale_30"
     },
@@ -5372,7 +5372,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/tests/test_trace_resolve.py",
       "source_location": "L1",
-      "community": 3,
+      "community": 2,
       "norm_label": "test_trace_resolve.py",
       "id": "home_uf_rt_ru_i_y_tischenko_\u0434\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b_git_ecom1_agent_tests_test_trace_resolve_py"
     },
@@ -5381,7 +5381,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/tests/test_trace_resolve.py",
       "source_location": "L10",
-      "community": 3,
+      "community": 2,
       "norm_label": "_make_pre()",
       "id": "tests_test_trace_resolve_make_pre"
     },
@@ -5390,7 +5390,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/tests/test_trace_resolve.py",
       "source_location": "L18",
-      "community": 3,
+      "community": 2,
       "norm_label": "_exec_result()",
       "id": "tests_test_trace_resolve_exec_result"
     },
@@ -5399,7 +5399,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/tests/test_trace_resolve.py",
       "source_location": "L24",
-      "community": 3,
+      "community": 2,
       "norm_label": "test_resolve_exec_records_written()",
       "id": "tests_test_trace_resolve_test_resolve_exec_records_written"
     },
@@ -5408,7 +5408,7 @@
       "file_type": "rationale",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/tests/test_trace_resolve.py",
       "source_location": "L1",
-      "community": 3,
+      "community": 2,
       "norm_label": "verify resolve.py writes llm_call + resolve_exec trace records.",
       "id": "tests_test_trace_resolve_rationale_1"
     },
@@ -5417,7 +5417,7 @@
       "file_type": "rationale",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/tests/test_trace_resolve.py",
       "source_location": "L25",
-      "community": 3,
+      "community": 2,
       "norm_label": "resolve_exec written for each sql execution in resolve phase.",
       "id": "tests_test_trace_resolve_rationale_25"
     },
@@ -5426,7 +5426,7 @@
       "file_type": "code",
       "source_file": "tests/test_eval_metrics.py",
       "source_location": "L1",
-      "community": 4,
+      "community": 3,
       "norm_label": "test_eval_metrics.py",
       "id": "tests_test_eval_metrics_py"
     },
@@ -5435,7 +5435,7 @@
       "file_type": "code",
       "source_file": "tests/test_eval_metrics.py",
       "source_location": "L6",
-      "community": 4,
+      "community": 3,
       "norm_label": "test_agents_md_coverage_full()",
       "id": "tests_test_eval_metrics_test_agents_md_coverage_full"
     },
@@ -5444,7 +5444,7 @@
       "file_type": "code",
       "source_file": "tests/test_eval_metrics.py",
       "source_location": "L16",
-      "community": 4,
+      "community": 3,
       "norm_label": "test_agents_md_coverage_zero()",
       "id": "tests_test_eval_metrics_test_agents_md_coverage_zero"
     },
@@ -5453,7 +5453,7 @@
       "file_type": "code",
       "source_file": "tests/test_eval_metrics.py",
       "source_location": "L24",
-      "community": 4,
+      "community": 3,
       "norm_label": "test_agents_md_coverage_no_relevant_terms()",
       "id": "tests_test_eval_metrics_test_agents_md_coverage_no_relevant_terms"
     },
@@ -5462,7 +5462,7 @@
       "file_type": "code",
       "source_file": "tests/test_eval_metrics.py",
       "source_location": "L32",
-      "community": 4,
+      "community": 3,
       "norm_label": "test_schema_grounding_full()",
       "id": "tests_test_eval_metrics_test_schema_grounding_full"
     },
@@ -5471,7 +5471,7 @@
       "file_type": "code",
       "source_file": "tests/test_eval_metrics.py",
       "source_location": "L43",
-      "community": 4,
+      "community": 3,
       "norm_label": "test_schema_grounding_partial()",
       "id": "tests_test_eval_metrics_test_schema_grounding_partial"
     },
@@ -5480,7 +5480,7 @@
       "file_type": "code",
       "source_file": "tests/test_eval_metrics.py",
       "source_location": "L55",
-      "community": 4,
+      "community": 3,
       "norm_label": "test_schema_grounding_no_table_col_refs()",
       "id": "tests_test_eval_metrics_test_schema_grounding_no_table_col_refs"
     },
@@ -5489,7 +5489,7 @@
       "file_type": "code",
       "source_file": "tests/test_eval_metrics.py",
       "source_location": "L63",
-      "community": 4,
+      "community": 3,
       "norm_label": "test_schema_grounding_empty_digest()",
       "id": "tests_test_eval_metrics_test_schema_grounding_empty_digest"
     },
@@ -5498,7 +5498,7 @@
       "file_type": "code",
       "source_file": "tests/test_orchestrator_pipeline.py",
       "source_location": "L1",
-      "community": 9,
+      "community": 8,
       "norm_label": "test_orchestrator_pipeline.py",
       "id": "tests_test_orchestrator_pipeline_py"
     },
@@ -5507,7 +5507,7 @@
       "file_type": "code",
       "source_file": "tests/test_orchestrator_pipeline.py",
       "source_location": "L8",
-      "community": 9,
+      "community": 8,
       "norm_label": "_make_vm_mock()",
       "id": "tests_test_orchestrator_pipeline_make_vm_mock"
     },
@@ -5516,7 +5516,7 @@
       "file_type": "code",
       "source_file": "tests/test_orchestrator_pipeline.py",
       "source_location": "L17",
-      "community": 9,
+      "community": 8,
       "norm_label": "test_lookup_routes_to_pipeline()",
       "id": "tests_test_orchestrator_pipeline_test_lookup_routes_to_pipeline"
     },
@@ -5525,7 +5525,7 @@
       "file_type": "code",
       "source_file": "tests/test_orchestrator_pipeline.py",
       "source_location": "L39",
-      "community": 9,
+      "community": 8,
       "norm_label": "test_loop_module_deleted()",
       "id": "tests_test_orchestrator_pipeline_test_loop_module_deleted"
     },
@@ -5534,7 +5534,7 @@
       "file_type": "code",
       "source_file": "tests/test_orchestrator_pipeline.py",
       "source_location": "L44",
-      "community": 9,
+      "community": 8,
       "norm_label": "test_run_agent_no_dead_stats()",
       "id": "tests_test_orchestrator_pipeline_test_run_agent_no_dead_stats"
     },
@@ -5543,7 +5543,7 @@
       "file_type": "code",
       "source_file": "tests/test_orchestrator_pipeline.py",
       "source_location": "L67",
-      "community": 9,
+      "community": 8,
       "norm_label": "test_write_wiki_fragment_removed()",
       "id": "tests_test_orchestrator_pipeline_test_write_wiki_fragment_removed"
     },
@@ -5552,7 +5552,7 @@
       "file_type": "code",
       "source_file": "tests/test_orchestrator_pipeline.py",
       "source_location": "L72",
-      "community": 9,
+      "community": 8,
       "norm_label": "test_build_system_prompt_not_imported()",
       "id": "tests_test_orchestrator_pipeline_test_build_system_prompt_not_imported"
     },
@@ -5561,7 +5561,7 @@
       "file_type": "code",
       "source_file": "tests/test_orchestrator_pipeline.py",
       "source_location": "L77",
-      "community": 9,
+      "community": 8,
       "norm_label": "test_run_agent_returns_dict()",
       "id": "tests_test_orchestrator_pipeline_test_run_agent_returns_dict"
     },
@@ -5570,7 +5570,7 @@
       "file_type": "code",
       "source_file": "tests/test_orchestrator_pipeline.py",
       "source_location": "L99",
-      "community": 9,
+      "community": 8,
       "norm_label": "test_run_agent_passes_injection_params()",
       "id": "tests_test_orchestrator_pipeline_test_run_agent_passes_injection_params"
     },
@@ -5579,7 +5579,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_orchestrator_pipeline.py",
       "source_location": "L18",
-      "community": 9,
+      "community": 8,
       "norm_label": "run_agent calls run_pipeline for all tasks.",
       "id": "tests_test_orchestrator_pipeline_rationale_18"
     },
@@ -5588,7 +5588,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_orchestrator_pipeline.py",
       "source_location": "L45",
-      "community": 9,
+      "community": 8,
       "norm_label": "run_agent() result must not contain builder_*/contract_*/eval_rejection_count fi",
       "id": "tests_test_orchestrator_pipeline_rationale_45"
     },
@@ -5597,7 +5597,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_orchestrator_pipeline.py",
       "source_location": "L78",
-      "community": 9,
+      "community": 8,
       "norm_label": "run_agent() always returns a plain dict (public api unchanged).",
       "id": "tests_test_orchestrator_pipeline_rationale_78"
     },
@@ -5606,7 +5606,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_orchestrator_pipeline.py",
       "source_location": "L100",
-      "community": 9,
+      "community": 8,
       "norm_label": "run_agent forwards injection params + task_id to run_pipeline.",
       "id": "tests_test_orchestrator_pipeline_rationale_100"
     },
@@ -5615,7 +5615,7 @@
       "file_type": "code",
       "source_file": "tests/test_sql_security.py",
       "source_location": "L1",
-      "community": 7,
+      "community": 6,
       "norm_label": "test_sql_security.py",
       "id": "tests_test_sql_security_py"
     },
@@ -5624,7 +5624,7 @@
       "file_type": "code",
       "source_file": "tests/test_sql_security.py",
       "source_location": "L17",
-      "community": 7,
+      "community": 6,
       "norm_label": "test_ddl_drop_blocked()",
       "id": "tests_test_sql_security_test_ddl_drop_blocked"
     },
@@ -5633,7 +5633,7 @@
       "file_type": "code",
       "source_file": "tests/test_sql_security.py",
       "source_location": "L23",
-      "community": 7,
+      "community": 6,
       "norm_label": "test_ddl_insert_blocked()",
       "id": "tests_test_sql_security_test_ddl_insert_blocked"
     },
@@ -5642,7 +5642,7 @@
       "file_type": "code",
       "source_file": "tests/test_sql_security.py",
       "source_location": "L29",
-      "community": 7,
+      "community": 6,
       "norm_label": "test_select_with_where_passes()",
       "id": "tests_test_sql_security_test_select_with_where_passes"
     },
@@ -5651,7 +5651,7 @@
       "file_type": "code",
       "source_file": "tests/test_sql_security.py",
       "source_location": "L34",
-      "community": 7,
+      "community": 6,
       "norm_label": "test_select_without_where_blocked()",
       "id": "tests_test_sql_security_test_select_without_where_blocked"
     },
@@ -5660,7 +5660,7 @@
       "file_type": "code",
       "source_file": "tests/test_sql_security.py",
       "source_location": "L40",
-      "community": 7,
+      "community": 6,
       "norm_label": "test_select_count_without_where_blocked()",
       "id": "tests_test_sql_security_test_select_count_without_where_blocked"
     },
@@ -5669,7 +5669,7 @@
       "file_type": "code",
       "source_file": "tests/test_sql_security.py",
       "source_location": "L46",
-      "community": 7,
+      "community": 6,
       "norm_label": "test_explain_select_without_where_blocked()",
       "id": "tests_test_sql_security_test_explain_select_without_where_blocked"
     },
@@ -5678,7 +5678,7 @@
       "file_type": "code",
       "source_file": "tests/test_sql_security.py",
       "source_location": "L54",
-      "community": 7,
+      "community": 6,
       "norm_label": "test_subquery_with_where_passes()",
       "id": "tests_test_sql_security_test_subquery_with_where_passes"
     },
@@ -5687,7 +5687,7 @@
       "file_type": "code",
       "source_file": "tests/test_sql_security.py",
       "source_location": "L61",
-      "community": 7,
+      "community": 6,
       "norm_label": "test_where_in_string_literal_not_confused()",
       "id": "tests_test_sql_security_test_where_in_string_literal_not_confused"
     },
@@ -5696,7 +5696,7 @@
       "file_type": "code",
       "source_file": "tests/test_sql_security.py",
       "source_location": "L68",
-      "community": 7,
+      "community": 6,
       "norm_label": "test_multiple_queries_first_error_returned()",
       "id": "tests_test_sql_security_test_multiple_queries_first_error_returned"
     },
@@ -5705,7 +5705,7 @@
       "file_type": "code",
       "source_file": "tests/test_sql_security.py",
       "source_location": "L78",
-      "community": 7,
+      "community": 6,
       "norm_label": "test_empty_queries_passes()",
       "id": "tests_test_sql_security_test_empty_queries_passes"
     },
@@ -5714,7 +5714,7 @@
       "file_type": "code",
       "source_file": "tests/test_sql_security.py",
       "source_location": "L82",
-      "community": 7,
+      "community": 6,
       "norm_label": "test_path_catalog_blocked()",
       "id": "tests_test_sql_security_test_path_catalog_blocked"
     },
@@ -5723,7 +5723,7 @@
       "file_type": "code",
       "source_file": "tests/test_sql_security.py",
       "source_location": "L88",
-      "community": 7,
+      "community": 6,
       "norm_label": "test_path_other_passes()",
       "id": "tests_test_sql_security_test_path_other_passes"
     },
@@ -5732,7 +5732,7 @@
       "file_type": "code",
       "source_file": "tests/test_sql_security.py",
       "source_location": "L93",
-      "community": 7,
+      "community": 6,
       "norm_label": "test_load_security_gates_from_dir()",
       "id": "tests_test_sql_security_test_load_security_gates_from_dir"
     },
@@ -5741,7 +5741,7 @@
       "file_type": "code",
       "source_file": "tests/test_sql_security.py",
       "source_location": "L106",
-      "community": 7,
+      "community": 6,
       "norm_label": "test_load_security_gates_empty_dir()",
       "id": "tests_test_sql_security_test_load_security_gates_empty_dir"
     },
@@ -5750,7 +5750,7 @@
       "file_type": "code",
       "source_file": "tests/test_sql_security.py",
       "source_location": "L111",
-      "community": 7,
+      "community": 6,
       "norm_label": "test_unverified_gate_is_skipped()",
       "id": "tests_test_sql_security_test_unverified_gate_is_skipped"
     },
@@ -5759,7 +5759,7 @@
       "file_type": "code",
       "source_file": "tests/test_sql_security.py",
       "source_location": "L127",
-      "community": 7,
+      "community": 6,
       "norm_label": "test_has_where_clause_subquery()",
       "id": "tests_test_sql_security_test_has_where_clause_subquery"
     },
@@ -5768,7 +5768,7 @@
       "file_type": "code",
       "source_file": "tests/test_sql_security.py",
       "source_location": "L135",
-      "community": 7,
+      "community": 6,
       "norm_label": "test_cte_with_where_passes()",
       "id": "tests_test_sql_security_test_cte_with_where_passes"
     },
@@ -5777,7 +5777,7 @@
       "file_type": "code",
       "source_file": "tests/test_sql_security.py",
       "source_location": "L142",
-      "community": 7,
+      "community": 6,
       "norm_label": "test_where_in_double_quoted_identifier_not_confused()",
       "id": "tests_test_sql_security_test_where_in_double_quoted_identifier_not_confused"
     },
@@ -5786,7 +5786,7 @@
       "file_type": "code",
       "source_file": "tests/test_sql_security.py",
       "source_location": "L149",
-      "community": 7,
+      "community": 6,
       "norm_label": "test_subquery_outer_has_where_passes()",
       "id": "tests_test_sql_security_test_subquery_outer_has_where_passes"
     },
@@ -5795,7 +5795,7 @@
       "file_type": "code",
       "source_file": "tests/test_sql_security.py",
       "source_location": "L156",
-      "community": 7,
+      "community": 6,
       "norm_label": "test_no_outer_where_blocked()",
       "id": "tests_test_sql_security_test_no_outer_where_blocked"
     },
@@ -5804,7 +5804,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_sql_security.py",
       "source_location": "L112",
-      "community": 7,
+      "community": 6,
       "norm_label": "gates with verified: false are not loaded.",
       "id": "tests_test_sql_security_rationale_112"
     },
@@ -5813,7 +5813,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_sql_security.py",
       "source_location": "L128",
-      "community": 7,
+      "community": 6,
       "norm_label": "_has_where_clause correctly detects where in queries with subqueries.",
       "id": "tests_test_sql_security_rationale_128"
     },
@@ -5822,7 +5822,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_sql_security.py",
       "source_location": "L136",
-      "community": 7,
+      "community": 6,
       "norm_label": "cte query with where in the final select passes the sec-002 gate.",
       "id": "tests_test_sql_security_rationale_136"
     },
@@ -5831,7 +5831,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_sql_security.py",
       "source_location": "L143",
-      "community": 7,
+      "community": 6,
       "norm_label": "outer where present despite double-quoted identifier containing where substring.",
       "id": "tests_test_sql_security_rationale_143"
     },
@@ -5840,7 +5840,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_sql_security.py",
       "source_location": "L150",
-      "community": 7,
+      "community": 6,
       "norm_label": "outer select with where passes even when subquery also has where.",
       "id": "tests_test_sql_security_rationale_150"
     },
@@ -5849,7 +5849,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_sql_security.py",
       "source_location": "L157",
-      "community": 7,
+      "community": 6,
       "norm_label": "select without where is blocked by sec-002.",
       "id": "tests_test_sql_security_rationale_157"
     },
@@ -5858,7 +5858,7 @@
       "file_type": "code",
       "source_file": "tests/test_pipeline_sku_refs.py",
       "source_location": "L1",
-      "community": 8,
+      "community": 7,
       "norm_label": "test_pipeline_sku_refs.py",
       "id": "tests_test_pipeline_sku_refs_py"
     },
@@ -5867,7 +5867,7 @@
       "file_type": "code",
       "source_file": "tests/test_pipeline_sku_refs.py",
       "source_location": "L4",
-      "community": 8,
+      "community": 7,
       "norm_label": "test_extract_sku_refs_single_result()",
       "id": "tests_test_pipeline_sku_refs_test_extract_sku_refs_single_result"
     },
@@ -5876,7 +5876,7 @@
       "file_type": "code",
       "source_file": "tests/test_pipeline_sku_refs.py",
       "source_location": "L11",
-      "community": 8,
+      "community": 7,
       "norm_label": "test_extract_sku_refs_no_sku_column()",
       "id": "tests_test_pipeline_sku_refs_test_extract_sku_refs_no_sku_column"
     },
@@ -5885,7 +5885,7 @@
       "file_type": "code",
       "source_file": "tests/test_pipeline_sku_refs.py",
       "source_location": "L18",
-      "community": 8,
+      "community": 7,
       "norm_label": "test_extract_sku_refs_empty_result()",
       "id": "tests_test_pipeline_sku_refs_test_extract_sku_refs_empty_result"
     },
@@ -5894,7 +5894,7 @@
       "file_type": "code",
       "source_file": "tests/test_pipeline_sku_refs.py",
       "source_location": "L25",
-      "community": 8,
+      "community": 7,
       "norm_label": "test_extract_sku_refs_multiple_queries()",
       "id": "tests_test_pipeline_sku_refs_test_extract_sku_refs_multiple_queries"
     },
@@ -5903,7 +5903,7 @@
       "file_type": "code",
       "source_file": "tests/test_pipeline_sku_refs.py",
       "source_location": "L38",
-      "community": 8,
+      "community": 7,
       "norm_label": "test_build_answer_user_msg_with_refs()",
       "id": "tests_test_pipeline_sku_refs_test_build_answer_user_msg_with_refs"
     },
@@ -5912,7 +5912,7 @@
       "file_type": "code",
       "source_file": "tests/test_pipeline_sku_refs.py",
       "source_location": "L44",
-      "community": 8,
+      "community": 7,
       "norm_label": "test_build_answer_user_msg_no_refs()",
       "id": "tests_test_pipeline_sku_refs_test_build_answer_user_msg_no_refs"
     },
@@ -5921,7 +5921,7 @@
       "file_type": "code",
       "source_file": "tests/test_pipeline_sku_refs.py",
       "source_location": "L49",
-      "community": 8,
+      "community": 7,
       "norm_label": "test_extract_sku_refs_hierarchical_path_preserved()",
       "id": "tests_test_pipeline_sku_refs_test_extract_sku_refs_hierarchical_path_preserved"
     },
@@ -5930,7 +5930,7 @@
       "file_type": "code",
       "source_file": "tests/test_pipeline_sku_refs.py",
       "source_location": "L56",
-      "community": 8,
+      "community": 7,
       "norm_label": "test_build_answer_user_msg_preserves_hierarchical_ref()",
       "id": "tests_test_pipeline_sku_refs_test_build_answer_user_msg_preserves_hierarchical_ref"
     },
@@ -5939,7 +5939,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_pipeline_sku_refs.py",
       "source_location": "L50",
-      "community": 8,
+      "community": 7,
       "norm_label": "raw hierarchical paths stored verbatim in sku_refs.",
       "id": "tests_test_pipeline_sku_refs_rationale_50"
     },
@@ -5948,7 +5948,7 @@
       "file_type": "rationale",
       "source_file": "tests/test_pipeline_sku_refs.py",
       "source_location": "L57",
-      "community": 8,
+      "community": 7,
       "norm_label": "auto_refs block must show full paths \u2014 llm copies them verbatim to grounding_ref",
       "id": "tests_test_pipeline_sku_refs_rationale_57"
     },
@@ -5957,7 +5957,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/tests/test_pipeline_models.py",
       "source_location": "L1",
-      "community": 4,
+      "community": 3,
       "norm_label": "test_pipeline_models.py",
       "id": "home_uf_rt_ru_i_y_tischenko_\u0434\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b_git_ecom1_agent_tests_test_pipeline_models_py"
     },
@@ -5966,7 +5966,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/tests/test_pipeline_models.py",
       "source_location": "L10",
-      "community": 4,
+      "community": 3,
       "norm_label": "test_sql_plan_output_valid()",
       "id": "tests_test_pipeline_models_test_sql_plan_output_valid"
     },
@@ -5975,7 +5975,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/tests/test_pipeline_models.py",
       "source_location": "L19",
-      "community": 4,
+      "community": 3,
       "norm_label": "test_sql_plan_output_requires_reasoning()",
       "id": "tests_test_pipeline_models_test_sql_plan_output_requires_reasoning"
     },
@@ -5984,7 +5984,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/tests/test_pipeline_models.py",
       "source_location": "L24",
-      "community": 4,
+      "community": 3,
       "norm_label": "test_sql_plan_output_requires_queries()",
       "id": "tests_test_pipeline_models_test_sql_plan_output_requires_queries"
     },
@@ -5993,7 +5993,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/tests/test_pipeline_models.py",
       "source_location": "L29",
-      "community": 4,
+      "community": 3,
       "norm_label": "test_learn_output_valid()",
       "id": "tests_test_pipeline_models_test_learn_output_valid"
     },
@@ -6002,7 +6002,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/tests/test_pipeline_models.py",
       "source_location": "L38",
-      "community": 4,
+      "community": 3,
       "norm_label": "test_answer_output_valid()",
       "id": "tests_test_pipeline_models_test_answer_output_valid"
     },
@@ -6011,7 +6011,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/tests/test_pipeline_models.py",
       "source_location": "L49",
-      "community": 4,
+      "community": 3,
       "norm_label": "test_answer_output_invalid_outcome()",
       "id": "tests_test_pipeline_models_test_answer_output_invalid_outcome"
     },
@@ -6020,7 +6020,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/tests/test_pipeline_models.py",
       "source_location": "L60",
-      "community": 4,
+      "community": 3,
       "norm_label": "test_pipeline_eval_output_valid()",
       "id": "tests_test_pipeline_models_test_pipeline_eval_output_valid"
     },
@@ -6029,7 +6029,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/tests/test_pipeline_models.py",
       "source_location": "L71",
-      "community": 4,
+      "community": 3,
       "norm_label": "test_sql_plan_output_agents_md_refs_defaults_empty()",
       "id": "tests_test_pipeline_models_test_sql_plan_output_agents_md_refs_defaults_empty"
     },
@@ -6038,7 +6038,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/tests/test_pipeline_models.py",
       "source_location": "L76",
-      "community": 4,
+      "community": 3,
       "norm_label": "test_sql_plan_output_agents_md_refs_set()",
       "id": "tests_test_pipeline_models_test_sql_plan_output_agents_md_refs_set"
     },
@@ -6047,7 +6047,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/tests/test_pipeline_models.py",
       "source_location": "L81",
-      "community": 4,
+      "community": 3,
       "norm_label": "test_learn_output_agents_md_anchor_defaults_none()",
       "id": "tests_test_pipeline_models_test_learn_output_agents_md_anchor_defaults_none"
     },
@@ -6056,7 +6056,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/tests/test_pipeline_models.py",
       "source_location": "L86",
-      "community": 4,
+      "community": 3,
       "norm_label": "test_learn_output_agents_md_anchor_set()",
       "id": "tests_test_pipeline_models_test_learn_output_agents_md_anchor_set"
     },
@@ -6065,7 +6065,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/tests/test_pipeline_models.py",
       "source_location": "L91",
-      "community": 4,
+      "community": 3,
       "norm_label": "test_pipeline_eval_output_new_metrics_default()",
       "id": "tests_test_pipeline_models_test_pipeline_eval_output_new_metrics_default"
     },
@@ -6074,7 +6074,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/tests/test_pipeline_models.py",
       "source_location": "L100",
-      "community": 4,
+      "community": 3,
       "norm_label": "test_pipeline_eval_output_new_metrics_set()",
       "id": "tests_test_pipeline_models_test_pipeline_eval_output_new_metrics_set"
     },
@@ -6083,7 +6083,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/tests/test_pipeline_models.py",
       "source_location": "L110",
-      "community": 4,
+      "community": 3,
       "norm_label": "test_resolve_candidate_minimal()",
       "id": "tests_test_pipeline_models_test_resolve_candidate_minimal"
     },
@@ -6092,7 +6092,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/tests/test_pipeline_models.py",
       "source_location": "L119",
-      "community": 4,
+      "community": 3,
       "norm_label": "test_resolve_candidate_with_value()",
       "id": "tests_test_pipeline_models_test_resolve_candidate_with_value"
     },
@@ -6101,7 +6101,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/tests/test_pipeline_models.py",
       "source_location": "L128",
-      "community": 4,
+      "community": 3,
       "norm_label": "test_resolve_output_validate()",
       "id": "tests_test_pipeline_models_test_resolve_output_validate"
     },
@@ -6110,7 +6110,7 @@
       "file_type": "code",
       "source_file": "/home/UF.RT.RU/i.y.tischenko/\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b/Git/ecom1-agent/.worktrees/eval-driven-rules/scripts/__init__.py",
       "source_location": "L1",
-      "community": 40,
+      "community": 41,
       "norm_label": "__init__.py",
       "id": "home_uf_rt_ru_i_y_tischenko_\u0434\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u044b_git_ecom1_agent_worktrees_eval_driven_rules_scripts_init_py"
     },
@@ -6119,7 +6119,7 @@
       "file_type": "code",
       "source_file": "scripts/propose_optimizations.py",
       "source_location": "L1",
-      "community": 1,
+      "community": 9,
       "norm_label": "propose_optimizations.py",
       "id": "scripts_propose_optimizations_py"
     },
@@ -6128,7 +6128,7 @@
       "file_type": "code",
       "source_file": "scripts/propose_optimizations.py",
       "source_location": "L41",
-      "community": 1,
+      "community": 9,
       "norm_label": "read_original_score()",
       "id": "scripts_propose_optimizations_read_original_score"
     },
@@ -6137,7 +6137,7 @@
       "file_type": "code",
       "source_file": "scripts/propose_optimizations.py",
       "source_location": "L119",
-      "community": 1,
+      "community": 9,
       "norm_label": "_load_model_cfg()",
       "id": "scripts_propose_optimizations_load_model_cfg"
     },
@@ -6146,7 +6146,7 @@
       "file_type": "code",
       "source_file": "scripts/propose_optimizations.py",
       "source_location": "L129",
-      "community": 1,
+      "community": 9,
       "norm_label": "_load_processed()",
       "id": "scripts_propose_optimizations_load_processed"
     },
@@ -6155,7 +6155,7 @@
       "file_type": "code",
       "source_file": "scripts/propose_optimizations.py",
       "source_location": "L135",
-      "community": 1,
+      "community": 9,
       "norm_label": "_save_processed()",
       "id": "scripts_propose_optimizations_save_processed"
     },
@@ -6164,7 +6164,7 @@
       "file_type": "code",
       "source_file": "scripts/propose_optimizations.py",
       "source_location": "L139",
-      "community": 1,
+      "community": 9,
       "norm_label": "_entry_hash()",
       "id": "scripts_propose_optimizations_entry_hash"
     },
@@ -6173,7 +6173,7 @@
       "file_type": "code",
       "source_file": "scripts/propose_optimizations.py",
       "source_location": "L143",
-      "community": 1,
+      "community": 9,
       "norm_label": "_cluster_recs()",
       "id": "scripts_propose_optimizations_cluster_recs"
     },
@@ -6182,7 +6182,7 @@
       "file_type": "code",
       "source_file": "scripts/propose_optimizations.py",
       "source_location": "L207",
-      "community": 1,
+      "community": 9,
       "norm_label": "_check_contradiction()",
       "id": "scripts_propose_optimizations_check_contradiction"
     },
@@ -6191,7 +6191,7 @@
       "file_type": "code",
       "source_file": "scripts/propose_optimizations.py",
       "source_location": "L233",
-      "community": 1,
+      "community": 9,
       "norm_label": "_next_num()",
       "id": "scripts_propose_optimizations_next_num"
     },
@@ -6200,7 +6200,7 @@
       "file_type": "code",
       "source_file": "scripts/propose_optimizations.py",
       "source_location": "L248",
-      "community": 1,
+      "community": 9,
       "norm_label": "_synthesize_rule()",
       "id": "scripts_propose_optimizations_synthesize_rule"
     },
@@ -6209,7 +6209,7 @@
       "file_type": "code",
       "source_file": "scripts/propose_optimizations.py",
       "source_location": "L266",
-      "community": 1,
+      "community": 9,
       "norm_label": "_synthesize_security_gate()",
       "id": "scripts_propose_optimizations_synthesize_security_gate"
     },
@@ -6218,7 +6218,7 @@
       "file_type": "code",
       "source_file": "scripts/propose_optimizations.py",
       "source_location": "L293",
-      "community": 1,
+      "community": 9,
       "norm_label": "_synthesize_prompt_patch()",
       "id": "scripts_propose_optimizations_synthesize_prompt_patch"
     },
@@ -6227,7 +6227,7 @@
       "file_type": "code",
       "source_file": "scripts/propose_optimizations.py",
       "source_location": "L319",
-      "community": 1,
+      "community": 9,
       "norm_label": "_write_rule()",
       "id": "scripts_propose_optimizations_write_rule"
     },
@@ -6236,7 +6236,7 @@
       "file_type": "code",
       "source_file": "scripts/propose_optimizations.py",
       "source_location": "L332",
-      "community": 1,
+      "community": 9,
       "norm_label": "_write_security()",
       "id": "scripts_propose_optimizations_write_security"
     },
@@ -6245,7 +6245,7 @@
       "file_type": "code",
       "source_file": "scripts/propose_optimizations.py",
       "source_location": "L351",
-      "community": 1,
+      "community": 9,
       "norm_label": "_write_prompt()",
       "id": "scripts_propose_optimizations_write_prompt"
     },
@@ -6254,7 +6254,7 @@
       "file_type": "code",
       "source_file": "scripts/propose_optimizations.py",
       "source_location": "L382",
-      "community": 1,
+      "community": 9,
       "norm_label": "main()",
       "id": "scripts_propose_optimizations_main"
     },
@@ -6263,7 +6263,7 @@
       "file_type": "rationale",
       "source_file": "scripts/propose_optimizations.py",
       "source_location": "L42",
-      "community": 1,
+      "community": 9,
       "norm_label": "return task_result.score from latest non-validate run for task_id, or none.",
       "id": "scripts_propose_optimizations_rationale_42"
     },
@@ -6272,7 +6272,7 @@
       "file_type": "rationale",
       "source_file": "scripts/propose_optimizations.py",
       "source_location": "L96",
-      "community": 1,
+      "community": 9,
       "norm_label": "cluster semantically equivalent recs into representatives via one llm call.",
       "id": "scripts_propose_optimizations_rationale_96"
     },
@@ -6281,7 +6281,7 @@
       "file_type": "rationale",
       "source_file": "scripts/propose_optimizations.py",
       "source_location": "L160",
-      "community": 1,
+      "community": 9,
       "norm_label": "returns none if no conflict, or 'conflict: <id> \u2014 <reason>' string.",
       "id": "scripts_propose_optimizations_rationale_160"
     },
@@ -6560,7 +6560,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 41,
+      "community": 42,
       "norm_label": "models.json",
       "id": "claude_models_json"
     },
@@ -6573,7 +6573,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 30,
+      "community": 31,
       "norm_label": "bitgn/",
       "id": "claude_bitgn"
     },
@@ -6586,7 +6586,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 30,
+      "community": 31,
       "norm_label": "proto/",
       "id": "claude_proto"
     },
@@ -6668,7 +6668,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 28,
+      "community": 29,
       "norm_label": "t16 grounding refs bug",
       "id": "task_t16_bug"
     },
@@ -6681,7 +6681,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 28,
+      "community": 29,
       "norm_label": "check_grounding_refs",
       "id": "task_check_grounding_refs"
     },
@@ -6694,7 +6694,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 28,
+      "community": 29,
       "norm_label": "clean_refs",
       "id": "task_clean_refs"
     },
@@ -6707,7 +6707,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 28,
+      "community": 29,
       "norm_label": "sku_refs",
       "id": "task_sku_refs"
     },
@@ -6720,7 +6720,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 28,
+      "community": 29,
       "norm_label": "p.path sql column",
       "id": "task_p_path"
     },
@@ -6801,7 +6801,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 23,
+      "community": 24,
       "norm_label": "scripts/propose_optimizations.py",
       "id": "readme_propose_optimizations"
     },
@@ -6814,7 +6814,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 23,
+      "community": 24,
       "norm_label": "data/eval_log.jsonl",
       "id": "readme_eval_log"
     },
@@ -6827,7 +6827,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 23,
+      "community": 24,
       "norm_label": "rule_optimization channel \u2192 data/rules/sql-nnn.yaml",
       "id": "readme_rule_optimization"
     },
@@ -6840,7 +6840,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 23,
+      "community": 24,
       "norm_label": "security_optimization channel \u2192 data/security/sec-nnn.yaml",
       "id": "readme_security_optimization"
     },
@@ -6853,7 +6853,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 23,
+      "community": 24,
       "norm_label": "prompt_optimization channel \u2192 data/prompts/optimized/",
       "id": "readme_prompt_optimization"
     },
@@ -6866,7 +6866,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 23,
+      "community": 24,
       "norm_label": "data/.eval_optimizations_processed (processed hashes)",
       "id": "readme_eval_optimizations_processed"
     },
@@ -6880,7 +6880,7 @@
       "author": null,
       "contributor": null,
       "rationale": "MODEL_EVALUATOR specifies the LLM used for synthesis in propose_optimizations.py. Set in .env, same model as the main MODEL var.",
-      "community": 23,
+      "community": 24,
       "norm_label": "model_evaluator env var",
       "id": "readme_model_evaluator"
     },
@@ -6894,7 +6894,7 @@
       "author": null,
       "contributor": null,
       "rationale": "propose_optimizations.py synthesizes eval_log.jsonl entries into candidate files via three channels: SQL rules, security gates, prompt patches. Each writes to a separate directory with verified:false requiring manual activation.",
-      "community": 23,
+      "community": 24,
       "norm_label": "three optimization channels (rule, security, prompt)",
       "id": "readme_three_channels"
     },
@@ -6907,7 +6907,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 31,
+      "community": 32,
       "norm_label": "agent/claude.md",
       "id": "agent_claude_md"
     },
@@ -6920,7 +6920,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 31,
+      "community": 32,
       "norm_label": "../claude.md (repo root)",
       "id": "root_claude_md"
     },
@@ -7483,7 +7483,7 @@
       "file_type": "code",
       "source_file": "scripts/propose_optimizations.py",
       "source_location": "L66",
-      "community": 1,
+      "community": 9,
       "norm_label": "validate_recommendation()",
       "id": "scripts_propose_optimizations_validate_recommendation"
     },
@@ -7492,7 +7492,7 @@
       "file_type": "code",
       "source_file": "scripts/propose_optimizations.py",
       "source_location": "L365",
-      "community": 1,
+      "community": 9,
       "norm_label": "_dedup_by_content_per_task()",
       "id": "scripts_propose_optimizations_dedup_by_content_per_task"
     },
@@ -7501,7 +7501,7 @@
       "file_type": "rationale",
       "source_file": "scripts/propose_optimizations.py",
       "source_location": "L73",
-      "community": 1,
+      "community": 9,
       "norm_label": "re-run task_id with recommendation injected. returns (original_score, validation",
       "id": "scripts_propose_optimizations_rationale_73"
     },
@@ -7510,7 +7510,7 @@
       "file_type": "rationale",
       "source_file": "scripts/propose_optimizations.py",
       "source_location": "L149",
-      "community": 1,
+      "community": 9,
       "norm_label": "cluster semantically equivalent recs into representatives via one llm call.",
       "id": "scripts_propose_optimizations_rationale_149"
     },
@@ -7519,7 +7519,7 @@
       "file_type": "rationale",
       "source_file": "scripts/propose_optimizations.py",
       "source_location": "L213",
-      "community": 1,
+      "community": 9,
       "norm_label": "returns none if no conflict, or 'conflict: <id> \u2014 <reason>' string.",
       "id": "scripts_propose_optimizations_rationale_213"
     },
@@ -7528,7 +7528,7 @@
       "file_type": "rationale",
       "source_file": "scripts/propose_optimizations.py",
       "source_location": "L368",
-      "community": 1,
+      "community": 9,
       "norm_label": "remove exact-duplicate recs within the same task_id. returns (deduped, skipped_h",
       "id": "scripts_propose_optimizations_rationale_368"
     },
@@ -7541,7 +7541,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 5,
+      "community": 4,
       "norm_label": "main",
       "id": "propose_optimizations_main"
     },
@@ -7554,7 +7554,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 5,
+      "community": 4,
       "norm_label": "validate_recommendation",
       "id": "propose_optimizations_validate_recommendation"
     },
@@ -7567,7 +7567,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 5,
+      "community": 4,
       "norm_label": "read_original_score",
       "id": "propose_optimizations_read_original_score"
     },
@@ -7580,7 +7580,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 5,
+      "community": 4,
       "norm_label": "_cluster_recs",
       "id": "propose_optimizations_cluster_recs"
     },
@@ -7593,7 +7593,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 5,
+      "community": 4,
       "norm_label": "_check_contradiction",
       "id": "propose_optimizations_check_contradiction"
     },
@@ -7606,7 +7606,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 5,
+      "community": 4,
       "norm_label": "_synthesize_rule",
       "id": "propose_optimizations_synthesize_rule"
     },
@@ -7619,7 +7619,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 5,
+      "community": 4,
       "norm_label": "_synthesize_security_gate",
       "id": "propose_optimizations_synthesize_security_gate"
     },
@@ -7632,7 +7632,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 5,
+      "community": 4,
       "norm_label": "_synthesize_prompt_patch",
       "id": "propose_optimizations_synthesize_prompt_patch"
     },
@@ -7645,7 +7645,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 5,
+      "community": 4,
       "norm_label": "_write_rule",
       "id": "propose_optimizations_write_rule"
     },
@@ -7658,7 +7658,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 5,
+      "community": 4,
       "norm_label": "_write_security",
       "id": "propose_optimizations_write_security"
     },
@@ -7671,7 +7671,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 5,
+      "community": 4,
       "norm_label": "_write_prompt",
       "id": "propose_optimizations_write_prompt"
     },
@@ -7684,7 +7684,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 5,
+      "community": 4,
       "norm_label": "_entry_hash",
       "id": "propose_optimizations_entry_hash"
     },
@@ -7697,7 +7697,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 5,
+      "community": 4,
       "norm_label": "_dedup_by_content_per_task",
       "id": "propose_optimizations_dedup_by_content_per_task"
     },
@@ -7710,7 +7710,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 5,
+      "community": 4,
       "norm_label": "_next_num",
       "id": "propose_optimizations_next_num"
     },
@@ -7723,7 +7723,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 5,
+      "community": 4,
       "norm_label": "_load_model_cfg",
       "id": "propose_optimizations_load_model_cfg"
     },
@@ -7736,7 +7736,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 5,
+      "community": 4,
       "norm_label": "_load_processed",
       "id": "propose_optimizations_load_processed"
     },
@@ -7749,7 +7749,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 5,
+      "community": 4,
       "norm_label": "_save_processed",
       "id": "propose_optimizations_save_processed"
     },
@@ -7762,7 +7762,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 5,
+      "community": 4,
       "norm_label": "call_llm_raw_cluster",
       "id": "propose_optimizations_call_llm_raw_cluster"
     },
@@ -7775,7 +7775,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 5,
+      "community": 4,
       "norm_label": "test_writes_rule_yaml",
       "id": "test_propose_optimizations_test_writes_rule_yaml"
     },
@@ -7788,7 +7788,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 5,
+      "community": 4,
       "norm_label": "test_writes_security_yaml",
       "id": "test_propose_optimizations_test_writes_security_yaml"
     },
@@ -7801,7 +7801,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 5,
+      "community": 4,
       "norm_label": "test_writes_prompt_md",
       "id": "test_propose_optimizations_test_writes_prompt_md"
     },
@@ -7814,7 +7814,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 5,
+      "community": 4,
       "norm_label": "test_dry_run_writes_nothing",
       "id": "test_propose_optimizations_test_dry_run_writes_nothing"
     },
@@ -7827,7 +7827,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 5,
+      "community": 4,
       "norm_label": "test_dedup_skips_processed",
       "id": "test_propose_optimizations_test_dedup_skips_processed"
     },
@@ -7840,7 +7840,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 5,
+      "community": 4,
       "norm_label": "test_cluster_recs_merges_duplicates",
       "id": "test_propose_optimizations_test_cluster_recs_merges_duplicates"
     },
@@ -7853,7 +7853,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 5,
+      "community": 4,
       "norm_label": "test_cluster_recs_fallback_on_llm_failure",
       "id": "test_propose_optimizations_test_cluster_recs_fallback_on_llm_failure"
     },
@@ -7866,7 +7866,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 5,
+      "community": 4,
       "norm_label": "test_check_contradiction_returns_none_on_ok",
       "id": "test_propose_optimizations_test_check_contradiction_returns_none_on_ok"
     },
@@ -7879,7 +7879,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 5,
+      "community": 4,
       "norm_label": "test_check_contradiction_returns_string_on_conflict",
       "id": "test_propose_optimizations_test_check_contradiction_returns_string_on_conflict"
     },
@@ -7892,7 +7892,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 5,
+      "community": 4,
       "norm_label": "test_contradiction_blocks_write",
       "id": "test_propose_optimizations_test_contradiction_blocks_write"
     },
@@ -7905,7 +7905,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 5,
+      "community": 4,
       "norm_label": "test_validate_recommendation_accepted",
       "id": "test_propose_optimizations_test_validate_recommendation_accepted"
     },
@@ -7918,7 +7918,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 5,
+      "community": 4,
       "norm_label": "test_validate_recommendation_rejected",
       "id": "test_propose_optimizations_test_validate_recommendation_rejected"
     },
@@ -7931,7 +7931,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 5,
+      "community": 4,
       "norm_label": "test_validate_recommendation_no_baseline",
       "id": "test_propose_optimizations_test_validate_recommendation_no_baseline"
     },
@@ -7944,7 +7944,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 5,
+      "community": 4,
       "norm_label": "test_validation_gates_file_write_accepted",
       "id": "test_propose_optimizations_test_validation_gates_file_write_accepted"
     },
@@ -7957,7 +7957,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 5,
+      "community": 4,
       "norm_label": "test_validation_gates_file_write_rejected",
       "id": "test_propose_optimizations_test_validation_gates_file_write_rejected"
     },
@@ -7970,7 +7970,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 5,
+      "community": 4,
       "norm_label": "test_dry_run_skips_validation",
       "id": "test_propose_optimizations_test_dry_run_skips_validation"
     },
@@ -7983,7 +7983,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 5,
+      "community": 4,
       "norm_label": "test_no_baseline_score_writes_with_warning",
       "id": "test_propose_optimizations_test_no_baseline_score_writes_with_warning"
     },
@@ -7996,7 +7996,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 5,
+      "community": 4,
       "norm_label": "test_read_original_score_found",
       "id": "test_propose_optimizations_test_read_original_score_found"
     },
@@ -8009,7 +8009,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 5,
+      "community": 4,
       "norm_label": "test_existing_security_text_returns_id_message",
       "id": "test_propose_optimizations_test_existing_security_text_returns_id_message"
     },
@@ -8022,7 +8022,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 5,
+      "community": 4,
       "norm_label": "test_existing_prompts_text_returns_full_content",
       "id": "test_propose_optimizations_test_existing_prompts_text_returns_full_content"
     },
@@ -8035,7 +8035,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 5,
+      "community": 4,
       "norm_label": "test_synthesize_security_gate_receives_existing_context",
       "id": "test_propose_optimizations_test_synthesize_security_gate_receives_existing_context"
     },
@@ -8048,7 +8048,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 5,
+      "community": 4,
       "norm_label": "test_synthesize_prompt_patch_receives_existing_context",
       "id": "test_propose_optimizations_test_synthesize_prompt_patch_receives_existing_context"
     },
@@ -8061,7 +8061,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 5,
+      "community": 4,
       "norm_label": "test_main_uses_knowledge_loader_for_rules",
       "id": "test_propose_optimizations_test_main_uses_knowledge_loader_for_rules"
     },
@@ -8074,7 +8074,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 5,
+      "community": 4,
       "norm_label": "test_rules_md_refreshed_between_writes",
       "id": "test_propose_optimizations_test_rules_md_refreshed_between_writes"
     },
@@ -8087,7 +8087,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 5,
+      "community": 4,
       "norm_label": "test_security_md_refreshed_between_writes",
       "id": "test_propose_optimizations_test_security_md_refreshed_between_writes"
     },
@@ -8100,7 +8100,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 5,
+      "community": 4,
       "norm_label": "test_content_hash_dedup_per_task",
       "id": "test_propose_optimizations_test_content_hash_dedup_per_task"
     },
@@ -8113,7 +8113,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 5,
+      "community": 4,
       "norm_label": "test_cluster_recs_all_hashes_marked_on_write",
       "id": "test_propose_optimizations_test_cluster_recs_all_hashes_marked_on_write"
     },
@@ -8126,7 +8126,7 @@
       "captured_at": null,
       "author": null,
       "contributor": null,
-      "community": 5,
+      "community": 4,
       "norm_label": "scripts/claude.md",
       "id": "scripts_claude_md"
     },
@@ -8140,7 +8140,7 @@
       "author": null,
       "contributor": null,
       "rationale": "Three-channel pipeline (rule/security/prompt) each flows: flatten \u2192 content-hash dedup \u2192 LLM cluster \u2192 synthesize \u2192 contradiction-check \u2192 harness validate \u2192 write. Candidates written with verified:false; nothing activates automatically. Prevents duplicates by injecting existing content into LLM synthesizer prompts. call_llm_raw_cluster is an intentional module-level alias to call_llm_raw, exposed specifically to allow test patching without affecting synthesizer calls.",
-      "community": 5,
+      "community": 4,
       "norm_label": "optimization pipeline design",
       "id": "optimization_pipeline_design"
     },
@@ -8154,7 +8154,7 @@
       "author": null,
       "contributor": null,
       "rationale": "Before writing any candidate file, the script re-runs the originating task through the BitGN harness with the recommendation injected. A candidate is written only if validation_score >= original_score. If no baseline score exists in logs/, candidate is written with a warning. If the task is not found in the trial set, the candidate is skipped entirely.",
-      "community": 5,
+      "community": 4,
       "norm_label": "validation gate design",
       "id": "validation_gate_design"
     },
@@ -8163,135 +8163,216 @@
       "file_type": "rationale",
       "source_file": "agent/llm.py",
       "source_location": "L132",
-      "id": "agent_llm_rationale_132",
-      "community": 6,
-      "norm_label": "load persisted cache, filtering stale entries (>7 days)."
+      "community": 5,
+      "norm_label": "load persisted cache, filtering stale entries (>7 days).",
+      "id": "agent_llm_rationale_132"
     },
     {
       "label": "Persist current cache to disk. Non-critical \u2014 failure is silently ignored.",
       "file_type": "rationale",
       "source_file": "agent/llm.py",
       "source_location": "L143",
-      "id": "agent_llm_rationale_143",
-      "community": 6,
-      "norm_label": "persist current cache to disk. non-critical \u2014 failure is silently ignored."
+      "community": 5,
+      "norm_label": "persist current cache to disk. non-critical \u2014 failure is silently ignored.",
+      "id": "agent_llm_rationale_143"
     },
     {
       "label": "Detect if model supports response_format. Returns 'json_object' or 'none'.     C",
       "file_type": "rationale",
       "source_file": "agent/llm.py",
       "source_location": "L166",
-      "id": "agent_llm_rationale_166",
-      "community": 6,
-      "norm_label": "detect if model supports response_format. returns 'json_object' or 'none'.     c"
+      "community": 5,
+      "norm_label": "detect if model supports response_format. returns 'json_object' or 'none'.     c",
+      "id": "agent_llm_rationale_166"
     },
     {
       "label": "Build response_format dict for the given mode, or None if mode='none'.",
       "file_type": "rationale",
       "source_file": "agent/llm.py",
       "source_location": "L204",
-      "id": "agent_llm_rationale_204",
-      "community": 6,
-      "norm_label": "build response_format dict for the given mode, or none if mode='none'."
+      "community": 5,
+      "norm_label": "build response_format dict for the given mode, or none if mode='none'.",
+      "id": "agent_llm_rationale_204"
     },
     {
       "label": "Flatten system prompt blocks to plain string for non-caching tiers.",
       "file_type": "rationale",
       "source_file": "agent/llm.py",
       "source_location": "L241",
-      "id": "agent_llm_rationale_241",
-      "community": 6,
-      "norm_label": "flatten system prompt blocks to plain string for non-caching tiers."
+      "community": 5,
+      "norm_label": "flatten system prompt blocks to plain string for non-caching tiers.",
+      "id": "agent_llm_rationale_241"
     },
     {
       "label": "True for Ollama-format models (name:tag, no slash).     Examples: qwen3.5:9b, de",
       "file_type": "rationale",
       "source_file": "agent/llm.py",
       "source_location": "L248",
-      "id": "agent_llm_rationale_248",
-      "community": 6,
-      "norm_label": "true for ollama-format models (name:tag, no slash).     examples: qwen3.5:9b, de"
+      "community": 5,
+      "norm_label": "true for ollama-format models (name:tag, no slash).     examples: qwen3.5:9b, de",
+      "id": "agent_llm_rationale_248"
     },
     {
       "label": "True for claude-code/* aliases routed to iclaude subprocess.",
       "file_type": "rationale",
       "source_file": "agent/llm.py",
       "source_location": "L258",
-      "id": "agent_llm_rationale_258",
-      "community": 6,
-      "norm_label": "true for claude-code/* aliases routed to iclaude subprocess."
+      "community": 5,
+      "norm_label": "true for claude-code/* aliases routed to iclaude subprocess.",
+      "id": "agent_llm_rationale_258"
     },
     {
       "label": "Determine LLM provider for a model call.     Explicit cfg['provider'] wins; fall",
       "file_type": "rationale",
       "source_file": "agent/llm.py",
       "source_location": "L263",
-      "id": "agent_llm_rationale_263",
-      "community": 6,
-      "norm_label": "determine llm provider for a model call.     explicit cfg['provider'] wins; fall"
+      "community": 5,
+      "norm_label": "determine llm provider for a model call.     explicit cfg['provider'] wins; fall",
+      "id": "agent_llm_rationale_263"
     },
     {
       "label": "Lightweight LLM call with 3-tier routing and transient-error retry.     Returns",
       "file_type": "rationale",
       "source_file": "agent/llm.py",
       "source_location": "L291",
-      "id": "agent_llm_rationale_291",
-      "community": 6,
-      "norm_label": "lightweight llm call with 3-tier routing and transient-error retry.     returns"
+      "community": 5,
+      "norm_label": "lightweight llm call with 3-tier routing and transient-error retry.     returns",
+      "id": "agent_llm_rationale_291"
     },
     {
       "label": "Call LLM with MODEL_FALLBACK retry (FIX-417). Primary model through all tiers fi",
       "file_type": "rationale",
       "source_file": "agent/llm.py",
       "source_location": "L525",
-      "id": "agent_llm_rationale_525",
-      "community": 1,
-      "norm_label": "call llm with model_fallback retry (fix-417). primary model through all tiers fi"
+      "community": 9,
+      "norm_label": "call llm with model_fallback retry (fix-417). primary model through all tiers fi",
+      "id": "agent_llm_rationale_525"
     },
     {
       "label": "Map alias (e.g. 'anthropic/claude-haiku-4.5') to Anthropic API model ID.",
       "file_type": "rationale",
       "source_file": "agent/llm.py",
       "source_location": "L558",
-      "id": "agent_llm_rationale_558",
-      "community": 6,
-      "norm_label": "map alias (e.g. 'anthropic/claude-haiku-4.5') to anthropic api model id."
+      "community": 5,
+      "norm_label": "map alias (e.g. 'anthropic/claude-haiku-4.5') to anthropic api model id.",
+      "id": "agent_llm_rationale_558"
     },
     {
       "label": "test_ollama_key_constant_exists_and_fallback()",
       "file_type": "code",
       "source_file": "tests/test_llm_module.py",
       "source_location": "L45",
-      "id": "tests_test_llm_module_test_ollama_key_constant_exists_and_fallback",
-      "community": 6,
-      "norm_label": "test_ollama_key_constant_exists_and_fallback()"
+      "community": 5,
+      "norm_label": "test_ollama_key_constant_exists_and_fallback()",
+      "id": "tests_test_llm_module_test_ollama_key_constant_exists_and_fallback"
     },
     {
       "label": "_system_as_str flattens list[dict] blocks to newline-joined text.",
       "file_type": "rationale",
       "source_file": "tests/test_llm_module.py",
       "source_location": "L28",
-      "id": "tests_test_llm_module_rationale_28",
-      "community": 6,
-      "norm_label": "_system_as_str flattens list[dict] blocks to newline-joined text."
+      "community": 5,
+      "norm_label": "_system_as_str flattens list[dict] blocks to newline-joined text.",
+      "id": "tests_test_llm_module_rationale_28"
     },
     {
       "label": "_system_as_str returns str unchanged.",
       "file_type": "rationale",
       "source_file": "tests/test_llm_module.py",
       "source_location": "L40",
-      "id": "tests_test_llm_module_rationale_40",
-      "community": 6,
-      "norm_label": "_system_as_str returns str unchanged."
+      "community": 5,
+      "norm_label": "_system_as_str returns str unchanged.",
+      "id": "tests_test_llm_module_rationale_40"
     },
     {
       "label": "_OLLAMA_KEY attribute must exist on module and use or-fallback logic.",
       "file_type": "rationale",
       "source_file": "tests/test_llm_module.py",
       "source_location": "L46",
-      "id": "tests_test_llm_module_rationale_46",
-      "community": 6,
-      "norm_label": "_ollama_key attribute must exist on module and use or-fallback logic."
+      "community": 5,
+      "norm_label": "_ollama_key attribute must exist on module and use or-fallback logic.",
+      "id": "tests_test_llm_module_rationale_46"
+    },
+    {
+      "label": "_check_tdd_antipatterns()",
+      "file_type": "code",
+      "source_file": "agent/test_runner.py",
+      "source_location": "L25",
+      "id": "agent_test_runner_check_tdd_antipatterns",
+      "community": 20,
+      "norm_label": "_check_tdd_antipatterns()"
+    },
+    {
+      "label": "Run test_code in isolated subprocess. Returns (passed, error_message, warnings).",
+      "file_type": "rationale",
+      "source_file": "agent/test_runner.py",
+      "source_location": "L40",
+      "id": "agent_test_runner_rationale_40",
+      "community": 20,
+      "norm_label": "run test_code in isolated subprocess. returns (passed, error_message, warnings)."
+    },
+    {
+      "label": ".log_tdd_warning()",
+      "file_type": "code",
+      "source_file": "agent/trace.py",
+      "source_location": "L158",
+      "id": "agent_trace_tracelogger_log_tdd_warning",
+      "community": 2,
+      "norm_label": ".log_tdd_warning()"
+    },
+    {
+      "label": "test_antipattern_literal_in_answer_warns_when_in_task()",
+      "file_type": "code",
+      "source_file": "tests/test_test_runner.py",
+      "source_location": "L61",
+      "id": "tests_test_test_runner_test_antipattern_literal_in_answer_warns_when_in_task",
+      "community": 20,
+      "norm_label": "test_antipattern_literal_in_answer_warns_when_in_task()"
+    },
+    {
+      "label": "test_antipattern_literal_not_in_task_no_warn()",
+      "file_type": "code",
+      "source_file": "tests/test_test_runner.py",
+      "source_location": "L69",
+      "id": "tests_test_test_runner_test_antipattern_literal_not_in_task_no_warn",
+      "community": 20,
+      "norm_label": "test_antipattern_literal_not_in_task_no_warn()"
+    },
+    {
+      "label": "test_antipattern_no_task_text_no_answer_warn()",
+      "file_type": "code",
+      "source_file": "tests/test_test_runner.py",
+      "source_location": "L77",
+      "id": "tests_test_test_runner_test_antipattern_no_task_text_no_answer_warn",
+      "community": 20,
+      "norm_label": "test_antipattern_no_task_text_no_answer_warn()"
+    },
+    {
+      "label": "test_antipattern_header_literal_always_warns()",
+      "file_type": "code",
+      "source_file": "tests/test_test_runner.py",
+      "source_location": "L85",
+      "id": "tests_test_test_runner_test_antipattern_header_literal_always_warns",
+      "community": 20,
+      "norm_label": "test_antipattern_header_literal_always_warns()"
+    },
+    {
+      "label": "test_antipattern_unescaped_opposite_quote_no_warn()",
+      "file_type": "code",
+      "source_file": "tests/test_test_runner.py",
+      "source_location": "L92",
+      "id": "tests_test_test_runner_test_antipattern_unescaped_opposite_quote_no_warn",
+      "community": 20,
+      "norm_label": "test_antipattern_unescaped_opposite_quote_no_warn()"
+    },
+    {
+      "label": "False-negative: regex does not match unescaped opposite-quote inside literal. Ac",
+      "file_type": "rationale",
+      "source_file": "tests/test_test_runner.py",
+      "source_location": "L93",
+      "id": "tests_test_test_runner_rationale_93",
+      "community": 20,
+      "norm_label": "false-negative: regex does not match unescaped opposite-quote inside literal. ac"
     }
   ],
   "links": [
@@ -9069,7 +9150,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "agent/pipeline.py",
-      "source_location": "L820",
+      "source_location": "L837",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "agent_pipeline_py",
@@ -9079,7 +9160,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "agent/pipeline.py",
-      "source_location": "L864",
+      "source_location": "L881",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "agent_pipeline_py",
@@ -9133,7 +9214,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "agent/pipeline.py",
-      "source_location": "L846",
+      "source_location": "L863",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "agent_pipeline_get_security_gates",
@@ -9199,7 +9280,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "agent/pipeline.py",
-      "source_location": "L836",
+      "source_location": "L853",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "agent_pipeline_call_llm_phase",
@@ -9462,7 +9543,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "agent/pipeline.py",
-      "source_location": "L835",
+      "source_location": "L852",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "agent_pipeline_build_learn_user_msg",
@@ -9473,7 +9554,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "agent/pipeline.py",
-      "source_location": "L655",
+      "source_location": "L663",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "agent_pipeline_build_answer_user_msg",
@@ -10435,7 +10516,7 @@
       "relation": "contains",
       "confidence": "EXTRACTED",
       "source_file": "agent/test_runner.py",
-      "source_location": "L11",
+      "source_location": "L39",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "agent_test_runner_py",
@@ -10450,6 +10531,16 @@
       "confidence_score": 1.0,
       "source": "agent_test_runner_py",
       "target": "agent_test_runner_rationale_1"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "agent/test_runner.py",
+      "source_location": "L25",
+      "weight": 1.0,
+      "source": "agent_test_runner_py",
+      "target": "agent_test_runner_check_tdd_antipatterns",
+      "confidence_score": 1.0
     },
     {
       "relation": "rationale_for",
@@ -10515,6 +10606,27 @@
       "weight": 1.0,
       "source": "agent_test_runner_run_tests",
       "target": "tests_test_test_runner_test_answer_tests_signature"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "agent/test_runner.py",
+      "source_location": "L41",
+      "weight": 1.0,
+      "source": "agent_test_runner_run_tests",
+      "target": "agent_test_runner_check_tdd_antipatterns",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "agent/test_runner.py",
+      "source_location": "L40",
+      "weight": 1.0,
+      "source": "agent_test_runner_run_tests",
+      "target": "agent_test_runner_rationale_40",
+      "confidence_score": 1.0
     },
     {
       "relation": "contains",
@@ -11791,7 +11903,7 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "agent/trace.py",
-      "source_location": "L150",
+      "source_location": "L161",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "agent_trace_tracelogger",
@@ -11801,7 +11913,7 @@
       "relation": "method",
       "confidence": "EXTRACTED",
       "source_file": "agent/trace.py",
-      "source_location": "L171",
+      "source_location": "L182",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "agent_trace_tracelogger",
@@ -11962,6 +12074,16 @@
       "target": "tests_test_trace_resolve_test_resolve_exec_records_written"
     },
     {
+      "relation": "method",
+      "confidence": "EXTRACTED",
+      "source_file": "agent/trace.py",
+      "source_location": "L158",
+      "weight": 1.0,
+      "source": "agent_trace_tracelogger",
+      "target": "agent_trace_tracelogger_log_tdd_warning",
+      "confidence_score": 1.0
+    },
+    {
       "relation": "calls",
       "context": "call",
       "confidence": "EXTRACTED",
@@ -12065,7 +12187,7 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "agent/trace.py",
-      "source_location": "L142",
+      "source_location": "L149",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "agent_trace_tracelogger_write",
@@ -12076,11 +12198,22 @@
       "context": "call",
       "confidence": "EXTRACTED",
       "source_file": "agent/trace.py",
-      "source_location": "L160",
+      "source_location": "L171",
       "weight": 1.0,
       "confidence_score": 1.0,
       "source": "agent_trace_tracelogger_write",
       "target": "agent_trace_tracelogger_log_task_result"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "EXTRACTED",
+      "source_file": "agent/trace.py",
+      "source_location": "L159",
+      "weight": 1.0,
+      "source": "agent_trace_tracelogger_write",
+      "target": "agent_trace_tracelogger_log_tdd_warning",
+      "confidence_score": 1.0
     },
     {
       "relation": "calls",
@@ -13219,9 +13352,9 @@
       "source_file": "agent/llm.py",
       "source_location": "L132",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "agent_llm_load_capability_cache",
-      "target": "agent_llm_rationale_132",
-      "confidence_score": 1.0
+      "target": "agent_llm_rationale_132"
     },
     {
       "relation": "calls",
@@ -13250,9 +13383,9 @@
       "source_file": "agent/llm.py",
       "source_location": "L143",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "agent_llm_save_capability_cache",
-      "target": "agent_llm_rationale_143",
-      "confidence_score": 1.0
+      "target": "agent_llm_rationale_143"
     },
     {
       "relation": "calls",
@@ -13292,9 +13425,9 @@
       "source_file": "agent/llm.py",
       "source_location": "L166",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "agent_llm_probe_structured_output",
-      "target": "agent_llm_rationale_166",
-      "confidence_score": 1.0
+      "target": "agent_llm_rationale_166"
     },
     {
       "relation": "rationale_for",
@@ -13312,9 +13445,9 @@
       "source_file": "agent/llm.py",
       "source_location": "L204",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "agent_llm_get_response_format",
-      "target": "agent_llm_rationale_204",
-      "confidence_score": 1.0
+      "target": "agent_llm_rationale_204"
     },
     {
       "relation": "calls",
@@ -13365,9 +13498,9 @@
       "source_file": "agent/llm.py",
       "source_location": "L241",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "agent_llm_system_as_str",
-      "target": "agent_llm_rationale_241",
-      "confidence_score": 1.0
+      "target": "agent_llm_rationale_241"
     },
     {
       "relation": "calls",
@@ -13396,9 +13529,9 @@
       "source_file": "agent/llm.py",
       "source_location": "L248",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "agent_llm_is_ollama_model",
-      "target": "agent_llm_rationale_248",
-      "confidence_score": 1.0
+      "target": "agent_llm_rationale_248"
     },
     {
       "relation": "calls",
@@ -13427,9 +13560,9 @@
       "source_file": "agent/llm.py",
       "source_location": "L258",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "agent_llm_is_claude_code_model",
-      "target": "agent_llm_rationale_258",
-      "confidence_score": 1.0
+      "target": "agent_llm_rationale_258"
     },
     {
       "relation": "calls",
@@ -13469,9 +13602,9 @@
       "source_file": "agent/llm.py",
       "source_location": "L263",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "agent_llm_get_provider",
-      "target": "agent_llm_rationale_263",
-      "confidence_score": 1.0
+      "target": "agent_llm_rationale_263"
     },
     {
       "relation": "calls",
@@ -13522,9 +13655,9 @@
       "source_file": "agent/llm.py",
       "source_location": "L291",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "agent_llm_call_raw_single_model",
-      "target": "agent_llm_rationale_291",
-      "confidence_score": 1.0
+      "target": "agent_llm_rationale_291"
     },
     {
       "relation": "rationale_for",
@@ -13575,9 +13708,9 @@
       "source_file": "agent/llm.py",
       "source_location": "L525",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "agent_llm_call_llm_raw",
-      "target": "agent_llm_rationale_525",
-      "confidence_score": 1.0
+      "target": "agent_llm_rationale_525"
     },
     {
       "relation": "rationale_for",
@@ -13595,9 +13728,9 @@
       "source_file": "agent/llm.py",
       "source_location": "L558",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "agent_llm_get_anthropic_model_id",
-      "target": "agent_llm_rationale_558",
-      "confidence_score": 1.0
+      "target": "agent_llm_rationale_558"
     },
     {
       "relation": "contains",
@@ -14868,6 +15001,56 @@
       "confidence_score": 1.0,
       "source": "tests_test_test_runner_py",
       "target": "tests_test_test_runner_test_answer_tests_signature"
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/test_test_runner.py",
+      "source_location": "L61",
+      "weight": 1.0,
+      "source": "tests_test_test_runner_py",
+      "target": "tests_test_test_runner_test_antipattern_literal_in_answer_warns_when_in_task",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/test_test_runner.py",
+      "source_location": "L69",
+      "weight": 1.0,
+      "source": "tests_test_test_runner_py",
+      "target": "tests_test_test_runner_test_antipattern_literal_not_in_task_no_warn",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/test_test_runner.py",
+      "source_location": "L77",
+      "weight": 1.0,
+      "source": "tests_test_test_runner_py",
+      "target": "tests_test_test_runner_test_antipattern_no_task_text_no_answer_warn",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/test_test_runner.py",
+      "source_location": "L85",
+      "weight": 1.0,
+      "source": "tests_test_test_runner_py",
+      "target": "tests_test_test_runner_test_antipattern_header_literal_always_warns",
+      "confidence_score": 1.0
+    },
+    {
+      "relation": "contains",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/test_test_runner.py",
+      "source_location": "L92",
+      "weight": 1.0,
+      "source": "tests_test_test_runner_py",
+      "target": "tests_test_test_runner_test_antipattern_unescaped_opposite_quote_no_warn",
+      "confidence_score": 1.0
     },
     {
       "relation": "contains",
@@ -19941,9 +20124,9 @@
       "source_file": "tests/test_llm_module.py",
       "source_location": "L45",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tests_test_llm_module_py",
-      "target": "tests_test_llm_module_test_ollama_key_constant_exists_and_fallback",
-      "confidence_score": 1.0
+      "target": "tests_test_llm_module_test_ollama_key_constant_exists_and_fallback"
     },
     {
       "relation": "rationale_for",
@@ -19961,9 +20144,9 @@
       "source_file": "tests/test_llm_module.py",
       "source_location": "L28",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tests_test_llm_module_test_system_as_str_from_blocks",
-      "target": "tests_test_llm_module_rationale_28",
-      "confidence_score": 1.0
+      "target": "tests_test_llm_module_rationale_28"
     },
     {
       "relation": "rationale_for",
@@ -19981,9 +20164,9 @@
       "source_file": "tests/test_llm_module.py",
       "source_location": "L40",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tests_test_llm_module_test_system_as_str_passthrough_str",
-      "target": "tests_test_llm_module_rationale_40",
-      "confidence_score": 1.0
+      "target": "tests_test_llm_module_rationale_40"
     },
     {
       "relation": "contains",
@@ -22846,11 +23029,76 @@
       "source_file": "tests/test_llm_module.py",
       "source_location": "L46",
       "weight": 1.0,
+      "confidence_score": 1.0,
       "source": "tests_test_llm_module_test_ollama_key_constant_exists_and_fallback",
-      "target": "tests_test_llm_module_rationale_46",
+      "target": "tests_test_llm_module_rationale_46"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "tests/test_test_runner.py",
+      "source_location": "L65",
+      "weight": 1.0,
+      "source": "agent_test_runner_check_tdd_antipatterns",
+      "target": "tests_test_test_runner_test_antipattern_literal_in_answer_warns_when_in_task"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "tests/test_test_runner.py",
+      "source_location": "L73",
+      "weight": 1.0,
+      "source": "agent_test_runner_check_tdd_antipatterns",
+      "target": "tests_test_test_runner_test_antipattern_literal_not_in_task_no_warn"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "tests/test_test_runner.py",
+      "source_location": "L81",
+      "weight": 1.0,
+      "source": "agent_test_runner_check_tdd_antipatterns",
+      "target": "tests_test_test_runner_test_antipattern_no_task_text_no_answer_warn"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "tests/test_test_runner.py",
+      "source_location": "L88",
+      "weight": 1.0,
+      "source": "agent_test_runner_check_tdd_antipatterns",
+      "target": "tests_test_test_runner_test_antipattern_header_literal_always_warns"
+    },
+    {
+      "relation": "calls",
+      "context": "call",
+      "confidence": "INFERRED",
+      "confidence_score": 0.8,
+      "source_file": "tests/test_test_runner.py",
+      "source_location": "L98",
+      "weight": 1.0,
+      "source": "agent_test_runner_check_tdd_antipatterns",
+      "target": "tests_test_test_runner_test_antipattern_unescaped_opposite_quote_no_warn"
+    },
+    {
+      "relation": "rationale_for",
+      "confidence": "EXTRACTED",
+      "source_file": "tests/test_test_runner.py",
+      "source_location": "L93",
+      "weight": 1.0,
+      "source": "tests_test_test_runner_test_antipattern_unescaped_opposite_quote_no_warn",
+      "target": "tests_test_test_runner_rationale_93",
       "confidence_score": 1.0
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "39e19f25f4af43a67ad86683942a491877de977f"
+  "built_at_commit": "87cfa9dadee30175e258803301cc3a7ed8480c02"
 }

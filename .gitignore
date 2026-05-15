@@ -17,3 +17,4 @@ tmp/*
 .worktrees/
 .graphify/.graphify_python
 .graphify/cache/
+.secrets

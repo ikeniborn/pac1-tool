@@ -10,6 +10,7 @@
 - `.wiki/документация/pipeline-phases/answer-phase.md` — Фаза ANSWER: финальный синтез JSON-ответа по результатам SQL
 - `.wiki/документация/pipeline-phases/resolve-phase.md` — Фаза RESOLVE: value-resolution и генерация discovery SQL по идентификаторам задачи
 - `.wiki/документация/pipeline-phases/sql-plan-phase.md` — Фаза SQL_PLAN: планирование SQL-запросов, изоляция discovery, cart queries
+- `.wiki/документация/pipeline-phases/test-generation-phase.md` — Фаза Test Generation (TDD): генерация acceptance-тестов test_sql/test_answer до фазы ANSWER
 
 #### design-decisions
 - `.wiki/документация/design-decisions/grounding-refs.md` — Grounding Refs: механизм ссылок на SKU каталога через AUTO_REFS

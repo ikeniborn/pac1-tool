@@ -45,3 +45,15 @@
 
 ---
 
+## 2026-05-15T00:00:00
+
+**Операция:** ingest
+**Источник:** data/prompts/test_gen.md
+**Домен:** документация (определён по содержимому — файл вне `docs/`, но описывает pipeline-phase TDD)
+
+**Затронуто страниц:** 1
+
+- СОЗДАНА: `.wiki/документация/pipeline-phases/test-generation-phase.md` (stub) — entity_type: pipeline-phase
+
+---
+
