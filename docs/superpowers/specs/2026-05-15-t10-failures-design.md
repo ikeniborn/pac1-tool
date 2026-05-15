@@ -1,3 +1,15 @@
+---
+review:
+  spec_hash: 4a3bf54ce37bee6c
+  last_run: 2026-05-15
+  phases:
+    structure:   { status: passed }
+    coverage:    { status: passed }
+    clarity:     { status: passed }
+    consistency: { status: passed }
+  findings: []
+---
+
 # Design: t10 Pipeline Failures Fix
 
 **Date:** 2026-05-15
@@ -75,7 +87,7 @@ LEARN / ANSWER
 
 ### 2. Schema-Driven Prompts (defect #2)
 
-**Files:** `data/prompts/{resolve,lookup,sql_plan}.md`, `agent/prompt.py`, `agent/prephase.py`.
+**Files:** `data/prompts/{resolve,lookup,sql_plan,catalogue}.md`, `agent/prompt.py`, `agent/prephase.py`.
 
 **Prompt edits:**
 - Remove every hardcoded `FROM kinds`, `WHERE k.name`, `SELECT ... FROM products` literal *table* name. Replace with directive:
@@ -202,6 +214,7 @@ LEARN / ANSWER
 | `data/prompts/resolve.md` | Remove hardcoded table names, reference roles |
 | `data/prompts/lookup.md` | Same |
 | `data/prompts/sql_plan.md` | Same |
+| `data/prompts/catalogue.md` | Same |
 | `agent/test_runner.py` | New regexes, extended `_check_tdd_antipatterns`, new arg on `run_tests` |
 | `agent/pipeline.py` | Pass `sql_queries` to `run_tests`; post-execute schema refresh hook |
 | `agent/prephase.py` | Role tagging in `_build_schema_digest`; new `merge_schema_from_sqlite_results` |
