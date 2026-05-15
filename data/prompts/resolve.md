@@ -18,11 +18,15 @@ Given a task description, an AGENTS.MD section index, and top property keys, ext
 - Only discovery queries — no filter queries, no JOIN, no subqueries.
 - If no identifiable terms exist, return empty candidates list.
 
+## Table name resolution
+
+Do not hardcode table names. Consult the **SCHEMA DIGEST** block (provided above): every table is tagged with a semantic role — `role=products`, `role=kinds`, `role=properties`, or `role=other`. Substitute the actual digest name for the role placeholder when emitting queries.
+
 ## Discovery query patterns
 
 Brand: `SELECT DISTINCT brand FROM products WHERE brand LIKE '%<term>%' LIMIT 10`
 Model: `SELECT DISTINCT model FROM products WHERE model LIKE '%<term>%' LIMIT 10`
-Kind: `SELECT DISTINCT name FROM kinds WHERE name LIKE '%<term>%' LIMIT 10`
+Kind: `SELECT DISTINCT name FROM <table with role=kinds> WHERE name LIKE '%<term>%' LIMIT 10`
 Attr key: `SELECT DISTINCT key FROM product_properties WHERE key LIKE '%<term>%' LIMIT 10`
 Attr value (text): `SELECT DISTINCT value_text FROM product_properties WHERE key = '<known_key>' AND value_text LIKE '%<term>%' LIMIT 10`
 Cart ID: `SELECT DISTINCT cart_id FROM carts WHERE customer_id = '<from_agent_context>' LIMIT 10`

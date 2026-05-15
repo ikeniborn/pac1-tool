@@ -1,3 +1,7 @@
+## Table name resolution
+
+Do not hardcode table names. Consult the **SCHEMA DIGEST** block (provided above): every table is tagged with a semantic role — `role=products`, `role=kinds`, `role=properties`, or `role=other`. Substitute the actual digest name for the role placeholder when emitting queries.
+
 ## SQL anti-hallucination gate
 
 BEFORE returning OUTCOME_NONE_CLARIFICATION:

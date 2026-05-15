@@ -1,18 +1,22 @@
 
+## Table name resolution
+
+Do not hardcode table names. Consult the **SCHEMA DIGEST** block (provided above): every table is tagged with a semantic role — `role=products`, `role=kinds`, `role=properties`, or `role=other`. Substitute the actual digest name for the role placeholder when emitting queries.
+
 ## CATALOGUE STRATEGY
 
 **HARD RULE**: Never use `list`, `find`, or `read` on `/proc/catalog/`. SQL ONLY via `/bin/sql`.
 
 **Step order** (MAX_STEPS=5 — every step counts):
 1. Check AGENTS.MD — if it defines exact values for the needed attribute, use them directly in SQL
-2. If AGENTS.MD is silent on an attribute → `SELECT DISTINCT <attr> FROM products WHERE <narrowing conditions> LIMIT 50`
+2. If AGENTS.MD is silent on an attribute → `SELECT DISTINCT <attr> FROM <table with role=products> WHERE <narrowing conditions> LIMIT 50`
 3. `EXPLAIN SELECT ...` — validate syntax before execution (catches typos at zero cost)
 4. `SELECT ...` — retrieve the answer
 5. `report_completion` immediately — do NOT read catalog files to confirm SQL results
 
 **Question patterns**:
-- `How many X?` → `SELECT COUNT(*) FROM products WHERE type='X'`
-- `Do you have X?` → `SELECT 1 FROM products WHERE brand=? AND type=? LIMIT 1`
+- `How many X?` → `SELECT COUNT(*) FROM <table with role=products> WHERE type='X'`
+- `Do you have X?` → `SELECT 1 FROM <table with role=products> WHERE brand=? AND type=? LIMIT 1`
 
 **Never assume attribute values** — verify from AGENTS.MD or DISTINCT first.
 
