@@ -221,3 +221,27 @@ def test_prephase_schema_tables_includes_carts():
     from agent.prephase import _SCHEMA_TABLES
     assert "carts" in _SCHEMA_TABLES
     assert "cart_items" in _SCHEMA_TABLES
+
+
+def test_build_schema_digest_assigns_role_products():
+    from agent.prephase import _infer_role
+    cols = [{"name": "sku", "type": "TEXT"}, {"name": "kind_id", "type": "INTEGER"}, {"name": "name", "type": "TEXT"}]
+    assert _infer_role(cols) == "products"
+
+
+def test_build_schema_digest_assigns_role_kinds():
+    from agent.prephase import _infer_role
+    cols = [{"name": "id", "type": "INTEGER"}, {"name": "category_id", "type": "INTEGER"}, {"name": "name", "type": "TEXT"}]
+    assert _infer_role(cols) == "kinds"
+
+
+def test_build_schema_digest_assigns_role_properties():
+    from agent.prephase import _infer_role
+    cols = [{"name": "sku", "type": "TEXT"}, {"name": "key", "type": "TEXT"}, {"name": "value_text", "type": "TEXT"}]
+    assert _infer_role(cols) == "properties"
+
+
+def test_build_schema_digest_assigns_role_other():
+    from agent.prephase import _infer_role
+    cols = [{"name": "id", "type": "INTEGER"}, {"name": "label", "type": "TEXT"}]
+    assert _infer_role(cols) == "other"

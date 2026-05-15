@@ -51,6 +51,17 @@ def _parse_csv_rows(text: str) -> list[dict]:
         return []
 
 
+def _infer_role(cols: list[dict]) -> str:
+    names = {c["name"].lower() for c in cols if "name" in c}
+    if {"sku", "kind_id"}.issubset(names):
+        return "products"
+    if {"key", "value_text"}.issubset(names):
+        return "properties"
+    if {"category_id", "name"}.issubset(names) and "sku" not in names:
+        return "kinds"
+    return "other"
+
+
 def _build_schema_digest(vm: EcomRuntimeClientSync) -> dict:
     tables: dict = {}
     for table in _SCHEMA_TABLES:
@@ -64,7 +75,7 @@ def _build_schema_digest(vm: EcomRuntimeClientSync) -> dict:
             {"from": r["from"], "to": f"{r['table']}.{r['to']}"}
             for r in _parse_csv_rows(fk_txt) if "from" in r
         ]
-        entry: dict = {"columns": cols}
+        entry: dict = {"columns": cols, "role": _infer_role(cols)}
         if fk:
             entry["fk"] = fk
         tables[table] = entry
