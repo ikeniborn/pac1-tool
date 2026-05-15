@@ -624,6 +624,7 @@ def run_pipeline(
                     sql_passed, sql_err, sql_warns = run_tests(
                         test_gen_out.sql_tests, "test_sql", {"results": sql_results},
                         task_text=task_text,
+                        sql_queries=queries,
                     )
                     if t := get_trace():
                         t.log_test_run(
