@@ -183,3 +183,17 @@ def test_thread_isolation(tmp_path):
         th.join()
     for tid, recs in results.items():
         assert recs[0]["task_id"] == tid
+
+
+def test_log_schema_refresh(tmp_path):
+    from agent.trace import TraceLogger
+    import json
+    p = tmp_path / "trace.jsonl"
+    t = TraceLogger(p, "task_x")
+    t.log_schema_refresh(cycle=2, added_tables=["product_kinds", "carts"])
+    t._fh.flush()
+    lines = [json.loads(ln) for ln in p.read_text().splitlines() if ln]
+    refresh = [ln for ln in lines if ln.get("type") == "schema_refresh"]
+    assert len(refresh) == 1
+    assert refresh[0]["cycle"] == 2
+    assert refresh[0]["added_tables"] == ["product_kinds", "carts"]

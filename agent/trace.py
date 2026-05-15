@@ -158,6 +158,13 @@ class TraceLogger:
     def log_tdd_warning(self, suite: str, warnings: list[str]) -> None:
         self._write({"type": "tdd_warning", "suite": suite, "warnings": warnings})
 
+    def log_schema_refresh(self, cycle: int, added_tables: list[str]) -> None:
+        self._write({
+            "type": "schema_refresh",
+            "cycle": cycle,
+            "added_tables": list(added_tables),
+        })
+
     def log_task_result(
         self,
         outcome: str,
