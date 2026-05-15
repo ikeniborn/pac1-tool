@@ -4,6 +4,8 @@ from __future__ import annotations
 import sqlglot
 import sqlglot.expressions as exp
 
+SYSTEM_TABLES = {"sqlite_schema", "sqlite_master"}
+
 
 def _build_alias_map(parsed: exp.Expression) -> dict[str, str]:
     """Return {alias_lower: table_name_lower} from FROM and JOIN clauses."""
@@ -40,6 +42,22 @@ def _check_query(
         return None  # parse failure → let DB catch syntax errors
 
     alias_map = _build_alias_map(parsed)
+
+    # Check 0: unknown table (requires non-empty digest)
+    known_tables = set(schema_digest.get("tables", {}).keys())
+    if known_tables:
+        known_lower = {t.lower() for t in known_tables} | SYSTEM_TABLES
+        for node in parsed.walk():
+            if isinstance(node, exp.Table):
+                name = (node.name or "").lower()
+                if not name:
+                    continue
+                if name in known_lower:
+                    continue
+                if name.startswith("pragma_"):
+                    continue
+                return f"unknown table: '{name}' (not in schema digest)"
+
     cols_by_table = _known_cols_by_table(schema_digest)
 
     # Check 1: unknown qualified column references

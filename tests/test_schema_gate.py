@@ -154,8 +154,8 @@ def test_exists_subquery_aliases_pass():
     assert check_schema_compliance([q], _DIGEST, {"color": ["red"], "weight": ["1kg"]}, "find red 1kg") is None
 
 
-def test_unknown_table_not_blocked():
-    """Queries referencing tables absent from schema_digest are not blocked — EXPLAIN will catch them."""
+def test_unknown_table_blocked():
+    """Queries referencing tables absent from schema_digest are blocked by Check 0."""
     schema_digest = {
         "tables": {
             "products": {"columns": [{"name": "sku", "type": "TEXT"}, {"name": "path", "type": "TEXT"}]}
@@ -163,4 +163,37 @@ def test_unknown_table_not_blocked():
     }
     q = "SELECT c.cart_id, ci.sku FROM carts c JOIN cart_items ci ON ci.cart_id = c.cart_id WHERE c.customer_id = 'x'"
     err = check_schema_compliance([q], schema_digest, {"customer_id": ["x"]}, "cart query")
-    assert err is None, f"Unknown tables should not be blocked by schema gate, got: {err}"
+    assert err is not None, "Unknown tables should be blocked by Check 0"
+    assert "unknown table" in err.lower()
+
+
+def test_unknown_table_rejected():
+    from agent.schema_gate import check_schema_compliance
+    digest = {"tables": {"products": {"columns": [{"name": "sku"}]}}}
+    err = check_schema_compliance(["SELECT * FROM nonexistent_table"], digest, {}, "")
+    assert err is not None
+    assert "unknown table" in err.lower()
+    assert "nonexistent_table" in err
+
+
+def test_known_table_passes_check_0():
+    from agent.schema_gate import check_schema_compliance
+    digest = {"tables": {"products": {"columns": [{"name": "sku"}]}}}
+    err = check_schema_compliance(["SELECT sku FROM products"], digest, {}, "")
+    assert err is None
+
+
+def test_empty_digest_skips_check_0():
+    from agent.schema_gate import check_schema_compliance
+    err = check_schema_compliance(["SELECT * FROM whatever"], {}, {}, "")
+    assert err is None or "unknown table" not in err.lower()
+
+
+def test_sqlite_schema_passes_check_0():
+    from agent.schema_gate import check_schema_compliance
+    digest = {"tables": {"products": {"columns": [{"name": "sku"}]}}}
+    err = check_schema_compliance(
+        ["SELECT name FROM sqlite_schema WHERE type='table'"],
+        digest, {}, "",
+    )
+    assert err is None or "unknown table" not in err.lower()
