@@ -98,3 +98,51 @@ def test_antipattern_unescaped_opposite_quote_no_warn():
     warnings = _check_tdd_antipatterns(code, task_text=task)
     # regex stops on the embedded ' — no match, no warning (documented false-negative)
     assert not warnings
+
+
+def test_aggregate_antipattern_force_fail():
+    from agent.test_runner import run_tests
+    code = (
+        "def test_sql(results):\n"
+        "    rows = results[-1].split('\\n')\n"
+        "    assert len(rows) > 1\n"
+    )
+    sql_queries = ["SELECT COUNT(*) FROM products WHERE kind_id = 7"]
+    passed, err, warns = run_tests(
+        code, "test_sql", {"results": ["count\n3"]},
+        task_text="", sql_queries=sql_queries,
+    )
+    assert passed is False
+    assert "antipattern" in err.lower()
+    assert any("antipattern" in w.lower() for w in warns)
+
+
+def test_non_aggregate_len_check_allowed():
+    from agent.test_runner import run_tests
+    code = (
+        "def test_sql(results):\n"
+        "    rows = results[-1].split('\\n')\n"
+        "    assert len(rows) > 1\n"
+    )
+    sql_queries = ["SELECT sku FROM products WHERE kind_id = 7"]
+    passed, err, warns = run_tests(
+        code, "test_sql", {"results": ["sku\nA1\nA2"]},
+        task_text="", sql_queries=sql_queries,
+    )
+    assert passed is True
+    assert not any("antipattern" in w.lower() for w in warns)
+
+
+def test_aggregate_without_bad_len_passes():
+    from agent.test_runner import run_tests
+    code = (
+        "def test_sql(results):\n"
+        "    rows = results[-1].split('\\n')\n"
+        "    assert int(rows[-1].strip()) >= 0\n"
+    )
+    sql_queries = ["SELECT COUNT(*) FROM products"]
+    passed, err, warns = run_tests(
+        code, "test_sql", {"results": ["count\n3"]},
+        task_text="", sql_queries=sql_queries,
+    )
+    assert passed is True

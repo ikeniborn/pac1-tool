@@ -20,9 +20,15 @@ _ANSWER_ASSERT_RE = re.compile(r"""assert\s+['"]((?:[^'"\\]|\\.)*)['"]\s+in\s+an
 # Known edge case (acceptable for MVP):
 #   False-positive: non-aggregate column names (e.g. `sku`, `path`) also match and emit a warning.
 _HEADER_ASSERT_RE = re.compile(r"""assert\s+['"]((?:[^'"\\]|\\.)*)['"]\s+in\s+header""")
+_AGG_RE = re.compile(r"\b(COUNT|SUM|AVG|MIN|MAX)\s*\(", re.IGNORECASE)
+_BAD_LEN_RE = re.compile(r"len\s*\(\s*(?:rows|results)\s*\)\s*>\s*1")
 
 
-def _check_tdd_antipatterns(test_code: str, task_text: str = "") -> list[str]:
+def _check_tdd_antipatterns(
+    test_code: str,
+    task_text: str = "",
+    sql_queries: list[str] | None = None,
+) -> list[str]:
     warnings = []
     if task_text:
         for lit in _ANSWER_ASSERT_RE.findall(test_code):
@@ -33,12 +39,26 @@ def _check_tdd_antipatterns(test_code: str, task_text: str = "") -> list[str]:
             f"hardcoded string in sql header assert: '{col}' — "
             "for aggregates use row/type check; for named columns this warning may be a false-positive"
         )
+    if sql_queries and _BAD_LEN_RE.search(test_code):
+        if any(_AGG_RE.search(q) for q in sql_queries):
+            warnings.append(
+                "aggregate query + len > 1 antipattern — use rows == 1 + integer parse"
+            )
     return warnings
 
 
-def run_tests(test_code: str, fn_name: str, context: dict, task_text: str = "") -> tuple[bool, str, list[str]]:
+def run_tests(
+    test_code: str,
+    fn_name: str,
+    context: dict,
+    task_text: str = "",
+    sql_queries: list[str] | None = None,
+) -> tuple[bool, str, list[str]]:
     """Run test_code in isolated subprocess. Returns (passed, error_message, warnings)."""
-    warnings = _check_tdd_antipatterns(test_code, task_text)
+    warnings = _check_tdd_antipatterns(test_code, task_text, sql_queries)
+    for w in warnings:
+        if "antipattern" in w.lower():
+            return False, w, warnings
     script = (
         "import json, sys\n"
         "context = json.loads(sys.stdin.read())\n"
