@@ -22,7 +22,7 @@ from .llm import (
 from .json_extract import _extract_json_from_text
 from .models import SqlPlanOutput, LearnOutput, AnswerOutput, TestGenOutput
 from .test_runner import run_tests
-from .prephase import PrephaseResult, _format_schema_digest as _fmt_schema_digest
+from .prephase import PrephaseResult, _format_schema_digest as _fmt_schema_digest, merge_schema_from_sqlite_results
 from .prompt import load_prompt
 from .resolve import run_resolve
 from .rules_loader import RulesLoader, _RULES_DIR
@@ -42,6 +42,8 @@ _MODEL_EVALUATOR = os.environ.get("MODEL_EVALUATOR", "")
 _EVAL_LOG = Path(__file__).parent.parent / "data" / "eval_log.jsonl"
 _TDD_ENABLED = os.environ.get("TDD_ENABLED", "0") == "1"
 _MODEL_TEST_GEN = os.environ.get("MODEL_TEST_GEN", "")
+
+_SQLITE_SCHEMA_RE = re.compile(r"\bsqlite_(?:schema|master)\b", re.IGNORECASE)
 
 _rules_loader_cache: "RulesLoader | None" = None
 _security_gates_cache: "list[dict] | None" = None
@@ -590,6 +592,18 @@ def run_pipeline(
                                error_type="empty" if last_empty and not execute_error else "semantic",
                                cycle=cycle + 1, prior_learn_hashes=prior_learn_hashes)
                     continue
+
+                # ── SCHEMA REFRESH from sqlite_schema/sqlite_master discovery ──────────
+                refresh_inputs = [
+                    r for q, r in zip(queries, sql_results)
+                    if _SQLITE_SCHEMA_RE.search(q) and _csv_has_data(r)
+                ]
+                if refresh_inputs:
+                    added = merge_schema_from_sqlite_results(pre.schema_digest, refresh_inputs)
+                    if added:
+                        print(f"{CLI_BLUE}[pipeline] SCHEMA REFRESH: +{added}{CLI_CLR}")
+                        if t := get_trace():
+                            t.log_schema_refresh(cycle + 1, added)
 
                 # ── CARRYOVER: update confirmed_values from DISTINCT results ──────────
                 executed_queries.extend(queries)

@@ -814,3 +814,25 @@ def test_build_static_system_agent_context_first_block():
     ctx_idx = next(i for i, t in enumerate(texts) if t.startswith("# AGENT CONTEXT\n"))
     vault_idx = next((i for i, t in enumerate(texts) if "# VAULT RULES" in t), len(texts))
     assert ctx_idx < vault_idx
+
+
+def test_pipeline_refreshes_schema_after_sqlite_query():
+    """After executing a sqlite_schema CREATE TABLE discovery, the digest gains the new table."""
+    from agent.prephase import merge_schema_from_sqlite_results
+
+    digest = {"tables": {}, "top_keys": [], "value_type_map": {}}
+    csv_text = (
+        "name,sql\n"
+        '"product_kinds","CREATE TABLE product_kinds (id INTEGER, category_id INTEGER, name TEXT)"\n'
+    )
+    queries = ["SELECT name, sql FROM sqlite_schema WHERE type='table'"]
+    results = [csv_text]
+
+    import re
+    _SQLITE_SCHEMA_RE = re.compile(r"\bsqlite_(?:schema|master)\b", re.IGNORECASE)
+    for q, r in zip(queries, results):
+        if _SQLITE_SCHEMA_RE.search(q) and r.strip():
+            merge_schema_from_sqlite_results(digest, [r])
+
+    assert "product_kinds" in digest["tables"]
+    assert digest["tables"]["product_kinds"]["role"] == "kinds"
