@@ -102,6 +102,23 @@ def _build_schema_digest(vm: EcomRuntimeClientSync) -> dict:
     return {"tables": tables, "value_type_map": value_type_map, "top_keys": top_keys}
 
 
+def _format_schema_digest(sd: dict) -> str:
+    lines = []
+    for table, info in sd.get("tables", {}).items():
+        cols = ", ".join(f"{c['name']}({c['type']})" for c in info.get("columns", []))
+        role = info.get("role")
+        role_suffix = ""
+        if role and role != "other":
+            role_suffix = f" [role={role}]"
+        lines.append(f"{table}{role_suffix}: {cols}")
+        for fk in info.get("fk", []):
+            lines.append(f"  FK: {fk['from']} → {fk['to']}")
+    top_keys = sd.get("top_keys", [])
+    if top_keys:
+        lines.append("Top property keys: " + ", ".join(top_keys[:10]))
+    return "\n".join(lines)
+
+
 def run_prephase(
     vm: EcomRuntimeClientSync,
     task_text: str,

@@ -11,7 +11,7 @@ from google.protobuf.json_format import MessageToDict
 from .json_extract import _extract_json_from_text
 from .llm import call_llm_raw
 from .models import ResolveOutput
-from .prephase import PrephaseResult
+from .prephase import PrephaseResult, _format_schema_digest
 from .prompt import load_prompt
 from .trace import get_trace
 
@@ -62,6 +62,8 @@ def _build_resolve_system(pre: PrephaseResult) -> str:
     if pre.agents_md_index:
         index_lines = "\n".join(f"- {k}" for k in pre.agents_md_index)
         parts.append(f"# AGENTS.MD INDEX\n{index_lines}")
+    if pre.schema_digest and pre.schema_digest.get("tables"):
+        parts.append(f"# SCHEMA DIGEST\n{_format_schema_digest(pre.schema_digest)}")
     top_keys = pre.schema_digest.get("top_keys", [])
     if top_keys:
         parts.append("# TOP PROPERTY KEYS\n" + "\n".join(f"- {k}" for k in top_keys))

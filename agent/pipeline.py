@@ -22,7 +22,7 @@ from .llm import (
 from .json_extract import _extract_json_from_text
 from .models import SqlPlanOutput, LearnOutput, AnswerOutput, TestGenOutput
 from .test_runner import run_tests
-from .prephase import PrephaseResult
+from .prephase import PrephaseResult, _format_schema_digest as _fmt_schema_digest
 from .prompt import load_prompt
 from .resolve import run_resolve
 from .rules_loader import RulesLoader, _RULES_DIR
@@ -164,21 +164,7 @@ def _format_confirmed_values(cv: dict) -> str:
     return "\n".join(lines)
 
 
-def _format_schema_digest(sd: dict) -> str:
-    lines = []
-    for table, info in sd.get("tables", {}).items():
-        cols = ", ".join(f"{c['name']}({c['type']})" for c in info.get("columns", []))
-        role = info.get("role")
-        role_suffix = ""
-        if role and role != "other":
-            role_suffix = f" [role={role}]"
-        lines.append(f"{table}{role_suffix}: {cols}")
-        for fk in info.get("fk", []):
-            lines.append(f"  FK: {fk['from']} → {fk['to']}")
-    top_keys = sd.get("top_keys", [])
-    if top_keys:
-        lines.append("Top property keys: " + ", ".join(top_keys[:10]))
-    return "\n".join(lines)
+_format_schema_digest = _fmt_schema_digest
 
 
 def _relevant_agents_sections(agents_md_index: dict, task_text: str) -> dict[str, list[str]]:

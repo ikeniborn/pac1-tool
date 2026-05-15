@@ -139,3 +139,25 @@ def test_run_resolve_stores_all_matching_values():
     assert "attr_value" in result
     assert "L" in result["attr_value"]
     assert "3XL" in result["attr_value"]
+
+
+def test_resolve_system_includes_schema_digest():
+    from agent.resolve import _build_resolve_system
+    from agent.prephase import PrephaseResult
+    pre = PrephaseResult(
+        agents_md_index={"PRODUCTS": ["intro"]},
+        schema_digest={
+            "tables": {
+                "product_kinds": {
+                    "columns": [{"name": "id", "type": "INTEGER"}, {"name": "category_id", "type": "INTEGER"}, {"name": "name", "type": "TEXT"}],
+                    "role": "kinds",
+                }
+            },
+            "top_keys": ["voltage"],
+            "value_type_map": {"voltage": "text"},
+        },
+    )
+    system = _build_resolve_system(pre)
+    assert "SCHEMA DIGEST" in system
+    assert "product_kinds" in system
+    assert "role=kinds" in system
