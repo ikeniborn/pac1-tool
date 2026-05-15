@@ -197,3 +197,33 @@ def test_sqlite_schema_passes_check_0():
         digest, {}, "",
     )
     assert err is None or "unknown table" not in err.lower()
+
+
+def test_sqlite_schema_exempt_from_literal_check():
+    from agent.schema_gate import check_schema_compliance
+    digest = {"tables": {"products": {"columns": [{"name": "sku"}]}}}
+    err = check_schema_compliance(
+        ["SELECT name FROM sqlite_schema WHERE name IN ('products', 'kinds')"],
+        digest, {}, "products kinds",
+    )
+    assert err is None
+
+
+def test_sqlite_master_exempt_from_literal_check():
+    from agent.schema_gate import check_schema_compliance
+    digest = {"tables": {"products": {"columns": [{"name": "sku"}]}}}
+    err = check_schema_compliance(
+        ["SELECT sql FROM sqlite_master WHERE name = 'products'"],
+        digest, {}, "products",
+    )
+    assert err is None
+
+
+def test_pragma_table_info_exempt():
+    from agent.schema_gate import check_schema_compliance
+    digest = {"tables": {"products": {"columns": [{"name": "sku"}]}}}
+    err = check_schema_compliance(
+        ["SELECT * FROM pragma_table_info('products')"],
+        digest, {}, "products",
+    )
+    assert err is None or "unverified literal" not in err.lower()

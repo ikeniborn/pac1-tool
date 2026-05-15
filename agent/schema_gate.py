@@ -75,6 +75,19 @@ def _check_query(
                 if known and col_name not in known:
                     return f"unknown column: {table_ref}.{col_name} (not in schema)"
 
+    # System-table exemption: literals in sqlite_schema/sqlite_master/pragma_* queries
+    # are table-name identifiers (DDL discovery), not data values.
+    # pragma_table_info('x') parses as Table(Anonymous(name='pragma_table_info'))
+    # so we check both node.name and inner Anonymous node names.
+    referenced_tables: set[str] = set()
+    for node in parsed.walk():
+        if isinstance(node, exp.Table):
+            referenced_tables.add((node.name or "").lower())
+            if isinstance(node.this, exp.Anonymous):
+                referenced_tables.add((node.this.name or "").lower())
+    if any(t in SYSTEM_TABLES or t.startswith("pragma_") for t in referenced_tables):
+        return None  # skip remaining literal/JOIN checks for system-table queries
+
     # Check 2: unverified literal — context-aware LIKE exemption
     for node in parsed.walk():
         if isinstance(node, exp.Literal) and node.is_string:
