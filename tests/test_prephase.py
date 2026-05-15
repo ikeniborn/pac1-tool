@@ -245,3 +245,20 @@ def test_build_schema_digest_assigns_role_other():
     from agent.prephase import _infer_role
     cols = [{"name": "id", "type": "INTEGER"}, {"name": "label", "type": "TEXT"}]
     assert _infer_role(cols) == "other"
+
+
+def test_format_schema_digest_includes_role():
+    from agent.pipeline import _format_schema_digest
+    digest = {
+        "tables": {
+            "product_kinds": {
+                "columns": [{"name": "id", "type": "INTEGER"}, {"name": "category_id", "type": "INTEGER"}, {"name": "name", "type": "TEXT"}],
+                "role": "kinds",
+            }
+        },
+        "top_keys": [],
+        "value_type_map": {},
+    }
+    out = _format_schema_digest(digest)
+    assert "product_kinds" in out
+    assert "role=kinds" in out
