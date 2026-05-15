@@ -34,8 +34,27 @@ Assert:
 - Signal failure via `assert` (raises `AssertionError`) or `raise ValueError(...)`.
 - Tests must be deterministic.
 - Empty `results` list is valid for zero-count tasks — do not assert non-empty unconditionally.
+- `results` contains every executed query in cycle order. Pick the relevant element (typically `results[-1]`); do not assume `results[0]` is the data query.
 
 ## Anti-patterns — never do this
+
+**BAD** — `len(rows) > 1` for aggregate queries:
+~~~python
+# SQL was: SELECT COUNT(*) FROM products WHERE kind_id = 7
+rows = results[-1].split('\n')
+assert len(rows) > 1  # WRONG: COUNT(*) returns 1 header + 1 data row
+~~~
+
+**GOOD** — for aggregate queries assert one data row and integer-parse it:
+~~~python
+last = results[-1].strip()
+rows = [r for r in last.split('\n') if r.strip()]
+assert len(rows) == 2, f'aggregate must return exactly 1 data row: {last[:200]}'
+n = int(rows[-1].split(',')[0].strip())
+assert n >= 0, f'count must be non-negative: {n}'
+~~~
+
+Rule: For any SQL containing `COUNT(`, `SUM(`, `AVG(`, `MIN(`, `MAX(`, NEVER assert `len(rows) > 1` or `len(results) > 1` — the data row count is exactly 1.
 
 **BAD** — exact string from task, case-sensitive:
 ~~~python
@@ -62,7 +81,7 @@ Output PURE JSON only. First character must be `{`.
 ```json
 {
   "reasoning": "<analysis: expected outcome, required columns, emptiness rules>",
-  "sql_tests": "def test_sql(results):\n    assert results, 'SQL returned no results'\n    rows = results[0].split('\\n')\n    assert len(rows) > 1, 'no data rows returned'\n",
+  "sql_tests": "def test_sql(results):\n    assert results, 'SQL returned no results'\n    last = (results[-1] or '').strip()\n    assert last, 'last result empty'\n    rows = [r for r in last.split('\\n') if r.strip()]\n    # For aggregate (COUNT/SUM/AVG/MIN/MAX): expect 1 header + 1 data row\n    # For row queries: rows > 1. Pick the assertion appropriate for the SQL.\n    assert len(rows) >= 2, f'no data rows: {last[:200]}'\n    # If aggregate, also assert the data row parses as an integer:\n    # int(rows[-1].split(',')[0].strip())\n",
   "answer_tests": "def test_answer(sql_results, answer):\n    assert answer['outcome'] == 'OUTCOME_OK', f\"wrong outcome: {answer['outcome']}\"\n    assert answer['message'], 'message is empty'\n    assert answer['grounding_refs'], 'grounding_refs empty for OK outcome'\n"
 }
 ```
