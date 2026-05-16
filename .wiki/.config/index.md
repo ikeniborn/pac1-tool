@@ -24,4 +24,8 @@
 
 #### design-decisions (additional)
 - `.wiki/документация/design-decisions/eval-optimization-dedup.md` — Eval Optimization Deduplication: двухуровневая дедупликация (content-hash + LLM cluster + existing-content injection)
+- `.wiki/документация/design-decisions/mock-validation-offline.md` — Офлайн-валидация пайплайна через синтетические моки (mock_results + answer_assertions без ECOM VM)
+
+#### pipeline-phases (additional)
+- `.wiki/документация/pipeline-phases/mock-gen-phase.md` — Фаза Mock Gen: генерация синтетических CSV-данных и Python-assertions для офлайн-валидации
 

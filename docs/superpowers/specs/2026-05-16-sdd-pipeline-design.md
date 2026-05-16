@@ -2,6 +2,39 @@
 title: SDD Pipeline — Design Spec
 date: 2026-05-16
 status: Draft
+review:
+  spec_hash: 09814fab2043a1f3
+  last_run: 2026-05-16
+  phases:
+    structure:   { status: passed }
+    coverage:    { status: passed }
+    clarity:     { status: passed }
+    consistency: { status: passed }
+  findings:
+    - id: F-001
+      phase: coverage
+      severity: CRITICAL
+      section: Scope
+      section_hash: bf0f5ba2f0781ed9
+      text: "Противоречие: ## Scope включал `agent/prompt.py` как изменяемый файл, но ## Files Unchanged и таблица ## Files Changed не включали его."
+      verdict: fixed
+      verdict_at: 2026-05-16
+    - id: F-002
+      phase: clarity
+      severity: WARNING
+      section: Constraints & Edge Cases
+      section_hash: 29c914c94d47746e
+      text: "«при необходимости можно добавить лёгкий scoring позже» — нет критерия, при каком условии это необходимо."
+      verdict: fixed
+      verdict_at: 2026-05-16
+    - id: F-003
+      phase: clarity
+      severity: WARNING
+      section: SECURITY + SCHEMA — интеграция в SDD-шаг
+      section_hash: 9bd14105ce05b130
+      text: "VALIDATE (старая фаза) и VERIFY (новая) используются в одном документе без явного указания переименования."
+      verdict: fixed
+      verdict_at: 2026-05-16
 ---
 
 # SDD Pipeline — Design Spec
@@ -39,7 +72,8 @@ status: Draft
 - `agent/pipeline.py` — полная переработка основного цикла
 - `agent/models.py` — новые модели `SddOutput`, `PlanStep`, `TestOutput`
 - `agent/prephase.py` — добавить `task_type` в `PrephaseResult`
-- `agent/prompt.py` + `data/prompts/` — новые промпты `sdd.md`, `test_gen.md` (ревизия)
+- `data/prompts/` — новые промпты `sdd.md`, `test_gen.md` (ревизия `test_gen.md`)
+- `.env.example` — добавить per-phase model vars
 - `agent/evaluator.py` — изменить сигнатуру входа (добавить `learn_ctx`, `prephase`)
 - `scripts/propose_optimizations.py` — обновить парсинг `eval_log`
 
@@ -205,7 +239,34 @@ class EvalInput(BaseModel):
 
 `check_sql_queries` и `check_schema_compliance` вызываются сразу после парсинга `SddOutput.plan`, до `TEST_GEN`. Проверяются только шаги с `type="sql"` (шаги других типов проверку не проходят). Ошибка → `LEARN` → `learn_ctx.append` → `continue` (следующий цикл).
 
-`EXPLAIN` (VALIDATE) остаётся частью `VERIFY` после `EXECUTE` — не меняется.
+`EXPLAIN` (ранее фаза `VALIDATE`, переименована в `VERIFY`) остаётся частью `VERIFY` после `EXECUTE` — не меняется.
+
+### Model Configuration
+
+Каждая LLM-фаза пайплайна использует отдельную env-переменную модели. Если переменная не задана — fallback на `MODEL`.
+
+| Env var | Фаза | LLM-вызов |
+|---------|------|-----------|
+| `MODEL_SDD` | SDD | генерация spec + plan |
+| `MODEL_TEST_GEN` | TEST_GEN | генерация sql_tests + answer_tests |
+| `MODEL_EXECUTOR` | ANSWER | синтез итогового ответа пользователю |
+| `MODEL_LEARN` | LEARN | извлечение правила из ошибки |
+
+Уже существующие: `MODEL_EVALUATOR` (EVALUATOR-фаза), `MODEL_FALLBACK` (fallback при исчерпании тиров).
+
+Логика выбора в `llm.py` (`call_llm(phase: str, …)`):
+```python
+phase_model_map = {
+    "sdd":      os.getenv("MODEL_SDD"),
+    "test_gen": os.getenv("MODEL_TEST_GEN"),
+    "executor": os.getenv("MODEL_EXECUTOR"),
+    "learn":    os.getenv("MODEL_LEARN"),
+    "evaluator": os.getenv("MODEL_EVALUATOR"),
+}
+model = phase_model_map.get(phase) or os.getenv("MODEL")
+```
+
+`agent/llm.py` получает новый обязательный параметр `phase: str`. Все вызовы `call_llm(...)` в `pipeline.py` обновляются.
 
 ---
 
@@ -223,10 +284,11 @@ class EvalInput(BaseModel):
 | `data/prompts/resolve.md` | DELETE (заменён sdd.md) |
 | `agent/evaluator.py` | MODIFY `EvalInput` — добавить `task_type`, `prephase`, `learn_ctx`; изменить логику выбора лучшего шага |
 | `scripts/propose_optimizations.py` | MODIFY парсинг `eval_log` под новую структуру |
+| `agent/llm.py` | ADD параметр `phase: str` в `call_llm()`; ADD per-phase model lookup из env |
+| `.env.example` | ADD `MODEL_SDD`, `MODEL_TEST_GEN`, `MODEL_EXECUTOR`, `MODEL_LEARN` |
 
 ## Files Unchanged
 
-- `agent/llm.py`
 - `agent/sql_security.py`
 - `agent/schema_gate.py`
 - `agent/test_runner.py`
@@ -240,7 +302,7 @@ class EvalInput(BaseModel):
 
 - **task_type default = "sql"** — обратная совместимость со всеми текущими задачами
 - **learn_ctx без лимита** — текущий лимит `session_rules[-3:]` убирается; риск раздувания контекста при большом MAX_STEPS; смягчение: каждый LEARN-вывод ≤ 500 токенов
-- **EVALUATOR только при fail** — при успехе eval_log не получает LLM-scored оценку; при необходимости можно добавить лёгкий scoring позже
+- **EVALUATOR только при fail** — при успехе eval_log не получает LLM-scored оценку; если нужна оценка при `outcome="ok"` и `cycles > 1` — активировать через `EVAL_ON_SUCCESS=1`
 - **RESOLVE убирается** — SDD.plan должен включать discovery-шаги при неизвестных значениях; промпт sdd.md должен явно это предписывать
 - **SQL_PLAN убирается** — agents_md_refs теперь генерирует SDD; тест на корректность refs остаётся (пустой refs при наличии index-terms → LEARN)
 - **Non-SQL executor** — для `task_type != sql` executor-диспетчер MVP: только `sql` и `read` (чтение файла из VM); остальные типы → clarification

@@ -57,3 +57,16 @@
 
 ---
 
+## 2026-05-16T00:00:00
+
+**Операция:** ingest
+**Источник:** .worktrees/mock-validation/data/prompts/mock_gen.md
+**Домен:** документация (определён по содержимому — промпт-фаза офлайн-валидации пайплайна агента)
+
+**Затронуто страниц:** 2
+
+- СОЗДАНА: `.wiki/документация/pipeline-phases/mock-gen-phase.md` (stub) — entity_type: pipeline-phase
+- СОЗДАНА: `.wiki/документация/design-decisions/mock-validation-offline.md` (stub) — entity_type: design-decision
+
+---
+
