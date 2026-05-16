@@ -1,4 +1,4 @@
-"""Phase-based SQL pipeline for lookup tasks — replaces run_loop() for task_type='lookup'."""
+"""SDD-based pipeline: PREPHASE → SDD → TEST_GEN → EXECUTE → VERIFY → ANSWER → VERIFY_ANSWER."""
 from __future__ import annotations
 
 import json
@@ -16,15 +16,14 @@ from bitgn.vm.ecom.ecom_connect import EcomRuntimeClientSync
 from bitgn.vm.ecom.ecom_pb2 import AnswerRequest, ExecRequest
 
 from .llm import (
-    call_llm_raw, OUTCOME_BY_NAME,
+    call_llm_raw, _resolve_model_for_phase, OUTCOME_BY_NAME,
     CLI_BLUE, CLI_CLR, CLI_GREEN, CLI_RED, CLI_YELLOW,
 )
 from .json_extract import _extract_json_from_text
-from .models import SqlPlanOutput, LearnOutput, AnswerOutput, TestGenOutput
+from .models import SddOutput, TestOutput, LearnOutput, AnswerOutput
 from .test_runner import run_tests
 from .prephase import PrephaseResult, _format_schema_digest as _fmt_schema_digest, merge_schema_from_sqlite_results
 from .prompt import load_prompt
-from .resolve import run_resolve
 from .rules_loader import RulesLoader, _RULES_DIR
 from .schema_gate import check_schema_compliance
 from .sql_security import (
@@ -35,15 +34,28 @@ from .sql_security import (
 from .trace import get_trace
 
 
-
 _MAX_CYCLES = int(os.environ.get("MAX_STEPS", "3"))
 _EVAL_ENABLED = os.environ.get("EVAL_ENABLED", "0") == "1"
-_MODEL_EVALUATOR = os.environ.get("MODEL_EVALUATOR", "")
+_SDD_ENABLED = os.environ.get("SDD_ENABLED", "1") == "1"
 _EVAL_LOG = Path(__file__).parent.parent / "data" / "eval_log.jsonl"
-_TDD_ENABLED = os.environ.get("TDD_ENABLED", "0") == "1"
-_MODEL_TEST_GEN = os.environ.get("MODEL_TEST_GEN", "")
-
 _SQLITE_SCHEMA_RE = re.compile(r"\bsqlite_(?:schema|master)\b", re.IGNORECASE)
+
+# Compat stubs — referenced by older tests that patch these names; no-ops in new pipeline
+_TDD_ENABLED = False
+
+
+def run_resolve(vm, model: str, task_text: str, pre, cfg: dict) -> dict:
+    """Compat stub — RESOLVE phase removed from SDD pipeline."""
+    return {}
+
+
+def _extract_discovery_results(queries: list[str], results: list[str], confirmed_values: dict) -> None:
+    """Compat stub — discovery phase removed from SDD pipeline."""
+
+
+def _format_confirmed_values(cv: dict) -> str:
+    """Compat stub — confirmed_values removed from SDD pipeline."""
+    return ""
 
 _rules_loader_cache: "RulesLoader | None" = None
 _security_gates_cache: "list[dict] | None" = None
@@ -95,7 +107,6 @@ def _call_llm_phase(
     phase: str = "",
     cycle: int = 0,
 ) -> tuple[object | None, dict, dict]:
-    """SGR LLM call: returns (parsed_output_or_None, sgr_trace_entry, tok_info)."""
     tok_info: dict = {}
     t0 = time.monotonic()
     raw = call_llm_raw(system, user_msg, model, cfg, max_tokens=max_tokens, token_out=tok_info)
@@ -120,11 +131,8 @@ def _call_llm_phase(
             sgr_entry["output"] = parsed
             if t := get_trace():
                 t.log_llm_call(
-                    phase=phase_name,
-                    cycle=cycle,
-                    system=system,
-                    user_msg=user_msg,
-                    raw_response=raw or "",
+                    phase=phase_name, cycle=cycle, system=system,
+                    user_msg=user_msg, raw_response=raw or "",
                     parsed_output=parsed,
                     tokens_in=tok_info.get("input", 0),
                     tokens_out=tok_info.get("output", 0),
@@ -135,11 +143,8 @@ def _call_llm_phase(
             pass
     if t := get_trace():
         t.log_llm_call(
-            phase=phase_name,
-            cycle=cycle,
-            system=system,
-            user_msg=user_msg,
-            raw_response=raw or "",
+            phase=phase_name, cycle=cycle, system=system,
+            user_msg=user_msg, raw_response=raw or "",
             parsed_output=None,
             tokens_in=tok_info.get("input", 0),
             tokens_out=tok_info.get("output", 0),
@@ -150,20 +155,6 @@ def _call_llm_phase(
 
 def _gates_summary(gates: list[dict]) -> str:
     return "\n".join(f"- [{g['id']}] {g.get('message', '')}" for g in gates)
-
-
-def _format_confirmed_values(cv: dict) -> str:
-    lines = []
-    for field, values in cv.items():
-        if isinstance(values, list):
-            if len(values) == 1:
-                lines.append(f'{field} → confirmed: "{values[0]}"')
-            else:
-                joined = ", ".join(f'"{v}"' for v in values)
-                lines.append(f'{field} → confirmed db values: [{joined}]')
-        else:
-            lines.append(f'{field} → confirmed: "{values}"')
-    return "\n".join(lines)
 
 
 _format_schema_digest = _fmt_schema_digest
@@ -179,85 +170,64 @@ def _relevant_agents_sections(agents_md_index: dict, task_text: str) -> dict[str
     return relevant
 
 
-def _build_static_system(
-    phase: str,
-    agents_md: str,
-    agents_md_index: dict,
-    db_schema: str,
-    schema_digest: dict,
+def _build_sdd_system(
+    pre: PrephaseResult,
     rules_loader: RulesLoader,
     security_gates: list[dict],
-    confirmed_values: dict | None = None,
     task_text: str = "",
     injected_prompt_addendum: str = "",
-    agent_id: str = "",
-    current_date: str = "",
 ) -> list[dict]:
     blocks: list[dict] = []
 
-    if (agent_id or current_date) and phase in ("sql_plan", "learn"):
+    if pre.agent_id or pre.current_date:
         ctx_lines = []
-        if current_date:
-            ctx_lines.append(f"date: {current_date}")
-        if agent_id:
-            ctx_lines.append(f"customer_id: {agent_id}")
+        if pre.current_date:
+            ctx_lines.append(f"date: {pre.current_date}")
+        if pre.agent_id:
+            ctx_lines.append(f"customer_id: {pre.agent_id}")
         blocks.append({"type": "text", "text": "# AGENT CONTEXT\n" + "\n".join(ctx_lines)})
 
-    if phase in ("sql_plan", "learn", "answer"):
-        if agents_md_index and task_text and phase in ("sql_plan", "learn"):
-            relevant = _relevant_agents_sections(agents_md_index, task_text)
-            index_line = "Section index: " + ", ".join(agents_md_index.keys())
-            if relevant:
-                section_blocks = "\n\n".join(
-                    f"### {k}\n" + "\n".join(lines) for k, lines in relevant.items()
-                )
-                blocks.append({"type": "text", "text": f"# VAULT RULES\n{index_line}\n\n{section_blocks}"})
-            elif agents_md:
-                blocks.append({"type": "text", "text": f"# VAULT RULES\n{agents_md}"})
-        elif agents_md:
-            blocks.append({"type": "text", "text": f"# VAULT RULES\n{agents_md}"})
+    if pre.agents_md_index and task_text:
+        relevant = _relevant_agents_sections(pre.agents_md_index, task_text)
+        index_line = "Section index: " + ", ".join(pre.agents_md_index.keys())
+        if relevant:
+            section_blocks = "\n\n".join(
+                f"### {k}\n" + "\n".join(lines) for k, lines in relevant.items()
+            )
+            blocks.append({"type": "text", "text": f"# VAULT RULES\n{index_line}\n\n{section_blocks}"})
+        elif pre.agents_md_content:
+            blocks.append({"type": "text", "text": f"# VAULT RULES\n{pre.agents_md_content}"})
+    elif pre.agents_md_content:
+        blocks.append({"type": "text", "text": f"# VAULT RULES\n{pre.agents_md_content}"})
 
-    if phase in ("sql_plan", "learn"):
-        rules_md = rules_loader.get_rules_markdown(phase="sql_plan", verified_only=True)
-        if rules_md:
-            blocks.append({"type": "text", "text": f"# PIPELINE RULES\n{rules_md}"})
+    rules_md = rules_loader.get_rules_markdown(phase="sql_plan", verified_only=True)
+    if rules_md:
+        blocks.append({"type": "text", "text": f"# PIPELINE RULES\n{rules_md}"})
 
-    if phase == "sql_plan" and security_gates:
+    if security_gates:
         blocks.append({"type": "text", "text": f"# SECURITY GATES\n{_gates_summary(security_gates)}"})
 
-    if schema_digest and phase in ("sql_plan", "learn"):
-        blocks.append({"type": "text", "text": f"# SCHEMA DIGEST\n{_format_schema_digest(schema_digest)}"})
+    if pre.schema_digest:
+        blocks.append({"type": "text", "text": f"# SCHEMA DIGEST\n{_format_schema_digest(pre.schema_digest)}"})
 
-    if db_schema:
-        blocks.append({"type": "text", "text": f"# DATABASE SCHEMA\n{db_schema}"})
+    if pre.db_schema:
+        blocks.append({"type": "text", "text": f"# DATABASE SCHEMA\n{pre.db_schema}"})
 
-    if confirmed_values and phase in ("sql_plan", "learn"):
-        blocks.append({"type": "text", "text": f"# CONFIRMED VALUES\n{_format_confirmed_values(confirmed_values)}"})
-
-    guide = load_prompt(phase)
-    guide_text = guide or f"# PHASE: {phase}"
+    guide = load_prompt("sdd")
+    guide_text = guide or "# PHASE: sdd\nGenerate spec and plan as JSON."
     if injected_prompt_addendum:
         guide_text += f"\n\n# INJECTED OPTIMIZATION\n{injected_prompt_addendum}"
-    blocks.append({
-        "type": "text",
-        "text": guide_text,
-        "cache_control": {"type": "ephemeral"},
-    })
+    blocks.append({"type": "text", "text": guide_text, "cache_control": {"type": "ephemeral"}})
     return blocks
 
 
-def _build_sql_user_msg(
-    task_text: str,
-    session_rules: list[str],
-    highlighted_vault_rules: list[str],
-    last_error: str,
-) -> str:
+def _build_sdd_user_msg(task_text: str, task_type: str, learn_ctx: list[str], last_error: str) -> str:
     parts: list[str] = []
-    for r in highlighted_vault_rules:
-        parts.append(f"# HIGHLIGHTED VAULT RULE\n{r}")
-    for r in session_rules:
-        parts.append(f"# IN-SESSION RULE\n{r}")
+    if learn_ctx:
+        rules_block = "\n".join(f"- {r}" for r in learn_ctx)
+        parts.append(f"# ACCUMULATED RULES\n{rules_block}")
     parts.append(f"TASK: {task_text}")
+    parts.append(f"TASK_TYPE: {task_type}")
     if last_error:
         parts.append(f"PREVIOUS ERROR: {last_error}")
     return "\n\n".join(parts)
@@ -277,37 +247,61 @@ def _build_answer_user_msg(task_text: str, sql_results: list[str], auto_refs: li
     if not auto_refs:
         return base
     refs_block = "\n".join(auto_refs)
-    return (
-        base
-        + f"\n\nAUTO_REFS (catalogue paths for grounding_refs — use exactly as shown):\n{refs_block}"
-    )
+    return base + f"\n\nAUTO_REFS (catalogue paths for grounding_refs — use exactly as shown):\n{refs_block}"
 
 
-def _extract_discovery_results(
-    queries: list[str],
-    results: list[str],
-    confirmed_values: dict,
-) -> None:
-    """Update confirmed_values in-place from DISTINCT query results."""
-    for q, result_txt in zip(queries, results):
-        m = re.search(r'SELECT\s+DISTINCT\s+(\w+)', q, re.IGNORECASE)
-        if not m:
-            continue
-        col = m.group(1).lower()
-        lines = [ln.strip() for ln in result_txt.strip().splitlines() if ln.strip()]
-        for line in lines[1:]:
-            val = line.split(",")[0].strip().strip('"')
-            if val:
-                if col not in confirmed_values:
-                    confirmed_values[col] = []
-                if val not in confirmed_values[col]:
-                    confirmed_values[col].append(val)
+def _build_learn_system(
+    pre: PrephaseResult,
+    rules_loader: RulesLoader,
+    security_gates: list[dict],
+    task_text: str = "",
+    injected_prompt_addendum: str = "",
+) -> list[dict]:
+    blocks: list[dict] = []
+    if pre.agents_md_index and task_text:
+        relevant = _relevant_agents_sections(pre.agents_md_index, task_text)
+        index_line = "Section index: " + ", ".join(pre.agents_md_index.keys())
+        if relevant:
+            section_blocks = "\n\n".join(
+                f"### {k}\n" + "\n".join(lines) for k, lines in relevant.items()
+            )
+            blocks.append({"type": "text", "text": f"# VAULT RULES\n{index_line}\n\n{section_blocks}"})
+        elif pre.agents_md_content:
+            blocks.append({"type": "text", "text": f"# VAULT RULES\n{pre.agents_md_content}"})
+    elif pre.agents_md_content:
+        blocks.append({"type": "text", "text": f"# VAULT RULES\n{pre.agents_md_content}"})
+
+    rules_md = rules_loader.get_rules_markdown(phase="sql_plan", verified_only=True)
+    if rules_md:
+        blocks.append({"type": "text", "text": f"# PIPELINE RULES\n{rules_md}"})
+
+    if pre.schema_digest:
+        blocks.append({"type": "text", "text": f"# SCHEMA DIGEST\n{_format_schema_digest(pre.schema_digest)}"})
+
+    guide = load_prompt("learn")
+    guide_text = guide or "# PHASE: learn"
+    if injected_prompt_addendum:
+        guide_text += f"\n\n# INJECTED OPTIMIZATION\n{injected_prompt_addendum}"
+    blocks.append({"type": "text", "text": guide_text, "cache_control": {"type": "ephemeral"}})
+    return blocks
+
+
+def _build_answer_system(
+    pre: PrephaseResult,
+    injected_prompt_addendum: str = "",
+) -> list[dict]:
+    blocks: list[dict] = []
+    if pre.agents_md_content:
+        blocks.append({"type": "text", "text": f"# VAULT RULES\n{pre.agents_md_content}"})
+    guide = load_prompt("answer")
+    guide_text = guide or "# PHASE: answer"
+    if injected_prompt_addendum:
+        guide_text += f"\n\n# INJECTED OPTIMIZATION\n{injected_prompt_addendum}"
+    blocks.append({"type": "text", "text": guide_text, "cache_control": {"type": "ephemeral"}})
+    return blocks
 
 
 def _extract_sku_refs(queries: list[str], results: list[str]) -> list[str]:
-    """Extract catalogue paths from SQL results. Uses 'path' column when present,
-    falls back to constructing /proc/catalog/{sku}.json from 'sku' column.
-    Independently adds /proc/stores/{store_id}.json when 'store_id' column present."""
     refs: list[str] = []
     for result_txt in results:
         lines = [ln.strip() for ln in result_txt.strip().splitlines() if ln.strip()]
@@ -345,498 +339,21 @@ def _run_test_gen(
     model: str,
     cfg: dict,
     task_text: str,
-    db_schema: str,
-    agents_md: str,
-) -> "TestGenOutput | None":
-    test_gen_model = _MODEL_TEST_GEN or model
+    sdd_spec: str,
+    task_type: str,
+) -> "TestOutput | None":
+    test_gen_model = _resolve_model_for_phase("test_gen", model)
     guide = load_prompt("test_gen")
     system = guide or "# PHASE: test_gen\nGenerate sql_tests and answer_tests as JSON."
-    user_msg = f"TASK: {task_text}\n\nDB_SCHEMA:\n{db_schema}\n\nAGENTS_MD:\n{agents_md}"
+    user_msg = f"TASK: {task_text}\n\nTASK_TYPE: {task_type}\n\nSDD_SPEC:\n{sdd_spec}"
     out, _, _ = _call_llm_phase(
-        system, user_msg, test_gen_model, cfg, TestGenOutput,
+        system, user_msg, test_gen_model, cfg, TestOutput,
         phase="TEST_GEN", cycle=0,
     )
     if out:
         if t := get_trace():
             t.log_test_gen(out.sql_tests, out.answer_tests)
     return out
-
-
-def run_pipeline(
-    vm: EcomRuntimeClientSync,
-    model: str,
-    task_text: str,
-    pre: PrephaseResult,
-    cfg: dict,
-    task_id: str = "",
-    injected_session_rules: list[str] | None = None,
-    injected_prompt_addendum: str = "",
-    injected_security_gates: list[dict] | None = None,
-) -> tuple[dict, threading.Thread | None]:
-    """Phase-based SQL pipeline. Returns (stats dict, eval Thread or None)."""
-    rules_loader = _get_rules_loader()
-    security_gates = _get_security_gates() + (injected_security_gates or [])
-    session_rules: list[str] = list(injected_session_rules or [])
-    highlighted_vault_rules: list[str] = []
-    sgr_trace: list[dict] = []
-    total_in_tok = 0
-    total_out_tok = 0
-
-    last_error = ""
-    sql_results: list[str] = []
-    executed_queries: list[str] = []
-    sku_refs: list[str] = []
-    sql_plan_outputs: list[SqlPlanOutput] = []
-    success = False
-    cycles_used = 0
-    prior_query_sets: list[frozenset] = []
-    prior_learn_hashes: set[str] = set()
-
-    # ── RESOLVE ───────────────────────────────────────────────────────────────
-    confirmed_values: dict = run_resolve(vm, model, task_text, pre, cfg)
-    if confirmed_values:
-        print(f"{CLI_BLUE}[pipeline] RESOLVE: {list(confirmed_values.keys())}{CLI_CLR}")
-
-    # ── TEST_GEN (TDD only) ───────────────────────────────────────────────────
-    test_gen_out: TestGenOutput | None = None
-    if _TDD_ENABLED:
-        test_gen_out = _run_test_gen(model, cfg, task_text, pre.db_schema, pre.agents_md_content)
-        if test_gen_out is None:
-            print(f"{CLI_RED}[pipeline] TEST_GEN parse failed — hard stop{CLI_CLR}")
-            try:
-                vm.answer(AnswerRequest(
-                    message="Test generation failed — cannot validate answer",
-                    outcome=OUTCOME_BY_NAME["OUTCOME_NONE_CLARIFICATION"],
-                    refs=[],
-                ))
-            except Exception as e:
-                print(f"{CLI_RED}[pipeline] vm.answer error: {e}{CLI_CLR}")
-            return {
-                "outcome": "OUTCOME_NONE_CLARIFICATION",
-                "cycles_used": 0,
-                "step_facts": ["pipeline: TEST_GEN hard stop"],
-                "done_ops": [],
-                "input_tokens": total_in_tok,
-                "output_tokens": total_out_tok,
-                "total_elapsed_ms": 0,
-            }, None
-
-    static_sql = _build_static_system(
-        "sql_plan", pre.agents_md_content, pre.agents_md_index, pre.db_schema,
-        pre.schema_digest, rules_loader, security_gates,
-        confirmed_values=confirmed_values, task_text=task_text,
-        injected_prompt_addendum=injected_prompt_addendum,
-        agent_id=pre.agent_id, current_date=pre.current_date,
-    )
-    static_learn = _build_static_system(
-        "learn", pre.agents_md_content, pre.agents_md_index, pre.db_schema,
-        pre.schema_digest, rules_loader, security_gates,
-        confirmed_values=confirmed_values, task_text=task_text,
-        injected_prompt_addendum=injected_prompt_addendum,
-        agent_id=pre.agent_id, current_date=pre.current_date,
-    )
-    static_answer = _build_static_system(
-        "answer", pre.agents_md_content, pre.agents_md_index, pre.db_schema,
-        pre.schema_digest, rules_loader, security_gates,
-        injected_prompt_addendum=injected_prompt_addendum,
-        agent_id=pre.agent_id, current_date=pre.current_date,
-    )
-
-    _skip_sql = False
-    queries: list[str] = []
-    outcome = "OUTCOME_NONE_CLARIFICATION"
-    try:
-        for cycle in range(_MAX_CYCLES):
-            cycles_used = cycle + 1
-            print(f"\n{CLI_BLUE}[pipeline] cycle={cycle + 1}/{_MAX_CYCLES}{CLI_CLR}")
-
-            if not _skip_sql:
-                # ── SQL_PLAN ──────────────────────────────────────────────────────────
-                user_msg = _build_sql_user_msg(task_text, session_rules, highlighted_vault_rules, last_error)
-                sql_plan_out, sgr_entry, tok = _call_llm_phase(
-                    static_sql, user_msg, model, cfg, SqlPlanOutput,
-                    phase="sql_plan", cycle=cycle + 1,
-                )
-                total_in_tok += tok.get("input", 0)
-                total_out_tok += tok.get("output", 0)
-                sgr_trace.append(sgr_entry)
-
-                if not sql_plan_out:
-                    print(f"{CLI_RED}[pipeline] SQL_PLAN LLM call failed{CLI_CLR}")
-                    last_error = "SQL_PLAN phase LLM call failed"
-                    _run_learn(static_learn, model, cfg, task_text, [], last_error,
-                               sgr_trace, session_rules, highlighted_vault_rules,
-                               pre.agents_md_index, error_type="llm_fail", cycle=cycle + 1,
-                               prior_learn_hashes=prior_learn_hashes)
-                    continue
-
-                sql_plan_outputs.append(sql_plan_out)
-                queries = sql_plan_out.queries
-                print(f"{CLI_BLUE}[pipeline] SQL_PLAN: {len(queries)} queries{CLI_CLR}")
-
-                # ── AGENTS.MD REFS CHECK ───────────────────────────────────────────────
-                if not sql_plan_out.agents_md_refs and pre.agents_md_index:
-                    task_lower = task_text.lower()
-                    index_terms_in_task = [
-                        k for k in pre.agents_md_index
-                        if any(part in task_lower for part in k.split("_"))
-                    ]
-                    if index_terms_in_task:
-                        last_error = "agents_md_refs empty despite known vocabulary terms in task"
-                        print(f"{CLI_YELLOW}[pipeline] AGENTS.MD refs check failed: {last_error}{CLI_CLR}")
-                        _run_learn(static_learn, model, cfg, task_text, queries, last_error,
-                                   sgr_trace, session_rules, highlighted_vault_rules,
-                                   pre.agents_md_index, error_type="semantic", cycle=cycle + 1,
-                                   prior_learn_hashes=prior_learn_hashes)
-                        continue
-
-                # ── SECURITY CHECK ────────────────────────────────────────────────────
-                gate_err = check_sql_queries(queries, security_gates)
-                if t := get_trace():
-                    t.log_gate_check(cycle + 1, "security", queries, bool(gate_err), gate_err or None)
-                if gate_err:
-                    print(f"{CLI_YELLOW}[pipeline] SECURITY gate blocked: {gate_err}{CLI_CLR}")
-                    last_error = gate_err
-                    _run_learn(static_learn, model, cfg, task_text, queries, last_error,
-                               sgr_trace, session_rules, highlighted_vault_rules,
-                               pre.agents_md_index, error_type="security", cycle=cycle + 1,
-                               prior_learn_hashes=prior_learn_hashes)
-                    continue
-
-                literal_err = check_where_literals(queries, task_text, security_gates)
-                if literal_err:
-                    print(f"{CLI_YELLOW}[pipeline] SECURITY gate blocked: {literal_err}{CLI_CLR}")
-                    last_error = literal_err
-                    _run_learn(static_learn, model, cfg, task_text, queries, last_error,
-                               sgr_trace, session_rules, highlighted_vault_rules,
-                               pre.agents_md_index, error_type="security", cycle=cycle + 1,
-                               prior_learn_hashes=prior_learn_hashes)
-                    continue
-
-                retry_err = check_retry_loop(queries, prior_query_sets, security_gates)
-                if retry_err:
-                    print(f"{CLI_RED}[pipeline] SECURITY hard-stop: {retry_err}{CLI_CLR}")
-                    last_error = retry_err
-                    break
-                prior_query_sets.append(frozenset(queries))
-
-                # ── SCHEMA GATE ───────────────────────────────────────────────────────
-                schema_err = check_schema_compliance(queries, pre.schema_digest, confirmed_values, task_text)
-                if t := get_trace():
-                    t.log_gate_check(cycle + 1, "schema", queries, bool(schema_err), schema_err or None)
-                if schema_err:
-                    print(f"{CLI_YELLOW}[pipeline] SCHEMA gate blocked: {schema_err}{CLI_CLR}")
-                    last_error = schema_err
-                    _run_learn(static_learn, model, cfg, task_text, queries, last_error,
-                               sgr_trace, session_rules, highlighted_vault_rules,
-                               pre.agents_md_index, error_type="security", cycle=cycle + 1,
-                               prior_learn_hashes=prior_learn_hashes)
-                    continue
-
-                # ── VALIDATE ──────────────────────────────────────────────────────────
-                validate_error = None
-                for q in queries:
-                    try:
-                        result = vm.exec(ExecRequest(path="/bin/sql", args=[f"EXPLAIN {q}"]))
-                        result_txt = _exec_result_text(result)
-                        if "error" in result_txt.lower():
-                            validate_error = f"EXPLAIN error: {result_txt[:200]}"
-                            if t := get_trace():
-                                t.log_sql_validate(cycle + 1, q, result_txt, validate_error)
-                            break
-                        if t := get_trace():
-                            t.log_sql_validate(cycle + 1, q, result_txt, None)
-                    except Exception as e:
-                        validate_error = f"EXPLAIN exception: {e}"
-                        if t := get_trace():
-                            t.log_sql_validate(cycle + 1, q, "", validate_error)
-                        break
-
-                if validate_error:
-                    print(f"{CLI_YELLOW}[pipeline] VALIDATE failed: {validate_error}{CLI_CLR}")
-                    last_error = validate_error
-                    _run_learn(static_learn, model, cfg, task_text, queries, last_error,
-                               sgr_trace, session_rules, highlighted_vault_rules,
-                               pre.agents_md_index, error_type="syntax", cycle=cycle + 1,
-                               prior_learn_hashes=prior_learn_hashes)
-                    continue
-
-                # ── EXECUTE ───────────────────────────────────────────────────────────
-                _exec_path = "/bin/sql"
-                execute_error = check_path_access(_exec_path, security_gates)
-                sql_results = []
-                for q in queries:
-                    if execute_error:
-                        break
-                    try:
-                        _t0 = time.monotonic()
-                        result = vm.exec(ExecRequest(path=_exec_path, args=[q]))
-                        _dur = int((time.monotonic() - _t0) * 1000)
-                        result_txt = _exec_result_text(result)
-                        sql_results.append(result_txt)
-                        if t := get_trace():
-                            t.log_sql_execute(cycle + 1, q, result_txt, _csv_has_data(result_txt), _dur)
-                        print(f"{CLI_BLUE}[pipeline] EXECUTE: {q[:60]!r} → {result_txt[:80]}{CLI_CLR}")
-                    except Exception as e:
-                        execute_error = f"Execute exception: {e}"
-                        break
-
-                last_empty = not sql_results or not _csv_has_data(sql_results[-1])
-                if execute_error or last_empty:
-                    err = execute_error or f"Empty result set: {(sql_results[-1] if sql_results else '').strip()[:120]}"
-                    print(f"{CLI_YELLOW}[pipeline] EXECUTE failed: {err}{CLI_CLR}")
-                    last_error = err
-                    _run_learn(static_learn, model, cfg, task_text, queries, last_error,
-                               sgr_trace, session_rules, highlighted_vault_rules,
-                               pre.agents_md_index,
-                               error_type="empty" if last_empty and not execute_error else "semantic",
-                               cycle=cycle + 1, prior_learn_hashes=prior_learn_hashes)
-                    continue
-
-                # ── SCHEMA REFRESH from sqlite_schema/sqlite_master discovery ──────────
-                refresh_inputs = [
-                    r for q, r in zip(queries, sql_results)
-                    if _SQLITE_SCHEMA_RE.search(q) and _csv_has_data(r)
-                ]
-                if refresh_inputs:
-                    added = merge_schema_from_sqlite_results(pre.schema_digest, refresh_inputs)
-                    if added:
-                        print(f"{CLI_BLUE}[pipeline] SCHEMA REFRESH: +{added}{CLI_CLR}")
-                        if t := get_trace():
-                            t.log_schema_refresh(cycle + 1, added)
-
-                # ── CARRYOVER: update confirmed_values from DISTINCT results ──────────
-                executed_queries.extend(queries)
-                _extract_discovery_results(queries, sql_results, confirmed_values)
-                new_refs = _extract_sku_refs(queries, sql_results)
-                sku_refs.extend(new_refs)
-
-                # ── DISCOVERY-ONLY DETECTION ──────────────────────────────────────────
-                # Structural check: if no sku/path refs AND no COUNT aggregate result,
-                # this cycle produced only discovery data regardless of SELECT DISTINCT.
-                # Dependency: sql_plan.md rule requires p.sku + p.path in final queries;
-                # a final query missing those columns will also trigger this — forcing
-                # the model to comply with the projection rule.
-                has_count_result = any(
-                    re.search(r'\bCOUNT\s*\(', q, re.IGNORECASE) and _csv_has_data(r)
-                    for q, r in zip(queries, sql_results)
-                )
-                if not new_refs and not has_count_result:
-                    static_sql = _build_static_system(
-                        "sql_plan", pre.agents_md_content, pre.agents_md_index, pre.db_schema,
-                        pre.schema_digest, rules_loader, security_gates,
-                        confirmed_values=confirmed_values, task_text=task_text,
-                        injected_prompt_addendum=injected_prompt_addendum,
-                        agent_id=pre.agent_id, current_date=pre.current_date,
-                    )
-                    last_error = "Discovery cycle complete. All confirmed values updated. Now emit the final SKU filter query using confirmed values — do NOT run more discovery."
-                    print(f"{CLI_BLUE}[pipeline] DISCOVERY-ONLY cycle — continuing for final filter{CLI_CLR}")
-                    continue
-
-                # ── RUN SQL TESTS (TDD only) ──────────────────────────────────────
-                if _TDD_ENABLED and test_gen_out:
-                    sql_passed, sql_err, sql_warns = run_tests(
-                        test_gen_out.sql_tests, "test_sql", {"results": sql_results},
-                        task_text=task_text,
-                        sql_queries=queries,
-                    )
-                    if t := get_trace():
-                        t.log_test_run(
-                            cycle + 1, "sql", sql_passed, sql_err,
-                            context_snapshot=json.dumps({"results": sql_results})[:3000],
-                        )
-                        if sql_warns:
-                            t.log_tdd_warning("sql", sql_warns)
-                    if sql_warns:
-                        print(f"{CLI_YELLOW}[TDD WARNING] sql: {sql_warns}{CLI_CLR}")
-                    if not sql_passed:
-                        print(f"{CLI_YELLOW}[pipeline] SQL TEST failed: {sql_err[:80]}{CLI_CLR}")
-                        last_error = sql_err[:500]
-                        _skip_sql = False
-                        _run_learn(static_learn, model, cfg, task_text, queries, last_error,
-                                   sgr_trace, session_rules, highlighted_vault_rules,
-                                   pre.agents_md_index, error_type="test_fail", cycle=cycle + 1,
-                                   prior_learn_hashes=prior_learn_hashes)
-                        continue
-
-                if not _TDD_ENABLED:
-                    success = True
-                    break
-
-            # ── ANSWER (TDD — inside loop) ────────────────────────────────────────
-            if _TDD_ENABLED:
-                answer_user = _build_answer_user_msg(task_text, sql_results, sku_refs)
-                answer_out, sgr_answer, tok = _call_llm_phase(
-                    static_answer, answer_user, model, cfg, AnswerOutput,
-                    phase="answer", cycle=cycle + 1,
-                )
-                total_in_tok += tok.get("input", 0)
-                total_out_tok += tok.get("output", 0)
-                sgr_trace.append(sgr_answer)
-
-                if not answer_out:
-                    print(f"{CLI_RED}[pipeline] ANSWER parse failed{CLI_CLR}")
-                    try:
-                        vm.answer(AnswerRequest(
-                            message="Could not synthesize an answer from available data.",
-                            outcome=OUTCOME_BY_NAME["OUTCOME_NONE_CLARIFICATION"],
-                            refs=[],
-                        ))
-                    except Exception as e:
-                        print(f"{CLI_RED}[pipeline] vm.answer error: {e}{CLI_CLR}")
-                    break
-
-                ans_passed, ans_err, ans_warns = run_tests(
-                    test_gen_out.answer_tests, "test_answer",
-                    {"sql_results": sql_results, "answer": answer_out.model_dump()},
-                    task_text=task_text,
-                )
-                if t := get_trace():
-                    snapshot = json.dumps({
-                        "sql_results": sql_results,
-                        "answer": answer_out.model_dump(),
-                    })[:3000]
-                    t.log_test_run(cycle + 1, "answer", ans_passed, ans_err, context_snapshot=snapshot)
-                    if ans_warns:
-                        t.log_tdd_warning("answer", ans_warns)
-                if ans_warns:
-                    print(f"{CLI_YELLOW}[TDD WARNING] answer: {ans_warns}{CLI_CLR}")
-                if not ans_passed:
-                    print(f"{CLI_YELLOW}[pipeline] ANSWER TEST failed: {ans_err[:80]}{CLI_CLR}")
-                    last_error = ans_err[:500]
-                    _skip_sql = True
-                    _run_learn(static_learn, model, cfg, task_text, queries, last_error,
-                               sgr_trace, session_rules, highlighted_vault_rules,
-                               pre.agents_md_index, error_type="test_fail", cycle=cycle + 1,
-                               prior_learn_hashes=prior_learn_hashes)
-                    continue
-
-                outcome = answer_out.outcome
-                print(f"{CLI_GREEN}[pipeline] ANSWER: {outcome} — {answer_out.message[:100]}{CLI_CLR}")
-                ref_err = check_grounding_refs(
-                    answer_out.grounding_refs,
-                    {Path(r).stem for r in sku_refs},
-                    security_gates,
-                )
-                if ref_err:
-                    print(f"{CLI_YELLOW}[pipeline] ANSWER grounding_refs blocked: {ref_err}{CLI_CLR}")
-                result_paths = set(sku_refs)
-                clean_refs = (
-                    [r for r in answer_out.grounding_refs if r in result_paths]
-                    if result_paths else list(answer_out.grounding_refs)
-                )
-                try:
-                    vm.answer(AnswerRequest(
-                        message=answer_out.message,
-                        outcome=OUTCOME_BY_NAME[outcome],
-                        refs=clean_refs,
-                    ))
-                except Exception as e:
-                    print(f"{CLI_RED}[pipeline] vm.answer error: {e}{CLI_CLR}")
-                success = True
-                break
-
-        if not success:
-            print(f"{CLI_RED}[pipeline] All {_MAX_CYCLES} cycles exhausted — clarification{CLI_CLR}")
-            try:
-                vm.answer(AnswerRequest(
-                    message="Could not retrieve data after multiple attempts.",
-                    outcome=OUTCOME_BY_NAME["OUTCOME_NONE_CLARIFICATION"],
-                    refs=[],
-                ))
-            except Exception as e:
-                print(f"{CLI_RED}[pipeline] vm.answer error: {e}{CLI_CLR}")
-        elif not _TDD_ENABLED:
-            # ── ANSWER (non-TDD — outside loop, existing behavior) ───────────────
-            answer_user = _build_answer_user_msg(task_text, sql_results, sku_refs)
-            answer_out, sgr_answer, tok = _call_llm_phase(
-                static_answer, answer_user, model, cfg, AnswerOutput,
-                phase="answer", cycle=cycle + 1,
-            )
-            total_in_tok += tok.get("input", 0)
-            total_out_tok += tok.get("output", 0)
-            sgr_trace.append(sgr_answer)
-
-            if answer_out:
-                outcome = answer_out.outcome
-                print(f"{CLI_GREEN}[pipeline] ANSWER: {outcome} — {answer_out.message[:100]}{CLI_CLR}")
-                ref_err = check_grounding_refs(
-                    answer_out.grounding_refs,
-                    {Path(r).stem for r in sku_refs},
-                    security_gates,
-                )
-                if ref_err:
-                    print(f"{CLI_YELLOW}[pipeline] ANSWER grounding_refs blocked: {ref_err}{CLI_CLR}")
-                result_paths = set(sku_refs)
-                clean_refs = (
-                    [r for r in answer_out.grounding_refs if r in result_paths]
-                    if result_paths else list(answer_out.grounding_refs)
-                )
-                try:
-                    vm.answer(AnswerRequest(
-                        message=answer_out.message,
-                        outcome=OUTCOME_BY_NAME[outcome],
-                        refs=clean_refs,
-                    ))
-                except Exception as e:
-                    print(f"{CLI_RED}[pipeline] vm.answer error: {e}{CLI_CLR}")
-            else:
-                print(f"{CLI_RED}[pipeline] ANSWER parse failed — sending fallback clarification{CLI_CLR}")
-                try:
-                    vm.answer(AnswerRequest(
-                        message="Could not synthesize an answer from available data.",
-                        outcome=OUTCOME_BY_NAME["OUTCOME_NONE_CLARIFICATION"],
-                        refs=[],
-                    ))
-                except Exception as e:
-                    print(f"{CLI_RED}[pipeline] vm.answer fallback error: {e}{CLI_CLR}")
-        # TDD success: outcome already set in loop body
-    except Exception:
-        print(f"{CLI_RED}[pipeline] UNHANDLED: {traceback.format_exc()}{CLI_CLR}")
-        try:
-            vm.answer(AnswerRequest(
-                message="Internal pipeline error.",
-                outcome=OUTCOME_BY_NAME["OUTCOME_NONE_CLARIFICATION"],
-                refs=[],
-            ))
-        except Exception as e:
-            print(f"{CLI_RED}[pipeline] vm.answer error: {e}{CLI_CLR}")
-
-
-    # ── EVALUATE (always, success or fail) ────────────────────────────────────
-    eval_thread: threading.Thread | None = None
-    if _EVAL_ENABLED and _MODEL_EVALUATOR:
-        eval_thread = threading.Thread(
-            target=_run_evaluator_safe,
-            kwargs={
-                "task_id": task_id,
-                "task_text": task_text,
-                "agents_md": pre.agents_md_content,
-                "agents_md_index": pre.agents_md_index,
-                "db_schema": pre.db_schema,
-                "schema_digest": pre.schema_digest,
-                "sgr_trace": sgr_trace,
-                "cycles": cycles_used,
-                "final_outcome": outcome,
-                "sql_plan_outputs": sql_plan_outputs,
-                "executed_queries": executed_queries,
-                "model": _MODEL_EVALUATOR,
-                "cfg": cfg,
-            },
-            daemon=False,
-        )
-        eval_thread.start()
-
-    stats = {
-        "outcome": outcome,
-        "cycles_used": cycles_used,
-        "step_facts": [f"pipeline cycles={cycles_used}"],
-        "done_ops": [],
-        "input_tokens": total_in_tok,
-        "output_tokens": total_out_tok,
-        "total_elapsed_ms": 0,
-    }
-    return stats, eval_thread
 
 
 def _run_learn(
@@ -847,16 +364,16 @@ def _run_learn(
     queries: list[str],
     error: str,
     sgr_trace: list[dict],
-    session_rules: list[str],
-    highlighted_vault_rules: list[str],
+    learn_ctx: list[str],
     agents_md_index: dict,
     error_type: str = "semantic",
     cycle: int = 0,
     prior_learn_hashes: "set[str] | None" = None,
 ) -> None:
+    learn_model = _resolve_model_for_phase("learn", model)
     learn_user = _build_learn_user_msg(task_text, queries, error, error_type)
     learn_out, sgr_learn, _ = _call_llm_phase(
-        static_learn, learn_user, model, cfg, LearnOutput,
+        static_learn, learn_user, learn_model, cfg, LearnOutput,
         max_tokens=2048, phase="learn", cycle=cycle,
     )
     sgr_learn["error_type"] = error_type
@@ -876,36 +393,446 @@ def _run_learn(
             anchor_section = anchor.split(">")[0].strip()
             if anchor_section in agents_md_index:
                 anchor_lines = agents_md_index[anchor_section]
-                highlighted_vault_rules.append(f"[{anchor_section}]\n" + "\n".join(anchor_lines))
-                print(f"{CLI_BLUE}[pipeline] LEARN: anchor={anchor!r}, elevating vault rule{CLI_CLR}")
+                vault_rule = f"[{anchor_section}]\n" + "\n".join(anchor_lines)
+                learn_ctx.append(vault_rule)
+                print(f"{CLI_BLUE}[pipeline] LEARN: anchor={anchor!r}, vault rule added to learn_ctx{CLI_CLR}")
                 return
-        session_rules.append(learn_out.rule_content)
-        print(f"{CLI_BLUE}[pipeline] LEARN: rule added to session, retrying{CLI_CLR}")
+        learn_ctx.append(learn_out.rule_content)
+        print(f"{CLI_BLUE}[pipeline] LEARN: rule added to learn_ctx (total={len(learn_ctx)}){CLI_CLR}")
+
+
+def run_pipeline(
+    vm: EcomRuntimeClientSync,
+    model: str,
+    task_text: str,
+    pre: PrephaseResult,
+    cfg: dict,
+    task_id: str = "",
+    injected_session_rules: list[str] | None = None,
+    injected_prompt_addendum: str = "",
+    injected_security_gates: list[dict] | None = None,
+) -> tuple[dict, threading.Thread | None]:
+    """SDD-based pipeline. Returns (stats dict, eval Thread or None)."""
+    rules_loader = _get_rules_loader()
+    security_gates = _get_security_gates() + (injected_security_gates or [])
+    learn_ctx: list[str] = list(injected_session_rules or [])
+    sgr_trace: list[dict] = []
+    total_in_tok = 0
+    total_out_tok = 0
+
+    last_error = ""
+    sql_results: list[str] = []
+    sku_refs: list[str] = []
+    success = False
+    cycles_used = 0
+    prior_query_sets: list[frozenset] = []
+    prior_learn_hashes: set[str] = set()
+
+    task_type = pre.task_type or "sql"
+
+    static_learn = _build_learn_system(
+        pre, rules_loader, security_gates,
+        task_text=task_text,
+        injected_prompt_addendum=injected_prompt_addendum,
+    )
+    static_answer = _build_answer_system(pre, injected_prompt_addendum=injected_prompt_addendum)
+    static_sdd = _build_sdd_system(
+        pre, rules_loader, security_gates,
+        task_text=task_text,
+        injected_prompt_addendum=injected_prompt_addendum,
+    )
+
+    _skip_sdd = False
+    outcome = "OUTCOME_NONE_CLARIFICATION"
+    test_gen_out: TestOutput | None = None
+    sdd_out: SddOutput | None = None
+
+    try:
+        for cycle in range(_MAX_CYCLES):
+            cycles_used = cycle + 1
+            print(f"\n{CLI_BLUE}[pipeline] cycle={cycle + 1}/{_MAX_CYCLES}{CLI_CLR}")
+
+            if not _skip_sdd:
+                # ── SDD ───────────────────────────────────────────────────────────
+                sdd_model = _resolve_model_for_phase("sdd", model)
+                user_msg = _build_sdd_user_msg(task_text, task_type, learn_ctx, last_error)
+                sdd_out, sgr_entry, tok = _call_llm_phase(
+                    static_sdd, user_msg, sdd_model, cfg, SddOutput,
+                    phase="sdd", cycle=cycle + 1,
+                )
+                total_in_tok += tok.get("input", 0)
+                total_out_tok += tok.get("output", 0)
+                sgr_trace.append(sgr_entry)
+
+                if not sdd_out:
+                    print(f"{CLI_RED}[pipeline] SDD LLM call failed{CLI_CLR}")
+                    last_error = "SDD phase LLM call failed"
+                    _run_learn(static_learn, model, cfg, task_text, [], last_error,
+                               sgr_trace, learn_ctx, pre.agents_md_index,
+                               error_type="llm_fail", cycle=cycle + 1,
+                               prior_learn_hashes=prior_learn_hashes)
+                    continue
+
+                sql_queries = [s.query for s in sdd_out.plan if s.type == "sql" and s.query]
+                print(f"{CLI_BLUE}[pipeline] SDD: {len(sdd_out.plan)} steps, {len(sql_queries)} SQL queries{CLI_CLR}")
+
+                # ── AGENTS.MD REFS CHECK ──────────────────────────────────────────
+                if not sdd_out.agents_md_refs and pre.agents_md_index:
+                    task_lower = task_text.lower()
+                    index_terms_in_task = [
+                        k for k in pre.agents_md_index
+                        if any(part in task_lower for part in k.split("_"))
+                    ]
+                    if index_terms_in_task:
+                        last_error = "agents_md_refs empty despite known vocabulary terms in task"
+                        print(f"{CLI_YELLOW}[pipeline] AGENTS.MD refs check failed{CLI_CLR}")
+                        _run_learn(static_learn, model, cfg, task_text, sql_queries, last_error,
+                                   sgr_trace, learn_ctx, pre.agents_md_index,
+                                   error_type="semantic", cycle=cycle + 1,
+                                   prior_learn_hashes=prior_learn_hashes)
+                        continue
+
+                # ── SECURITY CHECK ────────────────────────────────────────────────
+                gate_err = check_sql_queries(sql_queries, security_gates)
+                if t := get_trace():
+                    t.log_gate_check(cycle + 1, "security", sql_queries, bool(gate_err), gate_err or None)
+                if gate_err:
+                    print(f"{CLI_YELLOW}[pipeline] SECURITY gate blocked: {gate_err}{CLI_CLR}")
+                    last_error = gate_err
+                    _run_learn(static_learn, model, cfg, task_text, sql_queries, last_error,
+                               sgr_trace, learn_ctx, pre.agents_md_index,
+                               error_type="security", cycle=cycle + 1,
+                               prior_learn_hashes=prior_learn_hashes)
+                    continue
+
+                literal_err = check_where_literals(sql_queries, task_text, security_gates)
+                if literal_err:
+                    print(f"{CLI_YELLOW}[pipeline] SECURITY literal blocked: {literal_err}{CLI_CLR}")
+                    last_error = literal_err
+                    _run_learn(static_learn, model, cfg, task_text, sql_queries, last_error,
+                               sgr_trace, learn_ctx, pre.agents_md_index,
+                               error_type="security", cycle=cycle + 1,
+                               prior_learn_hashes=prior_learn_hashes)
+                    continue
+
+                retry_err = check_retry_loop(sql_queries, prior_query_sets, security_gates)
+                if retry_err:
+                    print(f"{CLI_RED}[pipeline] SECURITY hard-stop: {retry_err}{CLI_CLR}")
+                    last_error = retry_err
+                    break
+                prior_query_sets.append(frozenset(sql_queries))
+
+                # ── SCHEMA GATE ───────────────────────────────────────────────────
+                schema_err = check_schema_compliance(sql_queries, pre.schema_digest, {}, task_text)
+                if t := get_trace():
+                    t.log_gate_check(cycle + 1, "schema", sql_queries, bool(schema_err), schema_err or None)
+                if schema_err:
+                    print(f"{CLI_YELLOW}[pipeline] SCHEMA gate blocked: {schema_err}{CLI_CLR}")
+                    last_error = schema_err
+                    _run_learn(static_learn, model, cfg, task_text, sql_queries, last_error,
+                               sgr_trace, learn_ctx, pre.agents_md_index,
+                               error_type="security", cycle=cycle + 1,
+                               prior_learn_hashes=prior_learn_hashes)
+                    continue
+
+                # ── TEST_GEN (mandatory) ──────────────────────────────────────────
+                test_gen_out = _run_test_gen(model, cfg, task_text, sdd_out.spec, task_type)
+                if test_gen_out is None:
+                    print(f"{CLI_RED}[pipeline] TEST_GEN parse failed — hard stop{CLI_CLR}")
+                    try:
+                        vm.answer(AnswerRequest(
+                            message="Test generation failed — cannot validate answer",
+                            outcome=OUTCOME_BY_NAME["OUTCOME_NONE_CLARIFICATION"],
+                            refs=[],
+                        ))
+                    except Exception as e:
+                        print(f"{CLI_RED}[pipeline] vm.answer error: {e}{CLI_CLR}")
+                    break
+
+                # ── EXECUTE (SQL steps) ───────────────────────────────────────────
+                _exec_path = "/bin/sql"
+                execute_error = check_path_access(_exec_path, security_gates)
+                sql_results = []
+                executed_sql_queries: list[str] = []
+
+                for step in sdd_out.plan:
+                    if step.type != "sql" or not step.query:
+                        continue
+                    q = step.query
+                    if execute_error:
+                        break
+                    # VERIFY (EXPLAIN)
+                    try:
+                        expl = vm.exec(ExecRequest(path="/bin/sql", args=[f"EXPLAIN {q}"]))
+                        expl_txt = _exec_result_text(expl)
+                        if "error" in expl_txt.lower():
+                            execute_error = f"EXPLAIN error: {expl_txt[:200]}"
+                            if t := get_trace():
+                                t.log_sql_validate(cycle + 1, q, expl_txt, execute_error)
+                            break
+                        if t := get_trace():
+                            t.log_sql_validate(cycle + 1, q, expl_txt, None)
+                    except Exception as e:
+                        execute_error = f"EXPLAIN exception: {e}"
+                        break
+
+                    # EXECUTE
+                    try:
+                        _t0 = time.monotonic()
+                        result = vm.exec(ExecRequest(path=_exec_path, args=[q]))
+                        _dur = int((time.monotonic() - _t0) * 1000)
+                        result_txt = _exec_result_text(result)
+                        sql_results.append(result_txt)
+                        executed_sql_queries.append(q)
+                        if t := get_trace():
+                            t.log_sql_execute(cycle + 1, q, result_txt, _csv_has_data(result_txt), _dur)
+                        print(f"{CLI_BLUE}[pipeline] EXECUTE: {q[:60]!r} → {result_txt[:80]}{CLI_CLR}")
+                    except Exception as e:
+                        execute_error = f"Execute exception: {e}"
+                        break
+
+                last_empty = not sql_results or not _csv_has_data(sql_results[-1])
+                if execute_error or last_empty:
+                    err = execute_error or f"Empty result set: {(sql_results[-1] if sql_results else '').strip()[:120]}"
+                    print(f"{CLI_YELLOW}[pipeline] EXECUTE failed: {err}{CLI_CLR}")
+                    last_error = err
+                    _run_learn(static_learn, model, cfg, task_text, sql_queries, last_error,
+                               sgr_trace, learn_ctx, pre.agents_md_index,
+                               error_type="empty" if last_empty and not execute_error else "semantic",
+                               cycle=cycle + 1, prior_learn_hashes=prior_learn_hashes)
+                    continue
+
+                # ── SCHEMA REFRESH ────────────────────────────────────────────────
+                refresh_inputs = [
+                    r for q, r in zip(executed_sql_queries, sql_results)
+                    if _SQLITE_SCHEMA_RE.search(q) and _csv_has_data(r)
+                ]
+                if refresh_inputs:
+                    added = merge_schema_from_sqlite_results(pre.schema_digest, refresh_inputs)
+                    if added:
+                        print(f"{CLI_BLUE}[pipeline] SCHEMA REFRESH: +{added}{CLI_CLR}")
+
+                new_refs = _extract_sku_refs(executed_sql_queries, sql_results)
+                sku_refs.extend(new_refs)
+
+                # ── VERIFY (sql_tests) ────────────────────────────────────────────
+                sql_passed, sql_err, sql_warns = run_tests(
+                    test_gen_out.sql_tests, "test_sql", {"results": sql_results},
+                    task_text=task_text,
+                    sql_queries=sql_queries,
+                )
+                if t := get_trace():
+                    t.log_test_run(cycle + 1, "sql", sql_passed, sql_err,
+                                   context_snapshot=json.dumps({"results": sql_results})[:3000])
+                    if sql_warns:
+                        t.log_tdd_warning("sql", sql_warns)
+                if sql_warns:
+                    print(f"{CLI_YELLOW}[VERIFY WARNING] sql: {sql_warns}{CLI_CLR}")
+                if not sql_passed:
+                    print(f"{CLI_YELLOW}[pipeline] SQL VERIFY failed: {sql_err[:80]}{CLI_CLR}")
+                    last_error = sql_err[:500]
+                    _skip_sdd = False
+                    _run_learn(static_learn, model, cfg, task_text, sql_queries, last_error,
+                               sgr_trace, learn_ctx, pre.agents_md_index,
+                               error_type="test_fail", cycle=cycle + 1,
+                               prior_learn_hashes=prior_learn_hashes)
+                    continue
+
+            # ── ANSWER ───────────────────────────────────────────────────────────
+            executor_model = _resolve_model_for_phase("executor", model)
+            answer_user = _build_answer_user_msg(task_text, sql_results, sku_refs)
+            answer_out, sgr_answer, tok = _call_llm_phase(
+                static_answer, answer_user, executor_model, cfg, AnswerOutput,
+                phase="answer", cycle=cycle + 1,
+            )
+            total_in_tok += tok.get("input", 0)
+            total_out_tok += tok.get("output", 0)
+            sgr_trace.append(sgr_answer)
+
+            if not answer_out:
+                print(f"{CLI_RED}[pipeline] ANSWER parse failed{CLI_CLR}")
+                try:
+                    vm.answer(AnswerRequest(
+                        message="Could not synthesize an answer from available data.",
+                        outcome=OUTCOME_BY_NAME["OUTCOME_NONE_CLARIFICATION"],
+                        refs=[],
+                    ))
+                except Exception as e:
+                    print(f"{CLI_RED}[pipeline] vm.answer error: {e}{CLI_CLR}")
+                break
+
+            # ── VERIFY_ANSWER (answer_tests) ──────────────────────────────────────
+            if test_gen_out:
+                ans_passed, ans_err, ans_warns = run_tests(
+                    test_gen_out.answer_tests, "test_answer",
+                    {"sql_results": sql_results, "answer": answer_out.model_dump()},
+                    task_text=task_text,
+                )
+                if t := get_trace():
+                    snapshot = json.dumps({"sql_results": sql_results, "answer": answer_out.model_dump()})[:3000]
+                    t.log_test_run(cycle + 1, "answer", ans_passed, ans_err, context_snapshot=snapshot)
+                    if ans_warns:
+                        t.log_tdd_warning("answer", ans_warns)
+                if ans_warns:
+                    print(f"{CLI_YELLOW}[VERIFY_ANSWER WARNING] answer: {ans_warns}{CLI_CLR}")
+                if not ans_passed:
+                    print(f"{CLI_YELLOW}[pipeline] VERIFY_ANSWER failed: {ans_err[:80]}{CLI_CLR}")
+                    last_error = ans_err[:500]
+                    _skip_sdd = True
+                    _run_learn(static_learn, model, cfg, task_text,
+                               [s.query for s in (sdd_out.plan if sdd_out else []) if s.type == "sql" and s.query],
+                               last_error, sgr_trace, learn_ctx, pre.agents_md_index,
+                               error_type="test_fail", cycle=cycle + 1,
+                               prior_learn_hashes=prior_learn_hashes)
+                    continue
+
+            # ── SUCCESS ───────────────────────────────────────────────────────────
+            outcome = answer_out.outcome
+            print(f"{CLI_GREEN}[pipeline] ANSWER: {outcome} — {answer_out.message[:100]}{CLI_CLR}")
+            ref_err = check_grounding_refs(
+                answer_out.grounding_refs,
+                {Path(r).stem for r in sku_refs},
+                security_gates,
+            )
+            if ref_err:
+                print(f"{CLI_YELLOW}[pipeline] ANSWER grounding_refs blocked: {ref_err}{CLI_CLR}")
+            result_paths = set(sku_refs)
+            clean_refs = (
+                [r for r in answer_out.grounding_refs if r in result_paths]
+                if result_paths else list(answer_out.grounding_refs)
+            )
+            try:
+                vm.answer(AnswerRequest(
+                    message=answer_out.message,
+                    outcome=OUTCOME_BY_NAME[outcome],
+                    refs=clean_refs,
+                ))
+            except Exception as e:
+                print(f"{CLI_RED}[pipeline] vm.answer error: {e}{CLI_CLR}")
+
+            _append_eval_log(task_id, task_text, task_type, pre, sgr_trace, learn_ctx, cycles_used, outcome, None)
+            success = True
+            break
+
+        if not success:
+            print(f"{CLI_RED}[pipeline] All {_MAX_CYCLES} cycles exhausted — clarification{CLI_CLR}")
+            try:
+                vm.answer(AnswerRequest(
+                    message="Could not retrieve data after multiple attempts.",
+                    outcome=OUTCOME_BY_NAME["OUTCOME_NONE_CLARIFICATION"],
+                    refs=[],
+                ))
+            except Exception as e:
+                print(f"{CLI_RED}[pipeline] vm.answer error: {e}{CLI_CLR}")
+
+    except Exception:
+        print(f"{CLI_RED}[pipeline] UNHANDLED: {traceback.format_exc()}{CLI_CLR}")
+        try:
+            vm.answer(AnswerRequest(
+                message="Internal pipeline error.",
+                outcome=OUTCOME_BY_NAME["OUTCOME_NONE_CLARIFICATION"],
+                refs=[],
+            ))
+        except Exception as e:
+            print(f"{CLI_RED}[pipeline] vm.answer error: {e}{CLI_CLR}")
+
+    # ── EVALUATOR: only on failure ────────────────────────────────────────────
+    eval_thread: threading.Thread | None = None
+    eval_model = _resolve_model_for_phase("evaluator", model)
+    if not success and _EVAL_ENABLED and eval_model:
+        eval_thread = threading.Thread(
+            target=_run_evaluator_safe,
+            kwargs={
+                "task_id": task_id,
+                "task_text": task_text,
+                "task_type": task_type,
+                "prephase": {
+                    "agents_md": pre.agents_md_content,
+                    "schema_digest": pre.schema_digest,
+                    "db_schema": pre.db_schema,
+                },
+                "learn_ctx": list(learn_ctx),
+                "sgr_trace": sgr_trace,
+                "cycles": cycles_used,
+                "final_outcome": outcome,
+                "model": eval_model,
+                "cfg": cfg,
+            },
+            daemon=False,
+        )
+        eval_thread.start()
+
+    stats = {
+        "outcome": outcome,
+        "cycles_used": cycles_used,
+        "step_facts": [f"pipeline cycles={cycles_used}"],
+        "done_ops": [],
+        "input_tokens": total_in_tok,
+        "output_tokens": total_out_tok,
+        "total_elapsed_ms": 0,
+    }
+    return stats, eval_thread
+
+
+def _append_eval_log(
+    task_id: str,
+    task_text: str,
+    task_type: str,
+    pre: PrephaseResult,
+    sgr_trace: list[dict],
+    learn_ctx: list[str],
+    cycles: int,
+    outcome: str,
+    evaluator_result,
+) -> None:
+    entry: dict = {
+        "task_id": task_id,
+        "task_text": task_text,
+        "task_type": task_type,
+        "prephase": {
+            "agents_md": pre.agents_md_content[:500] if pre.agents_md_content else "",
+            "schema_digest": pre.schema_digest,
+        },
+        "trace": sgr_trace,
+        "learn_ctx": learn_ctx,
+        "outcome": "ok" if outcome == "OUTCOME_OK" else "fail",
+        "evaluator": None,
+    }
+    if evaluator_result is not None:
+        entry["evaluator"] = {
+            "best_cycle": getattr(evaluator_result, "best_cycle", 0),
+            "best_answer": getattr(evaluator_result, "best_answer", ""),
+            "score": getattr(evaluator_result, "score", 0.0),
+            "prompt_optimization": getattr(evaluator_result, "prompt_optimization", []),
+            "rule_optimization": getattr(evaluator_result, "rule_optimization", []),
+            "security_optimization": getattr(evaluator_result, "security_optimization", []),
+        }
+    _EVAL_LOG.parent.mkdir(parents=True, exist_ok=True)
+    with open(_EVAL_LOG, "a", encoding="utf-8") as f:
+        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
 
 def _run_evaluator_safe(
     task_id: str = "",
     task_text: str = "",
-    agents_md: str = "",
-    agents_md_index: dict | None = None,
-    db_schema: str = "",
-    schema_digest: dict | None = None,
+    task_type: str = "sql",
+    prephase: dict | None = None,
+    learn_ctx: list[str] | None = None,
     sgr_trace: list[dict] | None = None,
     cycles: int = 0,
     final_outcome: str = "",
-    sql_plan_outputs: list | None = None,
-    executed_queries: list[str] | None = None,
     model: str = "",
     cfg: dict | None = None,
 ) -> None:
     try:
         from .evaluator import run_evaluator, EvalInput
-        run_evaluator(
+        result = run_evaluator(
             EvalInput(
                 task_id=task_id,
                 task_text=task_text,
-                agents_md=agents_md,
-                db_schema=db_schema,
+                task_type=task_type,
+                prephase=prephase or {},
+                learn_ctx=learn_ctx or [],
                 sgr_trace=sgr_trace or [],
                 cycles=cycles,
                 final_outcome=final_outcome,
@@ -913,5 +840,29 @@ def _run_evaluator_safe(
             model=model,
             cfg=cfg or {},
         )
+        if result is not None:
+            _EVAL_LOG.parent.mkdir(parents=True, exist_ok=True)
+            lines = []
+            try:
+                lines = _EVAL_LOG.read_text(encoding="utf-8").splitlines()
+            except Exception:
+                pass
+            for i in range(len(lines) - 1, -1, -1):
+                try:
+                    entry = json.loads(lines[i])
+                    if entry.get("task_id") == task_id and entry.get("evaluator") is None:
+                        entry["evaluator"] = {
+                            "best_cycle": result.best_cycle,
+                            "best_answer": result.best_answer,
+                            "score": result.score,
+                            "prompt_optimization": result.prompt_optimization,
+                            "rule_optimization": result.rule_optimization,
+                            "security_optimization": result.security_optimization,
+                        }
+                        lines[i] = json.dumps(entry, ensure_ascii=False)
+                        _EVAL_LOG.write_text("\n".join(lines) + "\n", encoding="utf-8")
+                        break
+                except Exception:
+                    continue
     except Exception as e:
         print(f"{CLI_YELLOW}[pipeline] evaluator error (non-fatal): {e}{CLI_CLR}")
