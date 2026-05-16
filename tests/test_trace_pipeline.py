@@ -9,7 +9,7 @@ from agent.trace import TraceLogger, set_trace
 
 
 def _make_pre(db_schema="CREATE TABLE products(id INT, brand TEXT, type TEXT, sku TEXT)"):
-    return PrephaseResult(agents_md_content="", agents_md_path="/AGENTS.MD", db_schema=db_schema)
+    return PrephaseResult(agents_md_content="", agents_md_path="/AGENTS.MD", db_schema=db_schema, task_type="sql")
 
 
 def _exec_ok(stdout="sku,path\nHeco-001,/proc/catalog/Heco-001.json"):
@@ -35,25 +35,46 @@ def _collect_trace_records(tmp_path, task_id="t01"):
     return t, p
 
 
+def _sdd_json():
+    return json.dumps({
+        "reasoning": "ok",
+        "spec": "return products",
+        "plan": [{"type": "sql", "description": "fetch", "query": "SELECT brand FROM products WHERE type='X'"}],
+        "agents_md_refs": [],
+    })
+
+
+def _test_gen_json():
+    return json.dumps({
+        "reasoning": "r",
+        "sql_tests": "def test_sql(results):\n    assert results\n",
+        "answer_tests": "def test_answer(sql_results, answer):\n    pass\n",
+    })
+
+
+def _answer_json():
+    return json.dumps({
+        "reasoning": "ok",
+        "message": "Found Heco",
+        "outcome": "OUTCOME_OK",
+        "grounding_refs": [],
+        "completed_steps": [],
+    })
+
+
 def test_llm_call_records_written_on_success(tmp_path):
-    """Happy path: sql_plan + answer llm_call records written."""
+    """Happy path: sdd + answer llm_call records written."""
     t, p = _collect_trace_records(tmp_path)
 
     vm = MagicMock()
     vm.exec.return_value = _exec_ok()
 
-    sql_json = json.dumps({"reasoning": "ok", "queries": ["SELECT brand FROM products WHERE type='X'"],
-                           "agents_md_refs": []})
-    answer_json = json.dumps({"reasoning": "ok", "message": "Found Heco",
-                              "outcome": "OUTCOME_OK", "grounding_refs": [], "completed_steps": []})
-
-    with patch("agent.pipeline.call_llm_raw", side_effect=[sql_json, answer_json]), \
-         patch("agent.pipeline.run_resolve", return_value={}), \
+    with patch("agent.pipeline.call_llm_raw", side_effect=[_sdd_json(), _test_gen_json(), _answer_json()]), \
          patch("agent.pipeline._get_rules_loader"), \
          patch("agent.pipeline._get_security_gates", return_value=[]), \
          patch("agent.pipeline.check_sql_queries", return_value=None), \
          patch("agent.pipeline.check_schema_compliance", return_value=None), \
-         patch("agent.pipeline._TDD_ENABLED", False):
+         patch("agent.pipeline.run_tests", return_value=(True, None, [])):
         run_pipeline(vm, "anthropic/claude-sonnet-4-6", "find X", _make_pre(), {})
 
     t.close()
@@ -64,7 +85,7 @@ def test_llm_call_records_written_on_success(tmp_path):
     assert "llm_call" in types
     llm_calls = [r for r in records if r["type"] == "llm_call"]
     phases = {r["phase"] for r in llm_calls}
-    assert "sql_plan" in phases
+    assert "sdd" in phases
     assert "answer" in phases
     for r in llm_calls:
         assert "system_sha256" in r
@@ -79,18 +100,12 @@ def test_gate_check_records_written(tmp_path):
     vm = MagicMock()
     vm.exec.return_value = _exec_ok()
 
-    sql_json = json.dumps({"reasoning": "ok", "queries": ["SELECT brand FROM products"],
-                           "agents_md_refs": []})
-    answer_json = json.dumps({"reasoning": "ok", "message": "ok", "outcome": "OUTCOME_OK",
-                              "grounding_refs": [], "completed_steps": []})
-
-    with patch("agent.pipeline.call_llm_raw", side_effect=[sql_json, answer_json]), \
-         patch("agent.pipeline.run_resolve", return_value={}), \
+    with patch("agent.pipeline.call_llm_raw", side_effect=[_sdd_json(), _test_gen_json(), _answer_json()]), \
          patch("agent.pipeline._get_rules_loader"), \
          patch("agent.pipeline._get_security_gates", return_value=[]), \
          patch("agent.pipeline.check_sql_queries", return_value=None), \
          patch("agent.pipeline.check_schema_compliance", return_value=None), \
-         patch("agent.pipeline._TDD_ENABLED", False):
+         patch("agent.pipeline.run_tests", return_value=(True, None, [])):
         run_pipeline(vm, "anthropic/claude-sonnet-4-6", "find X", _make_pre(), {})
 
     t.close()
@@ -110,18 +125,12 @@ def test_sql_validate_and_execute_records(tmp_path):
     vm = MagicMock()
     vm.exec.return_value = _exec_ok()
 
-    sql_json = json.dumps({"reasoning": "ok", "queries": ["SELECT brand FROM products WHERE type='X'"],
-                           "agents_md_refs": []})
-    answer_json = json.dumps({"reasoning": "ok", "message": "ok", "outcome": "OUTCOME_OK",
-                              "grounding_refs": [], "completed_steps": []})
-
-    with patch("agent.pipeline.call_llm_raw", side_effect=[sql_json, answer_json]), \
-         patch("agent.pipeline.run_resolve", return_value={}), \
+    with patch("agent.pipeline.call_llm_raw", side_effect=[_sdd_json(), _test_gen_json(), _answer_json()]), \
          patch("agent.pipeline._get_rules_loader"), \
          patch("agent.pipeline._get_security_gates", return_value=[]), \
          patch("agent.pipeline.check_sql_queries", return_value=None), \
          patch("agent.pipeline.check_schema_compliance", return_value=None), \
-         patch("agent.pipeline._TDD_ENABLED", False):
+         patch("agent.pipeline.run_tests", return_value=(True, None, [])):
         run_pipeline(vm, "anthropic/claude-sonnet-4-6", "find X", _make_pre(), {})
 
     t.close()

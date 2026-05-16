@@ -2,28 +2,29 @@
 from pydantic import ValidationError
 import pytest
 from agent.models import (
-    SqlPlanOutput, LearnOutput, AnswerOutput, PipelineEvalOutput,
+    SddOutput, PlanStep, LearnOutput, AnswerOutput, PipelineEvalOutput,
     ResolveCandidate, ResolveOutput,
 )
 
 
 def test_sql_plan_output_valid():
-    obj = SqlPlanOutput(
+    obj = SddOutput(
         reasoning="products table has type column",
-        queries=["SELECT COUNT(*) FROM products WHERE type='Lawn Mower'"],
+        spec="return count of Lawn Mowers",
+        plan=[PlanStep(type="sql", description="count", query="SELECT COUNT(*) FROM products WHERE type='Lawn Mower'")],
     )
     assert obj.reasoning == "products table has type column"
-    assert len(obj.queries) == 1
+    assert len(obj.plan) == 1
 
 
 def test_sql_plan_output_requires_reasoning():
     with pytest.raises(ValidationError):
-        SqlPlanOutput(queries=["SELECT 1"])
+        SddOutput(spec="s", plan=[])
 
 
 def test_sql_plan_output_requires_queries():
     with pytest.raises(ValidationError):
-        SqlPlanOutput(reasoning="ok")
+        SddOutput(reasoning="ok")
 
 
 def test_learn_output_valid():
@@ -69,12 +70,12 @@ def test_pipeline_eval_output_valid():
 
 
 def test_sql_plan_output_agents_md_refs_defaults_empty():
-    obj = SqlPlanOutput(reasoning="r", queries=["SELECT 1 WHERE 1=1"])
+    obj = SddOutput(reasoning="r", spec="s", plan=[])
     assert obj.agents_md_refs == []
 
 
 def test_sql_plan_output_agents_md_refs_set():
-    obj = SqlPlanOutput(reasoning="r", queries=["SELECT 1 WHERE 1=1"], agents_md_refs=["brand_aliases"])
+    obj = SddOutput(reasoning="r", spec="s", plan=[], agents_md_refs=["brand_aliases"])
     assert obj.agents_md_refs == ["brand_aliases"]
 
 

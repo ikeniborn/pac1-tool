@@ -1,13 +1,12 @@
-import pytest
 from agent.evaluator import _compute_eval_metrics
-from agent.models import SqlPlanOutput
+from agent.models import SddOutput
 
 
 def test_agents_md_coverage_full():
     # "heco" matches "heco = Heco" content; "screw" matches "screw = bolt" content
     index = {"brand_aliases": ["heco = Heco"], "kind_synonyms": ["screw = bolt"]}
     plans = [
-        SqlPlanOutput(reasoning="r", queries=["SELECT 1 WHERE 1=1"], agents_md_refs=["brand_aliases", "kind_synonyms"])
+        SddOutput(reasoning="r", spec="s", plan=[], agents_md_refs=["brand_aliases", "kind_synonyms"])
     ]
     metrics = _compute_eval_metrics("find heco screw products", index, [], {}, plans)
     assert metrics["agents_md_coverage"] == 1.0
@@ -16,14 +15,14 @@ def test_agents_md_coverage_full():
 def test_agents_md_coverage_zero():
     # "heco" matches "heco = Heco" content, plan refs nothing
     index = {"brand_aliases": ["heco = Heco"]}
-    plans = [SqlPlanOutput(reasoning="r", queries=["SELECT 1 WHERE 1=1"], agents_md_refs=[])]
+    plans = [SddOutput(reasoning="r", spec="s", plan=[], agents_md_refs=[])]
     metrics = _compute_eval_metrics("find heco products", index, [], {}, plans)
     assert metrics["agents_md_coverage"] == 0.0
 
 
 def test_agents_md_coverage_no_relevant_terms():
     index = {"brand_aliases": ["heco = Heco"]}
-    plans = [SqlPlanOutput(reasoning="r", queries=["SELECT 1 WHERE 1=1"], agents_md_refs=[])]
+    plans = [SddOutput(reasoning="r", spec="s", plan=[], agents_md_refs=[])]
     # "show", "shelf", "count" — none appear in "heco = heco brand_aliases"
     metrics = _compute_eval_metrics("show shelf count", index, [], {}, plans)
     assert metrics["agents_md_coverage"] == 1.0  # 0/0 → 1.0 (no relevant terms)
