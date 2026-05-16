@@ -44,20 +44,7 @@ class AnswerOutput(BaseModel):
     completed_steps: list[str]
 
 
-class PipelineEvalOutput(BaseModel):
-    reasoning: str
-    score: float
-    comment: str
-    best_cycle: int = 0
-    best_answer: str = ""
-    prompt_optimization: list[str]
-    rule_optimization: list[str]
-    security_optimization: list[str] = []
-    agents_md_coverage: float = 0.0
-    schema_grounding: float = 0.0
-
-
-# Old models kept for backward compatibility during refactor (to be removed in Tasks 2-6)
+# Aliases for old names — removed after Task 6 (pipeline.py rewrite) + Task 9 (resolve.py delete)
 SqlPlanOutput = SddOutput
 TestGenOutput = TestOutput
 
@@ -72,3 +59,17 @@ class ResolveCandidate(BaseModel):
 class ResolveOutput(BaseModel):
     reasoning: str
     candidates: list[ResolveCandidate]
+
+
+class PipelineEvalOutput(BaseModel):
+    reasoning: str
+    score: float
+    comment: str
+    best_cycle: int = 0
+    best_answer: str = ""
+    prompt_optimization: list[str]
+    rule_optimization: list[str]
+    security_optimization: list[str] = []
+    agents_md_coverage: float = 0.0
+    schema_grounding: float = 0.0
+
