@@ -29,8 +29,8 @@ def test_build_system_prompt_fallback_to_default_for_unknown():
     assert "Output PURE JSON" in prompt
 
 
-def test_load_prompt_sql_plan_exists():
-    text = load_prompt("sql_plan")
+def test_load_prompt_sdd_exists():
+    text = load_prompt("sdd")
     assert len(text) > 50
 
 
