@@ -9,8 +9,7 @@ import agent.knowledge_loader as kl
 def _make_eval_input():
     return EvalInput(
         task_text="How many Lawn Mowers?",
-        agents_md="vault rules here",
-        db_schema="CREATE TABLE products(...)",
+        prephase={"agents_md": "vault rules here", "schema_digest": {}},
         sgr_trace=[
             {"phase": "SqlPlanOutput", "guide_prompt": "...", "reasoning": "products.type", "output": {}},
             {"phase": "AnswerOutput", "guide_prompt": "...", "reasoning": "3 found", "output": {}},
@@ -91,8 +90,7 @@ def test_run_evaluator_loads_knowledge_into_system_prompt():
     """run_evaluator must pass existing content from knowledge_loader into the system prompt."""
     inp = EvalInput(
         task_text="How many products?",
-        agents_md="# Rules\nDo X.",
-        db_schema="products(id, name)",
+        prephase={"agents_md": "# Rules\nDo X.", "schema_digest": {}},
         sgr_trace=[],
         cycles=1,
         final_outcome="OUTCOME_SUCCESS",
@@ -125,8 +123,7 @@ def test_task_id_written_to_log(tmp_path):
     inp = EvalInput(
         task_id="t07",
         task_text="How many products?",
-        agents_md="rules",
-        db_schema="CREATE TABLE products(id INT)",
+        prephase={"agents_md": "rules", "schema_digest": {}},
         sgr_trace=[],
         cycles=1,
         final_outcome="OUTCOME_OK",
@@ -136,3 +133,41 @@ def test_task_id_written_to_log(tmp_path):
         run_evaluator(inp, model="test-model", cfg={})
     line = json.loads(log_path.read_text().strip())
     assert line["task_id"] == "t07"
+
+
+def _make_eval_input_v2(**kwargs):
+    """Helper for new EvalInput schema with task_type, prephase, learn_ctx."""
+    defaults = dict(
+        task_id="t01",
+        task_text="find laptops",
+        task_type="sql",
+        prephase={"agents_md": "AGENTS", "schema_digest": {}},
+        learn_ctx=["rule: always use LIKE for discovery"],
+        sgr_trace=[],
+        cycles=3,
+        final_outcome="OUTCOME_NONE_CLARIFICATION",
+    )
+    defaults.update(kwargs)
+    return EvalInput(**defaults)
+
+
+def test_eval_input_has_task_type():
+    ei = _make_eval_input_v2()
+    assert ei.task_type == "sql"
+
+
+def test_eval_input_has_learn_ctx():
+    ei = _make_eval_input_v2(learn_ctx=["rule_A", "rule_B"])
+    assert len(ei.learn_ctx) == 2
+
+
+def test_eval_input_has_prephase():
+    ei = _make_eval_input_v2(prephase={"agents_md": "X", "schema_digest": {"tables": {}}})
+    assert ei.prephase["agents_md"] == "X"
+
+
+def test_run_evaluator_returns_none_on_llm_fail():
+    ei = _make_eval_input_v2()
+    with patch("agent.evaluator.call_llm_raw", return_value=None):
+        result = run_evaluator(ei, model="anthropic/claude-haiku-4-5-20251001", cfg={})
+    assert result is None

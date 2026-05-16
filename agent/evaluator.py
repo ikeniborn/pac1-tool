@@ -18,16 +18,13 @@ _EVAL_LOG = Path(__file__).parent.parent / "data" / "eval_log.jsonl"
 @dataclass
 class EvalInput:
     task_text: str
-    agents_md: str
-    db_schema: str
     sgr_trace: list[dict]
     cycles: int
     final_outcome: str
     task_id: str = ""
-    agents_md_index: dict = field(default_factory=dict)
-    schema_digest: dict = field(default_factory=dict)
-    sql_plan_outputs: list = field(default_factory=list)
-    executed_queries: list[str] = field(default_factory=list)
+    task_type: str = "sql"
+    prephase: dict = field(default_factory=dict)
+    learn_ctx: list[str] = field(default_factory=list)
 
 
 def _compute_eval_metrics(
@@ -86,27 +83,21 @@ def run_evaluator(
 
 
 def _run(eval_input: EvalInput, model: str, cfg: dict) -> PipelineEvalOutput | None:
-    metrics = _compute_eval_metrics(
-        eval_input.task_text,
-        eval_input.agents_md_index,
-        eval_input.executed_queries,
-        eval_input.schema_digest,
-        eval_input.sql_plan_outputs,
-    )
-
     rules_md = knowledge_loader.existing_rules_text()
     security_md = knowledge_loader.existing_security_text()
     prompts_md = knowledge_loader.existing_prompts_text()
 
-    system = _build_eval_system(eval_input.agents_md, rules_md, security_md, prompts_md)
+    system = _build_eval_system(
+        eval_input.prephase.get("agents_md", ""),
+        rules_md, security_md, prompts_md,
+    )
     user_msg = json.dumps({
         "task_text": eval_input.task_text,
-        "db_schema": eval_input.db_schema,
+        "task_type": eval_input.task_type,
+        "learn_ctx": eval_input.learn_ctx,
         "sgr_trace": eval_input.sgr_trace,
         "cycles": eval_input.cycles,
         "final_outcome": eval_input.final_outcome,
-        "agents_md_coverage": metrics["agents_md_coverage"],
-        "schema_grounding": metrics["schema_grounding"],
     }, ensure_ascii=False)
 
     raw = call_llm_raw(system, user_msg, model, cfg, max_tokens=2048)
@@ -118,13 +109,11 @@ def _run(eval_input: EvalInput, model: str, cfg: dict) -> PipelineEvalOutput | N
         return None
 
     try:
-        parsed.setdefault("agents_md_coverage", metrics["agents_md_coverage"])
-        parsed.setdefault("schema_grounding", metrics["schema_grounding"])
         result = PipelineEvalOutput.model_validate(parsed)
     except Exception:
         return None
 
-    _append_log(eval_input, result, metrics)
+    _append_log(eval_input, result)
     return result
 
 
@@ -149,19 +138,21 @@ def _build_eval_system(
     return "\n\n".join(parts)
 
 
-def _append_log(eval_input: EvalInput, result: PipelineEvalOutput, metrics: dict) -> None:
+def _append_log(eval_input: EvalInput, result: PipelineEvalOutput) -> None:
     entry = {
         "task_id": eval_input.task_id,
         "task_text": eval_input.task_text,
+        "task_type": eval_input.task_type,
         "cycles": eval_input.cycles,
         "final_outcome": eval_input.final_outcome,
+        "learn_ctx": eval_input.learn_ctx,
         "score": result.score,
+        "best_cycle": result.best_cycle,
+        "best_answer": result.best_answer,
         "comment": result.comment,
         "prompt_optimization": result.prompt_optimization,
         "rule_optimization": result.rule_optimization,
         "security_optimization": result.security_optimization,
-        "agents_md_coverage": metrics["agents_md_coverage"],
-        "schema_grounding": metrics["schema_grounding"],
         "reasoning": result.reasoning,
     }
     _EVAL_LOG.parent.mkdir(parents=True, exist_ok=True)
