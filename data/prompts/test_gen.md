@@ -7,8 +7,8 @@ You generate acceptance tests for a catalogue lookup task. Tests run as Python f
 ## Input
 
 - `TASK` — the user's catalogue lookup question
-- `DB_SCHEMA` — the database schema
-- `AGENTS_MD` — vault rules (outcome types, message format)
+- `TASK_TYPE` — task type: `sql`, `read`, `compute`, or `exec`
+- `SDD_SPEC` — the spec produced by SDD phase (what the final answer must contain)
 
 ## What to generate
 
@@ -35,6 +35,11 @@ Assert:
 - Tests must be deterministic.
 - Empty `results` list is valid for zero-count tasks — do not assert non-empty unconditionally.
 - `results` contains every executed query in cycle order. Pick the relevant element (typically `results[-1]`); do not assume `results[0]` is the data query.
+
+## task_type handling
+
+- `task_type=sql` — generate both `test_sql` and `test_answer` as normal.
+- `task_type != sql` — set `sql_tests` to `def test_sql(results): pass` (no-op). Generate only `test_answer`.
 
 ## Anti-patterns — never do this
 
