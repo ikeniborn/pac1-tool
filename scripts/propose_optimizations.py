@@ -362,6 +362,26 @@ def _write_prompt(patch_result: dict, entry: dict, raw_rec: str) -> Path:
     return dest
 
 
+def _flatten_recs(
+    entries: list[dict],
+    channel: str,
+    processed: set[str],
+) -> list[dict]:
+    """Flatten entries to dicts with (entry, rec) pairs, skipping success entries without evaluator.
+
+    Returns list of entry dicts that have unprocessed recs in the given channel.
+    """
+    result = []
+    for entry in entries:
+        # Skip entries with outcome=ok and evaluator=null (no optimization suggestions)
+        if entry.get("outcome") == "ok" and entry.get("evaluator") is None:
+            continue
+        # Collect entries that have recs in this channel and aren't fully processed
+        if entry.get(channel, []):
+            result.append(entry)
+    return result
+
+
 def _dedup_by_content_per_task(
     items: list[tuple[str, dict, str]],
 ) -> tuple[list[tuple[str, dict, str]], list[str]]:
@@ -399,22 +419,26 @@ def main(dry_run: bool = False) -> None:
     new_processed = set(processed)
     written = 0
 
-    # --- Flatten per channel ---
+    # --- Flatten per channel (skips success entries without evaluator) ---
+    flattened_rules = _flatten_recs(entries, "rule_optimization", processed)
+    flattened_security = _flatten_recs(entries, "security_optimization", processed)
+    flattened_prompts = _flatten_recs(entries, "prompt_optimization", processed)
+
     rule_items: list[tuple[str, dict, str]] = [
         (rec, entry, _entry_hash(entry["task_text"], "rule", rec))
-        for entry in entries
+        for entry in flattened_rules
         for rec in entry.get("rule_optimization", [])
         if _entry_hash(entry["task_text"], "rule", rec) not in processed
     ]
     security_items: list[tuple[str, dict, str]] = [
         (rec, entry, _entry_hash(entry["task_text"], "security", rec))
-        for entry in entries
+        for entry in flattened_security
         for rec in entry.get("security_optimization", [])
         if _entry_hash(entry["task_text"], "security", rec) not in processed
     ]
     prompt_items: list[tuple[str, dict, str]] = [
         (rec, entry, _entry_hash(entry["task_text"], "prompt", rec))
-        for entry in entries
+        for entry in flattened_prompts
         for rec in entry.get("prompt_optimization", [])
         if _entry_hash(entry["task_text"], "prompt", rec) not in processed
     ]

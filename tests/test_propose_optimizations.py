@@ -735,3 +735,19 @@ def test_content_hash_dedup_per_task(tmp_path):
         po.main(dry_run=False)
 
     assert mock_val.call_count == 1
+
+
+def test_flatten_skips_success_entries_without_evaluator():
+    """eval_log entries with outcome=ok and evaluator=null must be skipped."""
+    from scripts.propose_optimizations import _flatten_recs
+    entries = [
+        {"task_id": "t01", "task_text": "find X", "outcome": "ok", "evaluator": None,
+         "rule_optimization": [], "security_optimization": [], "prompt_optimization": []},
+        {"task_id": "t02", "task_text": "find Y", "outcome": "fail",
+         "evaluator": {"rule_optimization": ["use LIKE"], "security_optimization": [], "prompt_optimization": [], "score": 0.5},
+         "rule_optimization": ["use LIKE"], "security_optimization": [], "prompt_optimization": []},
+    ]
+    recs = _flatten_recs(entries, channel="rule_optimization", processed=set())
+    task_ids = [r["task_id"] for r in recs]
+    assert "t01" not in task_ids
+    assert "t02" in task_ids
