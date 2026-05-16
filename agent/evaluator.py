@@ -8,7 +8,7 @@ from pathlib import Path
 
 from .llm import call_llm_raw
 from .json_extract import _extract_json_from_text
-from .models import PipelineEvalOutput, SqlPlanOutput
+from .models import PipelineEvalOutput
 from .prompt import load_prompt
 from . import knowledge_loader
 
