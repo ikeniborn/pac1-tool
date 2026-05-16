@@ -63,6 +63,20 @@ _HTTP_TIMEOUT = httpx.Timeout(
     connect=_HTTP_CONNECT_TIMEOUT_S,
 )
 
+# Per-phase model overrides — enable LLM routing by execution phase
+_PHASE_MODEL_MAP: dict[str, str | None] = {
+    "sdd":      os.environ.get("MODEL_SDD") or None,
+    "test_gen": os.environ.get("MODEL_TEST_GEN") or None,
+    "executor": os.environ.get("MODEL_EXECUTOR") or None,
+    "learn":    os.environ.get("MODEL_LEARN") or None,
+    "evaluator": os.environ.get("MODEL_EVALUATOR") or None,
+}
+
+
+def _resolve_model_for_phase(phase: str, default_model: str) -> str:
+    """Return per-phase model from env, or default_model if not configured."""
+    return _PHASE_MODEL_MAP.get(phase) or default_model
+
 # Primary: Anthropic SDK for Claude models
 anthropic_client: anthropic.Anthropic | None = (
     anthropic.Anthropic(api_key=_ANTHROPIC_KEY, timeout=_HTTP_READ_TIMEOUT_S)

@@ -52,3 +52,23 @@ def test_ollama_key_constant_exists_and_fallback():
     # Value must match or-fallback of current env
     expected = os.environ.get("OLLAMA_API_KEY") or "ollama"
     assert llm_mod._OLLAMA_KEY == expected
+
+
+def test_resolve_model_for_phase_uses_env(monkeypatch):
+    import agent.llm as llm
+    monkeypatch.setitem(llm._PHASE_MODEL_MAP, "sdd", "anthropic/claude-haiku-4-5-20251001")
+    result = llm._resolve_model_for_phase("sdd", "anthropic/claude-sonnet-4-6")
+    assert result == "anthropic/claude-haiku-4-5-20251001"
+
+
+def test_resolve_model_for_phase_falls_back_to_default(monkeypatch):
+    import agent.llm as llm
+    monkeypatch.setitem(llm._PHASE_MODEL_MAP, "sdd", None)
+    result = llm._resolve_model_for_phase("sdd", "anthropic/claude-sonnet-4-6")
+    assert result == "anthropic/claude-sonnet-4-6"
+
+
+def test_resolve_model_for_phase_unknown_phase(monkeypatch):
+    import agent.llm as llm
+    result = llm._resolve_model_for_phase("unknown_phase", "anthropic/claude-sonnet-4-6")
+    assert result == "anthropic/claude-sonnet-4-6"
