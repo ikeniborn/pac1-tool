@@ -3,10 +3,25 @@ from typing import Literal
 from pydantic import BaseModel
 
 
-class SqlPlanOutput(BaseModel):
+class PlanStep(BaseModel):
+    type: Literal["sql", "exec", "read", "compute"]
+    description: str
+    query: str | None = None
+    operation: str | None = None
+    args: list[str] = []
+
+
+class SddOutput(BaseModel):
     reasoning: str
-    queries: list[str]
+    spec: str
+    plan: list[PlanStep]
     agents_md_refs: list[str] = []
+
+
+class TestOutput(BaseModel):
+    reasoning: str
+    sql_tests: str
+    answer_tests: str
 
 
 class LearnOutput(BaseModel):
@@ -33,11 +48,18 @@ class PipelineEvalOutput(BaseModel):
     reasoning: str
     score: float
     comment: str
+    best_cycle: int = 0
+    best_answer: str = ""
     prompt_optimization: list[str]
     rule_optimization: list[str]
     security_optimization: list[str] = []
     agents_md_coverage: float = 0.0
     schema_grounding: float = 0.0
+
+
+# Old models kept for backward compatibility during refactor (to be removed in Tasks 2-6)
+SqlPlanOutput = SddOutput
+TestGenOutput = TestOutput
 
 
 class ResolveCandidate(BaseModel):
@@ -50,9 +72,3 @@ class ResolveCandidate(BaseModel):
 class ResolveOutput(BaseModel):
     reasoning: str
     candidates: list[ResolveCandidate]
-
-
-class TestGenOutput(BaseModel):
-    reasoning: str
-    sql_tests: str
-    answer_tests: str
