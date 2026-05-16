@@ -22,7 +22,7 @@ def test_prephase_result_fields():
     fields = {f.name for f in dataclasses.fields(PrephaseResult)}
     assert fields == {
         "agents_md_content", "agents_md_path", "db_schema",
-        "agents_md_index", "schema_digest", "agent_id", "current_date",
+        "agents_md_index", "schema_digest", "agent_id", "current_date", "task_type",
     }
 
 
@@ -310,3 +310,36 @@ def test_merge_ignores_non_create_rows():
     )
     added = merge_schema_from_sqlite_results(digest, [csv_text])
     assert added == []
+
+
+def test_task_type_sql_products():
+    from agent.prephase import _determine_task_type, PrephaseResult
+    pre = PrephaseResult(schema_digest={"tables": {"products": {"columns": []}}})
+    result = _determine_task_type("find SKU ABC-001 in inventory", pre)
+    assert result == "sql"
+
+
+def test_task_type_default_sql():
+    from agent.prephase import _determine_task_type, PrephaseResult
+    pre = PrephaseResult()
+    result = _determine_task_type("do something", pre)
+    assert result == "sql"
+
+
+def test_task_type_read():
+    from agent.prephase import _determine_task_type, PrephaseResult
+    pre = PrephaseResult()
+    result = _determine_task_type("read the file /proc/stores/S01.json", pre)
+    assert result == "read"
+
+
+def test_prephase_result_has_task_type():
+    from agent.prephase import PrephaseResult
+    pre = PrephaseResult(task_type="read")
+    assert pre.task_type == "read"
+
+
+def test_prephase_result_default_task_type():
+    from agent.prephase import PrephaseResult
+    pre = PrephaseResult()
+    assert pre.task_type == "sql"

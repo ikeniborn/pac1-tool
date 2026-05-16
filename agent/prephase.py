@@ -15,6 +15,8 @@ from .llm import CLI_BLUE, CLI_CLR, CLI_GREEN, CLI_YELLOW
 
 _LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
 _SCHEMA_TABLES = ["products", "product_properties", "inventory", "kinds", "carts", "cart_items"]
+_READ_KEYWORDS = ("read the file", "read file", "/proc/", ".json", ".txt", ".csv")
+_COMPUTE_KEYWORDS = ("calculate", "compute", "sum of", "average of")
 
 
 @dataclass
@@ -26,6 +28,7 @@ class PrephaseResult:
     schema_digest: dict = field(default_factory=dict)
     agent_id: str = ""
     current_date: str = ""
+    task_type: str = "sql"
 
 
 def _exec_sql_text(vm: EcomRuntimeClientSync, query: str) -> str:
@@ -145,6 +148,16 @@ def merge_schema_from_sqlite_results(
     return added
 
 
+def _determine_task_type(task_text: str, pre: "PrephaseResult") -> str:
+    """Heuristic task_type detection. Default 'sql' for backward compat."""
+    lower = task_text.lower()
+    if any(kw in lower for kw in _READ_KEYWORDS):
+        return "read"
+    if any(kw in lower for kw in _COMPUTE_KEYWORDS) and not pre.schema_digest.get("tables"):
+        return "compute"
+    return "sql"
+
+
 def _format_schema_digest(sd: dict) -> str:
     lines = []
     for table, info in sd.get("tables", {}).items():
@@ -223,6 +236,8 @@ def run_prephase(
 
     print(f"{CLI_BLUE}[prephase] done{CLI_CLR}")
 
+    task_type = _determine_task_type(task_text, PrephaseResult(schema_digest=schema_digest))
+
     return PrephaseResult(
         agents_md_content=agents_md_content,
         agents_md_path=agents_md_path,
@@ -231,4 +246,5 @@ def run_prephase(
         schema_digest=schema_digest,
         agent_id=agent_id,
         current_date=current_date,
+        task_type=task_type,
     )
